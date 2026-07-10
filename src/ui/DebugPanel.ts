@@ -1,7 +1,7 @@
 import Phaser from 'phaser';
 import {
   TILE_SIZE, MAP_WIDTH, MAP_HEIGHT, PANEL_WIDTH, COLORS,
-  CANVAS_WIDTH, CANVAS_HEIGHT, HUD_HEIGHT,
+  CANVAS_WIDTH, CANVAS_HEIGHT, HUD_HEIGHT, PANEL_X, BOTTOM_HUD_Y,
 } from '../config';
 import { Simulation } from '../core/Simulation';
 import { Settler } from '../entities/Settler';
@@ -10,7 +10,6 @@ import { Dinosaur } from '../entities/Dinosaur';
 import { Resource } from '../entities/Resource';
 import { TileGrid } from '../core/TileGrid';
 
-const PX = MAP_WIDTH * TILE_SIZE;
 const PAD = 14;
 const LINE_H = 26;
 
@@ -32,11 +31,11 @@ export class DebugPanel {
   }
 
   private createBackground(): void {
-    const bg = this.scene.add.rectangle(PX, 0, PANEL_WIDTH, CANVAS_HEIGHT, COLORS.panelBg, 0.95)
+    const bg = this.scene.add.rectangle(PANEL_X, 0, PANEL_WIDTH, CANVAS_HEIGHT, COLORS.panelBg, 0.95)
       .setOrigin(0).setStrokeStyle(1, COLORS.panelBorder);
     this.container.add(bg);
 
-    const title = this.scene.add.text(PX + PAD, PAD, 'DEBUG', {
+    const title = this.scene.add.text(PANEL_X + PAD, PAD, 'DEBUG', {
       fontSize: '20px', color: '#58a6ff', fontFamily: 'monospace',
       fontStyle: 'bold',
     }).setDepth(31);
@@ -44,13 +43,13 @@ export class DebugPanel {
   }
 
   private createButtons(): void {
-    const btnY = CANVAS_HEIGHT - HUD_HEIGHT + 12;
+    const btnY = BOTTOM_HUD_Y + 12;
     const btnStyle: Phaser.Types.GameObjects.Text.TextStyle = {
       fontSize: '18px', color: '#c9d1d9', fontFamily: 'monospace',
       backgroundColor: '#21262d', padding: { x: 10, y: 5 },
     };
 
-    this.pauseBtn = this.scene.add.text(PX + PAD, btnY, '[PAUSE]', btnStyle)
+    this.pauseBtn = this.scene.add.text(PANEL_X + PAD, btnY, '[PAUSE]', btnStyle)
       .setInteractive({ useHandCursor: true }).setDepth(31)
       .on('pointerdown', () => {
         this.paused = !this.paused;
@@ -60,7 +59,7 @@ export class DebugPanel {
     this.container.add(this.pauseBtn);
 
     const speeds = [1, 2, 4];
-    let xOff = PX + PAD + 120;
+    let xOff = PANEL_X + PAD + 120;
     for (const spd of speeds) {
       const btn = this.scene.add.text(xOff, btnY, `×${spd}`, {
         ...btnStyle,
@@ -141,7 +140,7 @@ export class DebugPanel {
   }
 
   private addSection(title: string, y: number): number {
-    const t = this.scene.add.text(PX + PAD, y, `── ${title} ──`, {
+    const t = this.scene.add.text(PANEL_X + PAD, y, `── ${title} ──`, {
       fontSize: '16px', color: '#58a6ff', fontFamily: 'monospace',
       fontStyle: 'bold',
     }).setDepth(31);
@@ -151,7 +150,7 @@ export class DebugPanel {
   }
 
   private addLine(text: string, y: number): number {
-    const t = this.scene.add.text(PX + PAD + 6, y, text, {
+    const t = this.scene.add.text(PANEL_X + PAD + 6, y, text, {
       fontSize: '14px', color: '#c9d1d9', fontFamily: 'monospace',
     }).setDepth(31);
     this.container.add(t);

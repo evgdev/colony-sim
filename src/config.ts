@@ -1,10 +1,18 @@
 export const TILE_SIZE = 50;
-export const MAP_WIDTH = 19;
-export const MAP_HEIGHT = 18;
+export const MAP_WIDTH = 15;
+export const MAP_HEIGHT = 15;
 export const PANEL_WIDTH = 250;
-export const CANVAS_WIDTH = 1200;
+export const LEFT_PANEL_WIDTH = 250;
+export const CANVAS_WIDTH = 1500;
 export const CANVAS_HEIGHT = 900;
-export const HUD_HEIGHT = 100;
+export const HUD_HEIGHT = 150;
+
+export const FIELD_X = LEFT_PANEL_WIDTH;
+export const FIELD_Y = 0;
+export const FIELD_W = MAP_WIDTH * TILE_SIZE;
+export const FIELD_H = MAP_HEIGHT * TILE_SIZE;
+export const PANEL_X = CANVAS_WIDTH - PANEL_WIDTH;
+export const BOTTOM_HUD_Y = FIELD_H;
 
 export const COLORS = {
   grass: 0x4a7c3f,

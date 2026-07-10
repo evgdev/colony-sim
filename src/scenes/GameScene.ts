@@ -1,7 +1,9 @@
 import Phaser from 'phaser';
 import {
   TILE_SIZE, MAP_WIDTH, MAP_HEIGHT, COLORS,
-  CANVAS_WIDTH, CANVAS_HEIGHT, HUD_HEIGHT, PANEL_WIDTH,
+  CANVAS_WIDTH, CANVAS_HEIGHT, HUD_HEIGHT,
+  LEFT_PANEL_WIDTH, FIELD_X, FIELD_Y, FIELD_W, FIELD_H,
+  PANEL_X, BOTTOM_HUD_Y, PANEL_WIDTH,
 } from '../config';
 import { Simulation } from '../core/Simulation';
 import { Settler } from '../entities/Settler';
@@ -38,7 +40,11 @@ export class GameScene extends Phaser.Scene {
 
   private taskLog: string[] = [];
   private taskLogText!: Phaser.GameObjects.Text;
-  private settlerInfoText!: Phaser.GameObjects.Text;
+
+  private leftPanelContainer!: Phaser.GameObjects.Container;
+  private colonistStatusText!: Phaser.GameObjects.Text;
+  private colonistTaskText!: Phaser.GameObjects.Text;
+  private colonistInvText!: Phaser.GameObjects.Text;
 
   private buildMode: BuildingType | null = null;
   private buildButtons: Phaser.GameObjects.Text[] = [];
@@ -47,11 +53,6 @@ export class GameScene extends Phaser.Scene {
   private selectionRect!: Phaser.GameObjects.Rectangle;
   private infoPanel!: Phaser.GameObjects.Container;
   private infoText!: Phaser.GameObjects.Text;
-  private infoButtons: Phaser.GameObjects.Text[] = [];
-
-  private gameFieldWidth = MAP_WIDTH * TILE_SIZE;
-  private gameFieldHeight = MAP_HEIGHT * TILE_SIZE;
-  private panelX = CANVAS_WIDTH - PANEL_WIDTH;
 
   constructor() {
     super({ key: 'GameScene' });
@@ -83,10 +84,10 @@ export class GameScene extends Phaser.Scene {
     this.simulation.tileGrid.setOccupied(centerX, centerY, true);
 
     const resources = [
-      { x: 3, y: 3, type: 'wood', qty: 20 },
-      { x: 14, y: 5, type: 'stone', qty: 15 },
-      { x: 6, y: 13, type: 'wood', qty: 10 },
-      { x: 12, y: 10, type: 'stone', qty: 8 },
+      { x: 2, y: 2, type: 'wood', qty: 20 },
+      { x: 11, y: 3, type: 'stone', qty: 15 },
+      { x: 4, y: 10, type: 'wood', qty: 10 },
+      { x: 9, y: 8, type: 'stone', qty: 8 },
     ];
 
     for (const r of resources) {
@@ -97,20 +98,19 @@ export class GameScene extends Phaser.Scene {
 
     this.drawMap();
     this.drawEntities();
-    this.createHUD();
-    this.createButtons();
-    this.createBuildButtons();
+    this.createLeftPanel();
+    this.createBottomHUD();
     this.createInfoPanel();
     this.debugPanel = new DebugPanel(this);
 
-    this.hoverRect = this.add.rectangle(0, 0, TILE_SIZE, TILE_SIZE)
+    this.hoverRect = this.add.rectangle(FIELD_X, FIELD_Y, TILE_SIZE, TILE_SIZE)
       .setStrokeStyle(2, COLORS.hoverTile)
       .setFillStyle(0xffffff, 0.15)
       .setOrigin(0)
       .setDepth(5)
       .setVisible(false);
 
-    this.selectionRect = this.add.rectangle(0, 0, TILE_SIZE + 4, TILE_SIZE + 4)
+    this.selectionRect = this.add.rectangle(FIELD_X, FIELD_Y, TILE_SIZE + 4, TILE_SIZE + 4)
       .setStrokeStyle(3, 0x00ff00)
       .setFillStyle(0x00ff00, 0.1)
       .setOrigin(0.5)
@@ -120,11 +120,11 @@ export class GameScene extends Phaser.Scene {
     this.pathGraphics = this.add.graphics().setDepth(4);
 
     this.input.on('pointermove', (pointer: Phaser.Input.Pointer) => {
-      const tileX = Math.floor(pointer.x / TILE_SIZE);
-      const tileY = Math.floor(pointer.y / TILE_SIZE);
+      const tileX = Math.floor((pointer.x - FIELD_X) / TILE_SIZE);
+      const tileY = Math.floor((pointer.y - FIELD_Y) / TILE_SIZE);
       const tile = this.simulation.tileGrid.get(tileX, tileY);
-      if (tile) {
-        this.hoverRect.setPosition(tileX * TILE_SIZE, tileY * TILE_SIZE);
+      if (tile && pointer.x >= FIELD_X && pointer.y < FIELD_H) {
+        this.hoverRect.setPosition(FIELD_X + tileX * TILE_SIZE, FIELD_Y + tileY * TILE_SIZE);
         this.hoverRect.setVisible(true);
       } else {
         this.hoverRect.setVisible(false);
@@ -132,9 +132,10 @@ export class GameScene extends Phaser.Scene {
     });
 
     this.input.on('pointerdown', (pointer: Phaser.Input.Pointer) => {
-      if (pointer.y >= this.gameFieldHeight) return;
-      const tileX = Math.floor(pointer.x / TILE_SIZE);
-      const tileY = Math.floor(pointer.y / TILE_SIZE);
+      if (pointer.x < FIELD_X || pointer.x >= FIELD_X + FIELD_W) return;
+      if (pointer.y >= FIELD_H) return;
+      const tileX = Math.floor((pointer.x - FIELD_X) / TILE_SIZE);
+      const tileY = Math.floor((pointer.y - FIELD_Y) / TILE_SIZE);
       this.handleTileClick(tileX, tileY);
     });
   }
@@ -156,45 +157,85 @@ export class GameScene extends Phaser.Scene {
     }
     this.drawEntities();
     this.drawPath();
-    this.updateHUD();
+    this.updateLeftPanel();
     this.updateSelection();
     this.updateInfoPanel();
     this.debugPanel.update(this.simulation);
   }
 
-  private createHUD(): void {
-    const panelY = this.gameFieldHeight;
-    this.add.rectangle(0, panelY, CANVAS_WIDTH, HUD_HEIGHT, COLORS.uiPanel, 0.95)
-      .setOrigin(0).setDepth(20);
-    this.add.rectangle(0, panelY, CANVAS_WIDTH, 2, COLORS.settler, 0.5)
-      .setOrigin(0).setDepth(21);
+  private createLeftPanel(): void {
+    this.leftPanelContainer = this.add.container(0, 0).setDepth(20);
 
-    this.settlerInfoText = this.add.text(12, panelY + 10, '', {
-      fontSize: '16px', color: '#e0e0e0', fontFamily: 'monospace',
-      wordWrap: { width: this.gameFieldWidth - 24 },
-    }).setDepth(22);
+    const bg = this.add.rectangle(0, 0, LEFT_PANEL_WIDTH, CANVAS_HEIGHT, COLORS.panelBg, 0.95)
+      .setOrigin(0).setStrokeStyle(1, COLORS.panelBorder);
+    this.leftPanelContainer.add(bg);
 
-    this.taskLogText = this.add.text(12, panelY + 55, 'Click tile = move, click resource = collect, click building = select', {
-      fontSize: '14px', color: '#888888', fontFamily: 'monospace',
-      wordWrap: { width: this.gameFieldWidth - 24 },
-    }).setDepth(22);
+    const title = this.add.text(14, 12, 'COLONY STATUS', {
+      fontSize: '18px', color: '#58a6ff', fontFamily: 'monospace',
+      fontStyle: 'bold',
+    });
+    this.leftPanelContainer.add(title);
+
+    const line1 = this.add.rectangle(14, 38, LEFT_PANEL_WIDTH - 28, 1, COLORS.panelBorder, 0.5)
+      .setOrigin(0);
+    this.leftPanelContainer.add(line1);
+
+    this.colonistStatusText = this.add.text(14, 48, '', {
+      fontSize: '14px', color: '#c9d1d9', fontFamily: 'monospace',
+      wordWrap: { width: LEFT_PANEL_WIDTH - 28 },
+      lineSpacing: 4,
+    });
+    this.leftPanelContainer.add(this.colonistStatusText);
+
+    this.colonistTaskText = this.add.text(14, 200, '', {
+      fontSize: '14px', color: '#c9d1d9', fontFamily: 'monospace',
+      wordWrap: { width: LEFT_PANEL_WIDTH - 28 },
+      lineSpacing: 4,
+    });
+    this.leftPanelContainer.add(this.colonistTaskText);
+
+    this.colonistInvText = this.add.text(14, 350, '', {
+      fontSize: '14px', color: '#c9d1d9', fontFamily: 'monospace',
+      wordWrap: { width: LEFT_PANEL_WIDTH - 28 },
+      lineSpacing: 4,
+    });
+    this.leftPanelContainer.add(this.colonistInvText);
+
+    const logTitle = this.add.text(14, CANVAS_HEIGHT - 220, '── ACTION LOG ──', {
+      fontSize: '14px', color: '#58a6ff', fontFamily: 'monospace',
+      fontStyle: 'bold',
+    });
+    this.leftPanelContainer.add(logTitle);
+
+    this.taskLogText = this.add.text(14, CANVAS_HEIGHT - 195, '', {
+      fontSize: '13px', color: '#8b949e', fontFamily: 'monospace',
+      wordWrap: { width: LEFT_PANEL_WIDTH - 28 },
+      lineSpacing: 3,
+    });
+    this.leftPanelContainer.add(this.taskLogText);
+
+    this.addLog('Colony founded!');
   }
 
-  private createButtons(): void {
-    const panelY = this.gameFieldHeight;
+  private createBottomHUD(): void {
+    this.add.rectangle(FIELD_X, BOTTOM_HUD_Y, FIELD_W, HUD_HEIGHT, COLORS.uiPanel, 0.95)
+      .setOrigin(0).setDepth(20);
+    this.add.rectangle(FIELD_X, BOTTOM_HUD_Y, FIELD_W, 2, COLORS.settler, 0.5)
+      .setOrigin(0).setDepth(21);
+
     const btnStyle: Phaser.Types.GameObjects.Text.TextStyle = {
-      fontSize: '18px', color: '#ffd700', fontFamily: 'monospace',
+      fontSize: '16px', color: '#ffd700', fontFamily: 'monospace',
       backgroundColor: '#16213e', padding: { x: 8, y: 4 },
     };
 
-    this.add.text(this.panelX - 200, panelY + 10, '[SAVE]', btnStyle)
+    this.add.text(FIELD_X + 10, BOTTOM_HUD_Y + 10, '[SAVE]', btnStyle)
       .setInteractive({ useHandCursor: true }).setDepth(22)
       .on('pointerdown', () => {
         SaveManager.save(this.simulation);
         this.addLog('Game saved!');
       });
 
-    this.add.text(this.panelX - 130, panelY + 10, '[LOAD]', btnStyle)
+    this.add.text(FIELD_X + 80, BOTTOM_HUD_Y + 10, '[LOAD]', btnStyle)
       .setInteractive({ useHandCursor: true }).setDepth(22)
       .on('pointerdown', () => {
         const loaded = SaveManager.load();
@@ -228,22 +269,22 @@ export class GameScene extends Phaser.Scene {
         }
       });
 
-    this.add.text(this.panelX - 60, panelY + 10, '[CLEAR]', btnStyle)
+    this.add.text(FIELD_X + 150, BOTTOM_HUD_Y + 10, '[CLEAR]', btnStyle)
       .setInteractive({ useHandCursor: true }).setDepth(22)
       .on('pointerdown', () => {
         SaveManager.deleteSave();
         this.addLog('Save cleared.');
       });
+
+    this.createBuildButtons();
   }
 
   private createBuildButtons(): void {
-    const panelY = this.gameFieldHeight;
     const types = Object.keys(buildingsData) as BuildingType[];
-    const startX = 12;
-    const btnY = panelY + 65;
+    const btnY = BOTTOM_HUD_Y + 50;
 
-    const cancelBtn = this.add.text(startX, btnY, '[X]', {
-      fontSize: '16px', color: '#ff4444', fontFamily: 'monospace',
+    const cancelBtn = this.add.text(FIELD_X + 10, btnY, '[X]', {
+      fontSize: '14px', color: '#ff4444', fontFamily: 'monospace',
       backgroundColor: '#16213e', padding: { x: 6, y: 3 },
     }).setInteractive({ useHandCursor: true }).setDepth(22)
       .on('pointerdown', () => {
@@ -252,12 +293,12 @@ export class GameScene extends Phaser.Scene {
       });
     this.buildButtons.push(cancelBtn);
 
-    let xOff = 45;
+    let xOff = FIELD_X + 45;
     for (const type of types) {
       const def = (buildingsData as any)[type];
       const reqStr = Object.entries(def.requires).map(([k, v]) => `${k}:${v}`).join(' ');
-      const btn = this.add.text(startX + xOff, btnY, `[${def.name}] ${reqStr}`, {
-        fontSize: '16px', color: '#44cc44', fontFamily: 'monospace',
+      const btn = this.add.text(xOff, btnY, `[${def.name}] ${reqStr}`, {
+        fontSize: '14px', color: '#44cc44', fontFamily: 'monospace',
         backgroundColor: '#16213e', padding: { x: 6, y: 3 },
       }).setInteractive({ useHandCursor: true }).setDepth(22)
         .on('pointerdown', () => {
@@ -287,8 +328,8 @@ export class GameScene extends Phaser.Scene {
   }
 
   private createInfoPanel(): void {
-    const px = this.panelX - 230;
-    const py = this.gameFieldHeight - 140;
+    const px = FIELD_X + FIELD_W - 230;
+    const py = FIELD_H - 140;
 
     this.infoPanel = this.add.container(px, py).setDepth(25).setVisible(false);
 
@@ -297,7 +338,7 @@ export class GameScene extends Phaser.Scene {
     this.infoPanel.add(bg);
 
     this.infoText = this.add.text(10, 8, '', {
-      fontSize: '16px', color: '#e0e0e0', fontFamily: 'monospace',
+      fontSize: '14px', color: '#e0e0e0', fontFamily: 'monospace',
       wordWrap: { width: 205 },
     });
     this.infoPanel.add(this.infoText);
@@ -350,30 +391,47 @@ export class GameScene extends Phaser.Scene {
       return;
     }
     this.selectionRect.setPosition(
-      this.selectedBuilding.x * TILE_SIZE + TILE_SIZE / 2,
-      this.selectedBuilding.y * TILE_SIZE + TILE_SIZE / 2
+      FIELD_X + this.selectedBuilding.x * TILE_SIZE + TILE_SIZE / 2,
+      FIELD_Y + this.selectedBuilding.y * TILE_SIZE + TILE_SIZE / 2
     );
     this.selectionRect.setVisible(true);
   }
 
-  private updateHUD(): void {
+  private updateLeftPanel(): void {
     const settlers = this.simulation.entityManager.getByType('settler') as Settler[];
     if (settlers.length > 0) {
       const s = settlers[0];
       const taskStr = s.currentTaskId ? 'Working...' : 'Idle';
-      const invStr = s.inventory.map(i => `${i.resourceType}:${i.quantity}`).join(', ') || 'empty';
-      const buildStr = this.buildMode ? `  BUILD: ${(buildingsData as any)[this.buildMode].name}` : '';
-      this.settlerInfoText.setText(
-        `${s.name}  Pos: ${s.x},${s.y}  Hunger: ${Math.round(s.hunger)}%  Energy: ${Math.round(s.energy)}%${buildStr}\n` +
-        `Inv: [${invStr}]  ${taskStr}  Tick: ${this.simulation.tickCount}`
+      const invItems = s.inventory.map(i => `${i.resourceType}: ${i.quantity}`).join('\n') || '  (empty)';
+      const buildStr = this.buildMode ? `\nBUILD: ${(buildingsData as any)[this.buildMode].name}` : '';
+
+      this.colonistStatusText.setText(
+        `Name: ${s.name}\n` +
+        `Pos: ${s.x},${s.y}\n` +
+        `Hunger: ${Math.round(s.hunger)}%\n` +
+        `Energy: ${Math.round(s.energy)}%\n` +
+        `Tick: ${this.simulation.tickCount}` +
+        buildStr
+      );
+
+      this.colonistTaskText.setText(
+        `── TASK ──\n` +
+        `Status: ${taskStr}\n` +
+        `Task ID: ${s.currentTaskId ?? 'none'}\n` +
+        `Path len: ${s.path.length}`
+      );
+
+      this.colonistInvText.setText(
+        `── INVENTORY ──\n` +
+        invItems
       );
     }
   }
 
   private addLog(msg: string): void {
     this.taskLog.push(msg);
-    if (this.taskLog.length > 4) this.taskLog.shift();
-    this.taskLogText.setText('Tasks:\n' + this.taskLog.join('\n'));
+    if (this.taskLog.length > 8) this.taskLog.shift();
+    this.taskLogText.setText(this.taskLog.join('\n'));
   }
 
   private drawMap(): void {
@@ -383,7 +441,7 @@ export class GameScene extends Phaser.Scene {
         const tile = this.simulation.tileGrid.get(x, y)!;
         const color = COLORS[tile.type as keyof typeof COLORS] || 0x333333;
         const rect = this.add.rectangle(
-          x * TILE_SIZE, y * TILE_SIZE,
+          FIELD_X + x * TILE_SIZE, FIELD_Y + y * TILE_SIZE,
           TILE_SIZE, TILE_SIZE, color
         ).setOrigin(0).setStrokeStyle(1, 0x222222);
         this.tileSprites[y][x] = rect;
@@ -409,8 +467,8 @@ export class GameScene extends Phaser.Scene {
 
     for (const entity of this.simulation.entityManager.getAll()) {
       const g = this.add.graphics();
-      const cx = entity.x * TILE_SIZE + TILE_SIZE / 2;
-      const cy = entity.y * TILE_SIZE + TILE_SIZE / 2;
+      const cx = FIELD_X + entity.x * TILE_SIZE + TILE_SIZE / 2;
+      const cy = FIELD_Y + entity.y * TILE_SIZE + TILE_SIZE / 2;
 
       if (entity.entityType === 'settler') {
         const settler = entity as Settler;
@@ -421,14 +479,14 @@ export class GameScene extends Phaser.Scene {
 
         this.entityTexts.push(
           this.add.text(cx, cy - TILE_SIZE / 2 - 10, settler.name, {
-            fontSize: '16px', color: '#ffd700', fontFamily: 'monospace',
+            fontSize: '14px', color: '#ffd700', fontFamily: 'monospace',
           }).setOrigin(0.5).setDepth(10)
         );
 
         const barWidth = TILE_SIZE - 4;
         const barHeight = 5;
-        const barX = entity.x * TILE_SIZE + 2;
-        const barY = entity.y * TILE_SIZE - 8;
+        const barX = FIELD_X + entity.x * TILE_SIZE + 2;
+        const barY = FIELD_Y + entity.y * TILE_SIZE - 8;
 
         g.fillStyle(0x333333, 0.8);
         g.fillRect(barX, barY, barWidth, barHeight);
@@ -453,7 +511,7 @@ export class GameScene extends Phaser.Scene {
 
         this.entityTexts.push(
           this.add.text(cx, cy + TILE_SIZE / 4 + 6, `${res.resourceType} ${res.quantity}`, {
-            fontSize: '14px', color: '#ff6347', fontFamily: 'monospace',
+            fontSize: '13px', color: '#ff6347', fontFamily: 'monospace',
           }).setOrigin(0.5, 0).setDepth(10)
         );
       } else if (entity.entityType === 'building') {
@@ -504,7 +562,7 @@ export class GameScene extends Phaser.Scene {
         };
         this.entityTexts.push(
           this.add.text(cx, cy - r - 8, `${dino.species}`, {
-            fontSize: '14px', color: stateColors[dino.state] ?? '#ffffff', fontFamily: 'monospace',
+            fontSize: '13px', color: stateColors[dino.state] ?? '#ffffff', fontFamily: 'monospace',
           }).setOrigin(0.5).setDepth(10)
         );
 
@@ -531,14 +589,14 @@ export class GameScene extends Phaser.Scene {
         this.pathGraphics.lineStyle(2, COLORS.pathHighlight, 0.6);
         this.pathGraphics.beginPath();
         this.pathGraphics.moveTo(
-          settler.x * TILE_SIZE + TILE_SIZE / 2,
-          settler.y * TILE_SIZE + TILE_SIZE / 2
+          FIELD_X + settler.x * TILE_SIZE + TILE_SIZE / 2,
+          FIELD_Y + settler.y * TILE_SIZE + TILE_SIZE / 2
         );
         for (let i = settler.pathIndex; i < settler.path.length; i++) {
           const p = settler.path[i];
           this.pathGraphics.lineTo(
-            p.x * TILE_SIZE + TILE_SIZE / 2,
-            p.y * TILE_SIZE + TILE_SIZE / 2
+            FIELD_X + p.x * TILE_SIZE + TILE_SIZE / 2,
+            FIELD_Y + p.y * TILE_SIZE + TILE_SIZE / 2
           );
         }
         this.pathGraphics.strokePath();
