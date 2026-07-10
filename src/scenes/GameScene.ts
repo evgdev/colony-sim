@@ -15,6 +15,7 @@ import { WorkSystem } from '../systems/WorkSystem';
 import { NeedsSystem } from '../systems/NeedsSystem';
 import { BuildingSystem } from '../systems/BuildingSystem';
 import { DinosaurSystem } from '../systems/DinosaurSystem';
+import { CombatSystem } from '../systems/CombatSystem';
 import { TaskPriority } from '../core/Task';
 import { SaveManager } from '../core/SaveManager';
 import { DebugPanel } from '../ui/DebugPanel';
@@ -30,6 +31,7 @@ export class GameScene extends Phaser.Scene {
   needsSystem!: NeedsSystem;
   buildingSystem!: BuildingSystem;
   dinosaurSystem!: DinosaurSystem;
+  combatSystem!: CombatSystem;
   debugPanel!: DebugPanel;
 
   private entityGraphics: Phaser.GameObjects.Graphics[] = [];
@@ -73,6 +75,11 @@ export class GameScene extends Phaser.Scene {
       this.simulation.tileGrid
     );
     this.dinosaurSystem = new DinosaurSystem(
+      this.simulation.entityManager,
+      this.simulation.tileGrid,
+      (name) => this.addLog(`${name} was killed!`)
+    );
+    this.combatSystem = new CombatSystem(
       this.simulation.entityManager,
       this.simulation.tileGrid
     );
@@ -153,6 +160,14 @@ export class GameScene extends Phaser.Scene {
         this.workSystem.update(td);
         this.buildingSystem.update(td);
         this.dinosaurSystem.update(td);
+        const combatEvents = this.combatSystem.update(td);
+        for (const e of combatEvents) {
+          if (e.type === 'settler_attack') {
+            this.addLog(`${e.attacker} attacks ${e.defender} (-${e.damage}hp)${e.killed ? ' KILLED!' : ''}`);
+          } else if (e.type === 'dino_vs_dino') {
+            this.addLog(`${e.attacker} vs ${e.defender} (-${e.damage}hp)${e.killed ? ' KILLED!' : ''}`);
+          }
+        }
       }
     }
     this.drawEntities();
@@ -251,7 +266,8 @@ export class GameScene extends Phaser.Scene {
             this.simulation.entityManager, this.simulation.tileGrid
           );
           this.dinosaurSystem = new DinosaurSystem(
-            this.simulation.entityManager, this.simulation.tileGrid
+            this.simulation.entityManager, this.simulation.tileGrid,
+            (name) => this.addLog(`${name} was killed!`)
           );
           const settlers = this.simulation.entityManager.getByType('settler') as Settler[];
           for (const s of settlers) {
@@ -408,6 +424,7 @@ export class GameScene extends Phaser.Scene {
       this.colonistStatusText.setText(
         `Name: ${s.name}\n` +
         `Pos: ${s.x},${s.y}\n` +
+        `HP: ${Math.round(s.hp)}/${s.maxHp}\n` +
         `Hunger: ${Math.round(s.hunger)}%\n` +
         `Energy: ${Math.round(s.energy)}%\n` +
         `Tick: ${this.simulation.tickCount}` +
@@ -492,6 +509,11 @@ export class GameScene extends Phaser.Scene {
         g.fillRect(barX, barY, barWidth, barHeight);
         g.fillStyle(0x22cc22, 1);
         g.fillRect(barX, barY, barWidth * (settler.hunger / 100), barHeight);
+
+        g.fillStyle(0x333333, 0.8);
+        g.fillRect(barX, barY - barHeight - 2, barWidth, barHeight);
+        g.fillStyle(0xff3333, 1);
+        g.fillRect(barX, barY - barHeight - 2, barWidth * (settler.hp / settler.maxHp), barHeight);
 
         g.fillStyle(0x333333, 0.8);
         g.fillRect(barX, barY + barHeight + 2, barWidth, barHeight);

@@ -11,10 +11,12 @@ export class DinosaurSystem {
   private spawnTimer: number = 0;
   private spawnInterval: number = 30;
   private maxDinosaurs: number = 6;
+  private onSettlerDeath?: (name: string) => void;
 
-  constructor(entityManager: EntityManager, tileGrid: TileGrid) {
+  constructor(entityManager: EntityManager, tileGrid: TileGrid, onSettlerDeath?: (name: string) => void) {
     this.entityManager = entityManager;
     this.tileGrid = tileGrid;
+    this.onSettlerDeath = onSettlerDeath;
   }
 
   update(tickDelta: number): void {
@@ -32,6 +34,15 @@ export class DinosaurSystem {
     const dead = dinos.filter(d => !d.isAlive);
     for (const d of dead) {
       this.entityManager.remove(d.id);
+      this.tileGrid.setOccupied(d.x, d.y, false);
+    }
+
+    const settlers = this.entityManager.getByType('settler') as Settler[];
+    const deadSettlers = settlers.filter(s => !s.isAlive);
+    for (const s of deadSettlers) {
+      this.entityManager.remove(s.id);
+      this.tileGrid.setOccupied(s.x, s.y, false);
+      this.onSettlerDeath?.(s.name);
     }
   }
 
@@ -39,14 +50,23 @@ export class DinosaurSystem {
     dino.stateTimer += tickDelta;
     dino.idleTime += tickDelta;
 
+    if (dino.attackCooldown > 0) {
+      dino.attackCooldown -= tickDelta;
+    }
+
     const nearestSettler = this.findNearestSettler(dino);
     const distToSettler = nearestSettler
       ? Math.abs(dino.x - nearestSettler.x) + Math.abs(dino.y - nearestSettler.y)
       : Infinity;
 
+    const inAttackRange = nearestSettler && distToSettler <= 1;
+
     switch (dino.state) {
       case 'idle':
-        if (distToSettler <= dino.aggroRange && nearestSettler) {
+        if (inAttackRange) {
+          dino.state = 'attack';
+          dino.stateTimer = 0;
+        } else if (distToSettler <= dino.aggroRange && nearestSettler) {
           dino.state = 'investigate';
           dino.stateTimer = 0;
         } else if (dino.idleTime > 3 + Math.random() * 4) {
@@ -58,6 +78,12 @@ export class DinosaurSystem {
         break;
 
       case 'wander':
+        if (inAttackRange) {
+          dino.state = 'attack';
+          dino.stateTimer = 0;
+          dino.wanderTarget = null;
+          break;
+        }
         if (distToSettler <= dino.aggroRange && nearestSettler) {
           dino.state = 'investigate';
           dino.stateTimer = 0;
@@ -82,6 +108,11 @@ export class DinosaurSystem {
         break;
 
       case 'investigate':
+        if (inAttackRange) {
+          dino.state = 'attack';
+          dino.stateTimer = 0;
+          break;
+        }
         if (nearestSettler && distToSettler <= dino.aggroRange) {
           this.moveToward(dino, nearestSettler, dino.speed * tickDelta);
           dino.stateTimer = 0;
@@ -93,6 +124,23 @@ export class DinosaurSystem {
         if (dino.stateTimer > 15) {
           dino.state = 'idle';
           dino.stateTimer = 0;
+        }
+        break;
+
+      case 'attack':
+        if (!nearestSettler || distToSettler > 1) {
+          dino.state = 'wander';
+          dino.wanderTarget = this.getRandomWalkableTile();
+          dino.stateTimer = 0;
+          break;
+        }
+        if (dino.attackCooldown <= 0) {
+          const died = nearestSettler.takeDamage(dino.attackDamage);
+          dino.attackCooldown = 1.0;
+          if (died) {
+            dino.state = 'idle';
+            dino.stateTimer = 0;
+          }
         }
         break;
     }
@@ -124,6 +172,7 @@ export class DinosaurSystem {
     let nearest: Settler | null = null;
     let minDist = Infinity;
     for (const s of settlers) {
+      if (!s.isAlive) continue;
       const dist = Math.abs(dino.x - s.x) + Math.abs(dino.y - s.y);
       if (dist < minDist) {
         minDist = dist;
@@ -157,7 +206,7 @@ export class DinosaurSystem {
 
     const dino = new Dinosaur(
       spawnPoint.x, spawnPoint.y, species,
-      def.hp, def.speed, def.aggroRange, def.size
+      def.hp, def.speed, def.aggroRange, def.size, def.attackDamage
     );
     this.entityManager.add(dino);
     this.tileGrid.setOccupied(spawnPoint.x, spawnPoint.y, true);

@@ -1,6 +1,6 @@
 import { Entity } from '../core/Entity';
 
-export type DinosaurState = 'wander' | 'investigate' | 'flee' | 'idle';
+export type DinosaurState = 'wander' | 'investigate' | 'flee' | 'idle' | 'attack';
 
 export class Dinosaur extends Entity {
   species: string;
@@ -8,19 +8,22 @@ export class Dinosaur extends Entity {
   maxHp: number;
   speed: number;
   aggroRange: number;
+  attackDamage: number;
+  attackCooldown: number = 0;
   size: number;
   state: DinosaurState = 'idle';
   wanderTarget: { x: number; y: number } | null = null;
   stateTimer: number = 0;
   idleTime: number = 0;
 
-  constructor(x: number, y: number, species: string, maxHp: number, speed: number, aggroRange: number, size: number) {
+  constructor(x: number, y: number, species: string, maxHp: number, speed: number, aggroRange: number, size: number, attackDamage: number = 10) {
     super('dinosaur', x, y);
     this.species = species;
     this.maxHp = maxHp;
     this.hp = maxHp;
     this.speed = speed;
     this.aggroRange = aggroRange;
+    this.attackDamage = attackDamage;
     this.size = size;
   }
 
@@ -40,6 +43,7 @@ export class Dinosaur extends Entity {
       maxHp: this.maxHp,
       speed: this.speed,
       aggroRange: this.aggroRange,
+      attackDamage: this.attackDamage,
       size: this.size,
       state: this.state,
       wanderTarget: this.wanderTarget,
@@ -49,7 +53,7 @@ export class Dinosaur extends Entity {
   }
 
   static deserialize(data: any): Dinosaur {
-    const d = new Dinosaur(data.x, data.y, data.species, data.maxHp, data.speed, data.aggroRange, data.size);
+    const d = new Dinosaur(data.x, data.y, data.species, data.maxHp, data.speed, data.aggroRange, data.size, data.attackDamage);
     d.id = data.id;
     d.hp = data.hp;
     d.state = data.state ?? 'idle';

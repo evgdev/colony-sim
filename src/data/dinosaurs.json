@@ -5,6 +5,7 @@
     "hp": 200,
     "speed": 1,
     "aggroRange": 5,
+    "attackDamage": 50,
     "size": 1.4,
     "description": "Apex predator. Slow but devastating."
   },
@@ -14,6 +15,7 @@
     "hp": 60,
     "speed": 3,
     "aggroRange": 4,
+    "attackDamage": 15,
     "size": 0.8,
     "description": "Fast and agile pack hunter."
   },
@@ -23,6 +25,7 @@
     "hp": 300,
     "speed": 1,
     "aggroRange": 2,
+    "attackDamage": 5,
     "size": 1.8,
     "description": "Gentle giant. Avoids conflict."
   },
@@ -32,6 +35,7 @@
     "hp": 40,
     "speed": 4,
     "aggroRange": 6,
+    "attackDamage": 10,
     "size": 0.7,
     "description": "Flies overhead. Swoops down to investigate."
   }
