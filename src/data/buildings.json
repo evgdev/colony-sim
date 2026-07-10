@@ -1,0 +1,39 @@
+{
+  "house": {
+    "name": "House",
+    "color": 8947848,
+    "maxHp": 100,
+    "buildTime": 10,
+    "requires": { "wood": 8, "stone": 3 },
+    "hungerReduction": 0.5,
+    "description": "Reduces hunger drain when settler is nearby"
+  },
+  "warehouse": {
+    "name": "Warehouse",
+    "color": 7829367,
+    "maxHp": 120,
+    "buildTime": 12,
+    "requires": { "wood": 10, "stone": 5 },
+    "storageCapacity": 50,
+    "description": "Stores resources. Settler auto-delivers here."
+  },
+  "farm": {
+    "name": "Farm",
+    "color": 5025616,
+    "maxHp": 60,
+    "buildTime": 8,
+    "requires": { "wood": 6 },
+    "produceType": "food",
+    "produceRate": 2,
+    "produceInterval": 5,
+    "description": "Produces food every 5 ticks"
+  },
+  "workshop": {
+    "name": "Workshop",
+    "color": 5592405,
+    "maxHp": 150,
+    "buildTime": 15,
+    "requires": { "wood": 12, "stone": 8 },
+    "description": "Enables advanced crafting (coming soon)"
+  }
+}
