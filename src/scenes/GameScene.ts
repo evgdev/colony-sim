@@ -1,16 +1,23 @@
 import Phaser from 'phaser';
-import { TILE_SIZE, MAP_WIDTH, MAP_HEIGHT, COLORS } from '../config';
+import {
+  TILE_SIZE, MAP_WIDTH, MAP_HEIGHT, COLORS,
+  CANVAS_WIDTH, CANVAS_HEIGHT, HUD_HEIGHT, PANEL_WIDTH,
+} from '../config';
 import { Simulation } from '../core/Simulation';
 import { Settler } from '../entities/Settler';
 import { Resource } from '../entities/Resource';
 import { Building } from '../entities/Building';
+import { Dinosaur } from '../entities/Dinosaur';
 import { MovementSystem } from '../systems/MovementSystem';
 import { WorkSystem } from '../systems/WorkSystem';
 import { NeedsSystem } from '../systems/NeedsSystem';
 import { BuildingSystem } from '../systems/BuildingSystem';
+import { DinosaurSystem } from '../systems/DinosaurSystem';
 import { TaskPriority } from '../core/Task';
 import { SaveManager } from '../core/SaveManager';
+import { DebugPanel } from '../ui/DebugPanel';
 import buildingsData from '../data/buildings.json';
+import dinosaursData from '../data/dinosaurs.json';
 
 type BuildingType = keyof typeof buildingsData;
 
@@ -20,6 +27,8 @@ export class GameScene extends Phaser.Scene {
   workSystem!: WorkSystem;
   needsSystem!: NeedsSystem;
   buildingSystem!: BuildingSystem;
+  dinosaurSystem!: DinosaurSystem;
+  debugPanel!: DebugPanel;
 
   private entityGraphics: Phaser.GameObjects.Graphics[] = [];
   private entityTexts: Phaser.GameObjects.Text[] = [];
@@ -40,6 +49,10 @@ export class GameScene extends Phaser.Scene {
   private infoText!: Phaser.GameObjects.Text;
   private infoButtons: Phaser.GameObjects.Text[] = [];
 
+  private gameFieldWidth = MAP_WIDTH * TILE_SIZE;
+  private gameFieldHeight = MAP_HEIGHT * TILE_SIZE;
+  private panelX = CANVAS_WIDTH - PANEL_WIDTH;
+
   constructor() {
     super({ key: 'GameScene' });
   }
@@ -58,16 +71,22 @@ export class GameScene extends Phaser.Scene {
       this.simulation.entityManager,
       this.simulation.tileGrid
     );
+    this.dinosaurSystem = new DinosaurSystem(
+      this.simulation.entityManager,
+      this.simulation.tileGrid
+    );
 
-    const settler = new Settler(10, 7, 'Worker');
+    const centerX = Math.floor(MAP_WIDTH / 2);
+    const centerY = Math.floor(MAP_HEIGHT / 2);
+    const settler = new Settler(centerX, centerY, 'Worker');
     this.simulation.entityManager.add(settler);
-    this.simulation.tileGrid.setOccupied(10, 7, true);
+    this.simulation.tileGrid.setOccupied(centerX, centerY, true);
 
     const resources = [
-      { x: 3, y: 2, type: 'wood', qty: 20 },
-      { x: 15, y: 4, type: 'stone', qty: 15 },
-      { x: 7, y: 10, type: 'wood', qty: 10 },
-      { x: 12, y: 8, type: 'stone', qty: 8 },
+      { x: 3, y: 3, type: 'wood', qty: 20 },
+      { x: 14, y: 5, type: 'stone', qty: 15 },
+      { x: 6, y: 13, type: 'wood', qty: 10 },
+      { x: 12, y: 10, type: 'stone', qty: 8 },
     ];
 
     for (const r of resources) {
@@ -82,6 +101,7 @@ export class GameScene extends Phaser.Scene {
     this.createButtons();
     this.createBuildButtons();
     this.createInfoPanel();
+    this.debugPanel = new DebugPanel(this);
 
     this.hoverRect = this.add.rectangle(0, 0, TILE_SIZE, TILE_SIZE)
       .setStrokeStyle(2, COLORS.hoverTile)
@@ -112,7 +132,7 @@ export class GameScene extends Phaser.Scene {
     });
 
     this.input.on('pointerdown', (pointer: Phaser.Input.Pointer) => {
-      if (pointer.y >= MAP_HEIGHT * TILE_SIZE) return;
+      if (pointer.y >= this.gameFieldHeight) return;
       const tileX = Math.floor(pointer.x / TILE_SIZE);
       const tileY = Math.floor(pointer.y / TILE_SIZE);
       this.handleTileClick(tileX, tileY);
@@ -120,55 +140,61 @@ export class GameScene extends Phaser.Scene {
   }
 
   update(time: number, delta: number): void {
-    const ticked = this.simulation.update(delta);
-    if (ticked) {
-      this.needsSystem.update(
-        this.simulation.entityManager.getByType('settler') as Settler[],
-        this.simulation.tickRate / 1000
-      );
-      this.workSystem.update(this.simulation.tickRate / 1000);
-      this.buildingSystem.update(this.simulation.tickRate / 1000);
+    if (!this.debugPanel.paused) {
+      const adjustedDelta = delta * this.debugPanel.speed;
+      const ticked = this.simulation.update(adjustedDelta);
+      if (ticked) {
+        const td = (this.simulation.tickRate / 1000) * this.debugPanel.speed;
+        this.needsSystem.update(
+          this.simulation.entityManager.getByType('settler') as Settler[],
+          td
+        );
+        this.workSystem.update(td);
+        this.buildingSystem.update(td);
+        this.dinosaurSystem.update(td);
+      }
     }
     this.drawEntities();
     this.drawPath();
     this.updateHUD();
     this.updateSelection();
     this.updateInfoPanel();
+    this.debugPanel.update(this.simulation);
   }
 
   private createHUD(): void {
-    const panelY = MAP_HEIGHT * TILE_SIZE;
-    this.add.rectangle(0, panelY, MAP_WIDTH * TILE_SIZE, 80, COLORS.uiPanel, 0.95)
+    const panelY = this.gameFieldHeight;
+    this.add.rectangle(0, panelY, CANVAS_WIDTH, HUD_HEIGHT, COLORS.uiPanel, 0.95)
       .setOrigin(0).setDepth(20);
-    this.add.rectangle(0, panelY, MAP_WIDTH * TILE_SIZE, 2, COLORS.settler, 0.5)
+    this.add.rectangle(0, panelY, CANVAS_WIDTH, 2, COLORS.settler, 0.5)
       .setOrigin(0).setDepth(21);
 
-    this.settlerInfoText = this.add.text(10, panelY + 8, '', {
-      fontSize: '11px', color: '#e0e0e0', fontFamily: 'monospace',
-      wordWrap: { width: MAP_WIDTH * TILE_SIZE - 20 },
+    this.settlerInfoText = this.add.text(12, panelY + 10, '', {
+      fontSize: '16px', color: '#e0e0e0', fontFamily: 'monospace',
+      wordWrap: { width: this.gameFieldWidth - 24 },
     }).setDepth(22);
 
-    this.taskLogText = this.add.text(10, panelY + 40, 'Click tile = move, click resource = collect, click building = select', {
-      fontSize: '10px', color: '#888888', fontFamily: 'monospace',
-      wordWrap: { width: MAP_WIDTH * TILE_SIZE - 20 },
+    this.taskLogText = this.add.text(12, panelY + 55, 'Click tile = move, click resource = collect, click building = select', {
+      fontSize: '14px', color: '#888888', fontFamily: 'monospace',
+      wordWrap: { width: this.gameFieldWidth - 24 },
     }).setDepth(22);
   }
 
   private createButtons(): void {
-    const panelY = MAP_HEIGHT * TILE_SIZE;
+    const panelY = this.gameFieldHeight;
     const btnStyle: Phaser.Types.GameObjects.Text.TextStyle = {
-      fontSize: '12px', color: '#ffd700', fontFamily: 'monospace',
-      backgroundColor: '#16213e', padding: { x: 6, y: 3 },
+      fontSize: '18px', color: '#ffd700', fontFamily: 'monospace',
+      backgroundColor: '#16213e', padding: { x: 8, y: 4 },
     };
 
-    this.add.text(MAP_WIDTH * TILE_SIZE - 200, panelY + 8, '[SAVE]', btnStyle)
+    this.add.text(this.panelX - 200, panelY + 10, '[SAVE]', btnStyle)
       .setInteractive({ useHandCursor: true }).setDepth(22)
       .on('pointerdown', () => {
         SaveManager.save(this.simulation);
         this.addLog('Game saved!');
       });
 
-    this.add.text(MAP_WIDTH * TILE_SIZE - 140, panelY + 8, '[LOAD]', btnStyle)
+    this.add.text(this.panelX - 130, panelY + 10, '[LOAD]', btnStyle)
       .setInteractive({ useHandCursor: true }).setDepth(22)
       .on('pointerdown', () => {
         const loaded = SaveManager.load();
@@ -181,6 +207,9 @@ export class GameScene extends Phaser.Scene {
             this.simulation.entityManager, this.simulation.taskQueue
           );
           this.buildingSystem = new BuildingSystem(
+            this.simulation.entityManager, this.simulation.tileGrid
+          );
+          this.dinosaurSystem = new DinosaurSystem(
             this.simulation.entityManager, this.simulation.tileGrid
           );
           const settlers = this.simulation.entityManager.getByType('settler') as Settler[];
@@ -199,7 +228,7 @@ export class GameScene extends Phaser.Scene {
         }
       });
 
-    this.add.text(MAP_WIDTH * TILE_SIZE - 80, panelY + 8, '[CLEAR]', btnStyle)
+    this.add.text(this.panelX - 60, panelY + 10, '[CLEAR]', btnStyle)
       .setInteractive({ useHandCursor: true }).setDepth(22)
       .on('pointerdown', () => {
         SaveManager.deleteSave();
@@ -208,14 +237,14 @@ export class GameScene extends Phaser.Scene {
   }
 
   private createBuildButtons(): void {
-    const panelY = MAP_HEIGHT * TILE_SIZE;
+    const panelY = this.gameFieldHeight;
     const types = Object.keys(buildingsData) as BuildingType[];
-    const startX = 10;
-    const btnY = panelY + 55;
+    const startX = 12;
+    const btnY = panelY + 65;
 
     const cancelBtn = this.add.text(startX, btnY, '[X]', {
-      fontSize: '10px', color: '#ff4444', fontFamily: 'monospace',
-      backgroundColor: '#16213e', padding: { x: 4, y: 2 },
+      fontSize: '16px', color: '#ff4444', fontFamily: 'monospace',
+      backgroundColor: '#16213e', padding: { x: 6, y: 3 },
     }).setInteractive({ useHandCursor: true }).setDepth(22)
       .on('pointerdown', () => {
         this.buildMode = null;
@@ -223,13 +252,13 @@ export class GameScene extends Phaser.Scene {
       });
     this.buildButtons.push(cancelBtn);
 
-    let xOff = 35;
+    let xOff = 45;
     for (const type of types) {
       const def = (buildingsData as any)[type];
       const reqStr = Object.entries(def.requires).map(([k, v]) => `${k}:${v}`).join(' ');
       const btn = this.add.text(startX + xOff, btnY, `[${def.name}] ${reqStr}`, {
-        fontSize: '10px', color: '#44cc44', fontFamily: 'monospace',
-        backgroundColor: '#16213e', padding: { x: 4, y: 2 },
+        fontSize: '16px', color: '#44cc44', fontFamily: 'monospace',
+        backgroundColor: '#16213e', padding: { x: 6, y: 3 },
       }).setInteractive({ useHandCursor: true }).setDepth(22)
         .on('pointerdown', () => {
           this.selectedBuilding = null;
@@ -240,7 +269,7 @@ export class GameScene extends Phaser.Scene {
           this.addLog(`Build: ${def.name} — click a tile`);
         });
       this.buildButtons.push(btn);
-      xOff += btn.width + 6;
+      xOff += btn.width + 8;
     }
   }
 
@@ -258,18 +287,18 @@ export class GameScene extends Phaser.Scene {
   }
 
   private createInfoPanel(): void {
-    const panelX = MAP_WIDTH * TILE_SIZE - 220;
-    const panelY = MAP_HEIGHT * TILE_SIZE - 120;
+    const px = this.panelX - 230;
+    const py = this.gameFieldHeight - 140;
 
-    this.infoPanel = this.add.container(panelX, panelY).setDepth(25).setVisible(false);
+    this.infoPanel = this.add.container(px, py).setDepth(25).setVisible(false);
 
-    const bg = this.add.rectangle(0, 0, 215, 115, 0x0a0a2e, 0.95)
+    const bg = this.add.rectangle(0, 0, 225, 135, 0x0a0a2e, 0.95)
       .setOrigin(0).setStrokeStyle(1, 0x44cc44);
     this.infoPanel.add(bg);
 
-    this.infoText = this.add.text(8, 6, '', {
-      fontSize: '10px', color: '#e0e0e0', fontFamily: 'monospace',
-      wordWrap: { width: 200 },
+    this.infoText = this.add.text(10, 8, '', {
+      fontSize: '16px', color: '#e0e0e0', fontFamily: 'monospace',
+      wordWrap: { width: 205 },
     });
     this.infoPanel.add(this.infoText);
   }
@@ -391,15 +420,15 @@ export class GameScene extends Phaser.Scene {
         g.strokeCircle(cx, cy, TILE_SIZE / 3);
 
         this.entityTexts.push(
-          this.add.text(cx, cy - TILE_SIZE / 2 - 8, settler.name, {
-            fontSize: '10px', color: '#ffd700', fontFamily: 'monospace',
+          this.add.text(cx, cy - TILE_SIZE / 2 - 10, settler.name, {
+            fontSize: '16px', color: '#ffd700', fontFamily: 'monospace',
           }).setOrigin(0.5).setDepth(10)
         );
 
         const barWidth = TILE_SIZE - 4;
-        const barHeight = 4;
+        const barHeight = 5;
         const barX = entity.x * TILE_SIZE + 2;
-        const barY = entity.y * TILE_SIZE - 6;
+        const barY = entity.y * TILE_SIZE - 8;
 
         g.fillStyle(0x333333, 0.8);
         g.fillRect(barX, barY, barWidth, barHeight);
@@ -407,13 +436,13 @@ export class GameScene extends Phaser.Scene {
         g.fillRect(barX, barY, barWidth * (settler.hunger / 100), barHeight);
 
         g.fillStyle(0x333333, 0.8);
-        g.fillRect(barX, barY + barHeight + 1, barWidth, barHeight);
+        g.fillRect(barX, barY + barHeight + 2, barWidth, barHeight);
         g.fillStyle(0x2299ff, 1);
-        g.fillRect(barX, barY + barHeight + 1, barWidth * (settler.energy / 100), barHeight);
+        g.fillRect(barX, barY + barHeight + 2, barWidth * (settler.energy / 100), barHeight);
 
         if (settler.inventory.length > 0) {
           g.fillStyle(0xffaa00, 0.9);
-          g.fillRect(cx + TILE_SIZE / 4, cy - TILE_SIZE / 4, 6, 6);
+          g.fillRect(cx + TILE_SIZE / 4, cy - TILE_SIZE / 4, 8, 8);
         }
       } else if (entity.entityType === 'resource') {
         const res = entity as Resource;
@@ -423,8 +452,8 @@ export class GameScene extends Phaser.Scene {
         g.strokeRect(cx - TILE_SIZE / 4, cy - TILE_SIZE / 4, TILE_SIZE / 2, TILE_SIZE / 2);
 
         this.entityTexts.push(
-          this.add.text(cx, cy + TILE_SIZE / 4 + 4, `${res.resourceType} ${res.quantity}`, {
-            fontSize: '8px', color: '#ff6347', fontFamily: 'monospace',
+          this.add.text(cx, cy + TILE_SIZE / 4 + 6, `${res.resourceType} ${res.quantity}`, {
+            fontSize: '14px', color: '#ff6347', fontFamily: 'monospace',
           }).setOrigin(0.5, 0).setDepth(10)
         );
       } else if (entity.entityType === 'building') {
@@ -438,27 +467,55 @@ export class GameScene extends Phaser.Scene {
 
         const name = (buildingsData as any)[bld.buildingType]?.name ?? bld.buildingType;
         this.entityTexts.push(
-          this.add.text(cx, cy + TILE_SIZE / 3 + 2, name, {
-            fontSize: '7px', color: '#ffffff', fontFamily: 'monospace',
+          this.add.text(cx, cy + TILE_SIZE / 3 + 4, name, {
+            fontSize: '12px', color: '#ffffff', fontFamily: 'monospace',
           }).setOrigin(0.5, 0).setDepth(10)
         );
 
         if (!bld.built) {
           const barX = cx - TILE_SIZE / 3;
-          const barY = cy - TILE_SIZE / 3 - 5;
+          const barY = cy - TILE_SIZE / 3 - 6;
           const barW = (TILE_SIZE / 1.5);
           g.fillStyle(0x333333, 0.8);
-          g.fillRect(barX, barY, barW, 3);
+          g.fillRect(barX, barY, barW, 4);
           g.fillStyle(0xffcc00, 1);
-          g.fillRect(barX, barY, barW * bld.progressPercent, 3);
+          g.fillRect(barX, barY, barW * bld.progressPercent, 4);
         } else if (bld.storageCapacity > 0 && bld.storageUsed > 0) {
           const barX = cx - TILE_SIZE / 3;
-          const barY = cy - TILE_SIZE / 3 - 5;
+          const barY = cy - TILE_SIZE / 3 - 6;
           const barW = (TILE_SIZE / 1.5);
           g.fillStyle(0x333333, 0.8);
-          g.fillRect(barX, barY, barW, 3);
+          g.fillRect(barX, barY, barW, 4);
           g.fillStyle(0x44aaff, 1);
-          g.fillRect(barX, barY, barW * (bld.storageUsed / bld.storageCapacity), 3);
+          g.fillRect(barX, barY, barW * (bld.storageUsed / bld.storageCapacity), 4);
+        }
+      } else if (entity.entityType === 'dinosaur') {
+        const dino = entity as Dinosaur;
+        const def = (dinosaursData as any)[dino.species];
+        const color = def?.color ?? COLORS.dinosaur;
+        const r = (TILE_SIZE / 3) * dino.size;
+        g.fillStyle(color, 0.9);
+        g.fillCircle(cx, cy, r);
+        g.lineStyle(2, 0x000000);
+        g.strokeCircle(cx, cy, r);
+
+        const stateColors: Record<string, string> = {
+          idle: '#888888', wander: '#ffaa00', investigate: '#ff4444', flee: '#44ff44',
+        };
+        this.entityTexts.push(
+          this.add.text(cx, cy - r - 8, `${dino.species}`, {
+            fontSize: '14px', color: stateColors[dino.state] ?? '#ffffff', fontFamily: 'monospace',
+          }).setOrigin(0.5).setDepth(10)
+        );
+
+        if (dino.hp < dino.maxHp) {
+          const barW = r * 2;
+          const barX = cx - r;
+          const barY = cy + r + 4;
+          g.fillStyle(0x333333, 0.8);
+          g.fillRect(barX, barY, barW, 4);
+          g.fillStyle(0xff3333, 1);
+          g.fillRect(barX, barY, barW * (dino.hp / dino.maxHp), 4);
         }
       }
 

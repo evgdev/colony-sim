@@ -1,0 +1,38 @@
+{
+  "trex": {
+    "name": "T-Rex",
+    "color": 13400320,
+    "hp": 200,
+    "speed": 1,
+    "aggroRange": 5,
+    "size": 1.4,
+    "description": "Apex predator. Slow but devastating."
+  },
+  "raptor": {
+    "name": "Raptor",
+    "color": 11141290,
+    "hp": 60,
+    "speed": 3,
+    "aggroRange": 4,
+    "size": 0.8,
+    "description": "Fast and agile pack hunter."
+  },
+  "brontosaur": {
+    "name": "Brontosaur",
+    "color": 6724096,
+    "hp": 300,
+    "speed": 1,
+    "aggroRange": 2,
+    "size": 1.8,
+    "description": "Gentle giant. Avoids conflict."
+  },
+  "pterodactyl": {
+    "name": "Pterodactyl",
+    "color": 12632319,
+    "hp": 40,
+    "speed": 4,
+    "aggroRange": 6,
+    "size": 0.7,
+    "description": "Flies overhead. Swoops down to investigate."
+  }
+}
