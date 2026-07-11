@@ -383,10 +383,10 @@ export class GameScene extends Phaser.Scene {
 
     this.input.on('pointermove', (pointer: Phaser.Input.Pointer) => {
       const tileX = Math.floor((pointer.x - FIELD_X) / TILE_SIZE);
-      const tileY = Math.floor((pointer.y - FIELD_Y) / TILE_SIZE);
+      const tileY = Math.floor((pointer.y - FIELD_Y) / TILE_SIZE) + 1;
       const tile = this.simulation.tileGrid.get(tileX, tileY);
       if (tile && pointer.x >= FIELD_X && pointer.x < FIELD_X + FIELD_W && pointer.y >= FIELD_Y && pointer.y < FIELD_Y + FIELD_H) {
-        this.hoverRect.setPosition(FIELD_X + tileX * TILE_SIZE, FIELD_Y + tileY * TILE_SIZE);
+        this.hoverRect.setPosition(FIELD_X + tileX * TILE_SIZE, FIELD_Y + (tileY - 1) * TILE_SIZE);
         this.hoverRect.setVisible(true);
       } else {
         this.hoverRect.setVisible(false);
@@ -397,7 +397,7 @@ export class GameScene extends Phaser.Scene {
       if (pointer.x < FIELD_X || pointer.x >= FIELD_X + FIELD_W) return;
       if (pointer.y < FIELD_Y || pointer.y >= FIELD_Y + FIELD_H) return;
       const tileX = Math.floor((pointer.x - FIELD_X) / TILE_SIZE);
-      const tileY = Math.floor((pointer.y - FIELD_Y) / TILE_SIZE);
+      const tileY = Math.floor((pointer.y - FIELD_Y) / TILE_SIZE) + 1;
       this.handleTileClick(tileX, tileY);
     });
 
@@ -568,15 +568,10 @@ export class GameScene extends Phaser.Scene {
     const evBg = this.add.rectangle(FIELD_X, 0, FIELD_W, EVENT_HEIGHT, 0x0a0a2e, 0.95)
       .setOrigin(0).setStrokeStyle(1, COLORS.panelBorder).setDepth(20);
 
-    const evTitle = this.add.text(FIELD_X + 8, 4, `\u2500\u2500 ${languageManager.ui.events} \u2500\u2500`, {
-      fontSize: '14px', color: '#ff6347', fontFamily: 'monospace',
-      fontStyle: 'bold',
-    }).setDepth(21);
-
-    this.eventText = this.add.text(FIELD_X + 8, 24, '', {
-      fontSize: '13px', color: '#c9d1d9', fontFamily: 'monospace',
+    this.eventText = this.add.text(FIELD_X + 8, 8, '', {
+      fontSize: '14px', color: '#c9d1d9', fontFamily: 'monospace',
       wordWrap: { width: FIELD_W - 16 },
-      lineSpacing: 3,
+      lineSpacing: 4,
     }).setDepth(21);
   }
 
