@@ -4,6 +4,7 @@ import { MovementSystem } from './MovementSystem';
 import { Settler } from '../entities/Settler';
 import { Resource } from '../entities/Resource';
 import { Building } from '../entities/Building';
+import { Artifact } from '../entities/Artifact';
 import { Task, TaskType, TaskPriority } from '../core/Task';
 import { TaskQueue } from '../core/TaskQueue';
 
@@ -62,6 +63,9 @@ export class WorkSystem {
         break;
       case TaskType.Harvest:
         this.executePickUp(settler, task, tickDelta);
+        break;
+      case TaskType.PickUpArtifact:
+        this.executePickUpArtifact(settler, task, tickDelta);
         break;
       default:
         task.completed = true;
@@ -211,6 +215,60 @@ export class WorkSystem {
     ) as Building | undefined;
   }
 
+  private findArtifactAt(x: number, y: number): Artifact | undefined {
+    return this.entityManager.getAll().find(
+      e => e.entityType === 'artifact' && e.x === x && e.y === y
+    ) as Artifact | undefined;
+  }
+
+  private executePickUpArtifact(settler: Settler, task: Task, tickDelta: number): void {
+    if (settler.path.length === 0 || settler.pathIndex === 0) {
+      const artifact = this.findArtifactAt(task.targetX, task.targetY);
+      if (!artifact) {
+        task.completed = true;
+        return;
+      }
+
+      if (settler.x === task.targetX && settler.y === task.targetY) {
+        settler.addToInventory({
+          name: artifact.name,
+          quantity: 1,
+          resourceType: 'artifact',
+        });
+        this.entityManager.remove(artifact.id);
+        this.tileGrid.setOccupied(task.targetX, task.targetY, false);
+        task.completed = true;
+        return;
+      }
+
+      const path = this.movementSystem.findPath(settler.x, settler.y, task.targetX, task.targetY);
+      if (path.length <= 1) {
+        task.completed = true;
+        return;
+      }
+      settler.path = path;
+      settler.pathIndex = 1;
+    }
+
+    settler.pathIndex = this.movementSystem.stepAlongPath(settler, settler.path, settler.pathIndex);
+
+    if (settler.pathIndex >= settler.path.length) {
+      const artifact = this.findArtifactAt(task.targetX, task.targetY);
+      if (artifact) {
+        settler.addToInventory({
+          name: artifact.name,
+          quantity: 1,
+          resourceType: 'artifact',
+        });
+        this.entityManager.remove(artifact.id);
+        this.tileGrid.setOccupied(task.targetX, task.targetY, false);
+      }
+      task.completed = true;
+      settler.path = [];
+      settler.pathIndex = 0;
+    }
+  }
+
   createMoveTask(targetX: number, targetY: number, priority: TaskPriority = TaskPriority.Normal): Task {
     const task = new Task({
       type: TaskType.MoveTo,
@@ -241,6 +299,17 @@ export class WorkSystem {
       targetX: building.x,
       targetY: building.y,
       buildingId: `${building.id}`,
+    });
+    this.taskQueue.add(task);
+    return task;
+  }
+
+  createPickUpArtifactTask(artifact: Artifact, priority: TaskPriority = TaskPriority.Normal): Task {
+    const task = new Task({
+      type: TaskType.PickUpArtifact,
+      priority,
+      targetX: artifact.x,
+      targetY: artifact.y,
     });
     this.taskQueue.add(task);
     return task;

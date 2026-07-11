@@ -9,6 +9,8 @@ export interface CombatEvent {
   defender: string;
   damage: number;
   killed: boolean;
+  killedAt?: { x: number; y: number };
+  killedSpecies?: string;
 }
 
 const PREDATOR_SPECIES = ['trex', 'raptor'];
@@ -46,13 +48,16 @@ export class CombatSystem {
         const damage = 10;
         nearestDino.takeDamage(damage);
         settler.attackCooldown = 1.0;
+        const killed = !nearestDino.isAlive;
 
         this.events.push({
           type: 'settler_attack',
           attacker: settler.name,
           defender: nearestDino.species,
           damage,
-          killed: !nearestDino.isAlive,
+          killed,
+          killedAt: killed ? { x: nearestDino.x, y: nearestDino.y } : undefined,
+          killedSpecies: killed ? nearestDino.species : undefined,
         });
       }
     }

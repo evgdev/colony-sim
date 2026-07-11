@@ -4,6 +4,7 @@ export enum TaskType {
   Build = 'build',
   Repair = 'repair',
   Harvest = 'harvest',
+  PickUpArtifact = 'pick_up_artifact',
 }
 
 export enum TaskPriority {

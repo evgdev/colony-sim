@@ -10,6 +10,7 @@ import { Settler } from '../entities/Settler';
 import { Resource } from '../entities/Resource';
 import { Building } from '../entities/Building';
 import { Dinosaur } from '../entities/Dinosaur';
+import { Artifact } from '../entities/Artifact';
 import { Entity } from '../core/Entity';
 import { MovementSystem } from '../systems/MovementSystem';
 import { WorkSystem } from '../systems/WorkSystem';
@@ -74,7 +75,6 @@ export class GameScene extends Phaser.Scene {
   private milestonesShown: Set<string> = new Set();
 
   private eventText!: Phaser.GameObjects.Text;
-  private eventLog: string[] = [];
 
   constructor() {
     super({ key: 'GameScene' });
@@ -281,7 +281,6 @@ export class GameScene extends Phaser.Scene {
     this.children.removeAll(true);
     this.gameOver = false;
     this.taskLog = [];
-    this.eventLog = [];
     this.thoughtIndex = 0;
     this.thoughtTimer = 0;
     this.milestonesShown.clear();
@@ -422,11 +421,20 @@ export class GameScene extends Phaser.Scene {
               .replace('{attacker}', e.attacker)
               .replace('{defender}', e.defender);
             this.addLog(msg);
-            if (e.killed) {
+            if (e.killed && e.killedAt && e.killedSpecies) {
               const deathLines = languageManager.narrative.combat.settlerDeath;
               const deathMsg = deathLines[Math.floor(Math.random() * deathLines.length)]
                 .replace('{name}', e.attacker);
               this.addLog(deathMsg);
+
+              const artifactName = `${e.killedSpecies} tooth`;
+              const artifact = new Artifact(e.killedAt.x, e.killedAt.y, 'trophy', artifactName);
+              this.simulation.entityManager.add(artifact);
+              this.simulation.tileGrid.setOccupied(e.killedAt.x, e.killedAt.y, true);
+
+              const achieveMsg = `${e.attacker} earned achievement: T-Rex Killer!`;
+              this.addEvent(achieveMsg);
+              this.addLog(achieveMsg);
             }
           } else if (e.type === 'dino_vs_dino') {
             const lines = languageManager.narrative.combat.dinoAttack;
@@ -567,9 +575,7 @@ export class GameScene extends Phaser.Scene {
   }
 
   private addEvent(msg: string): void {
-    this.eventLog.push(msg);
-    if (this.eventLog.length > 3) this.eventLog.shift();
-    this.eventText.setText(this.eventLog.join('\n'));
+    this.eventText.setText(msg);
   }
 
   private createBottomHUD(): void {
@@ -848,6 +854,13 @@ export class GameScene extends Phaser.Scene {
           `${languageManager.ui.infoAggro}: ${dino.aggroRange}`,
         ];
         this.collectBtn.setVisible(false);
+      } else if (e.entityType === 'artifact') {
+        const artifact = e as Artifact;
+        lines = [
+          `${artifact.name}`,
+          `${languageManager.ui.infoType}: ${artifact.artifactType}`,
+        ];
+        this.collectBtn.setVisible(true);
       }
       this.infoText.setText(lines.join('\n'));
     }
@@ -918,13 +931,20 @@ export class GameScene extends Phaser.Scene {
   }
 
   private handleCollect(): void {
-    if (!this.selectedEntity || this.selectedEntity.entityType !== 'resource') return;
-    const res = this.selectedEntity as Resource;
-    this.workSystem.createPickUpTask(res, TaskPriority.High);
-    this.addLog(`${languageManager.ui.logHarvesting} ${res.resourceType} ${languageManager.ui.logFrom}...`);
-    const settler = this.simulation.entityManager.getByType('settler')[0] as Settler;
-    if (settler && settler.inventory.length === 0) {
-      this.checkMilestone('firstResource');
+    if (!this.selectedEntity) return;
+
+    if (this.selectedEntity.entityType === 'resource') {
+      const res = this.selectedEntity as Resource;
+      this.workSystem.createPickUpTask(res, TaskPriority.High);
+      this.addLog(`${languageManager.ui.logHarvesting} ${res.resourceType} ${languageManager.ui.logFrom}...`);
+      const settler = this.simulation.entityManager.getByType('settler')[0] as Settler;
+      if (settler && settler.inventory.length === 0) {
+        this.checkMilestone('firstResource');
+      }
+    } else if (this.selectedEntity.entityType === 'artifact') {
+      const artifact = this.selectedEntity as Artifact;
+      this.workSystem.createPickUpArtifactTask(artifact, TaskPriority.High);
+      this.addLog(`Picking up ${artifact.name}...`);
     }
     this.deselectAll();
   }
@@ -1169,6 +1189,20 @@ export class GameScene extends Phaser.Scene {
           g.fillStyle(0xff3333, 1);
           g.fillRect(barX, barY, barW * (dino.hp / dino.maxHp), 4);
         }
+      } else if (entity.entityType === 'artifact') {
+        const artifact = entity as Artifact;
+        g.fillStyle(0xffd700, 0.9);
+        g.fillCircle(cx, cy, 10);
+        g.fillStyle(0xffaa00, 0.9);
+        g.fillCircle(cx, cy, 6);
+        g.lineStyle(2, 0x000000);
+        g.strokeCircle(cx, cy, 10);
+
+        this.entityTexts.push(
+          this.add.text(cx, cy + 14, artifact.name, {
+            fontSize: '11px', color: '#ffd700', fontFamily: 'monospace',
+          }).setOrigin(0.5, 0).setDepth(10)
+        );
       }
 
       this.entityGraphics.push(g);
@@ -1226,7 +1260,7 @@ export class GameScene extends Phaser.Scene {
     }
 
     const entityAtTile = this.simulation.entityManager.getAll().find(
-      e => (e.entityType === 'resource' || e.entityType === 'dinosaur') && e.x === tileX && e.y === tileY
+      e => (e.entityType === 'resource' || e.entityType === 'dinosaur' || e.entityType === 'artifact') && e.x === tileX && e.y === tileY
     );
 
     if (entityAtTile) {
@@ -1240,6 +1274,9 @@ export class GameScene extends Phaser.Scene {
       } else if (entityAtTile.entityType === 'dinosaur') {
         const dino = entityAtTile as Dinosaur;
         this.addLog(`${languageManager.ui.selected}: ${dino.species} (${dino.state})`);
+      } else if (entityAtTile.entityType === 'artifact') {
+        const artifact = entityAtTile as Artifact;
+        this.addLog(`${languageManager.ui.selected}: ${artifact.name}`);
       }
       return;
     }
