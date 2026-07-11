@@ -45,6 +45,8 @@ export class MapRenderer {
   private drawTileTransitions(): void {
     const g = this.scene.add.graphics().setDepth(1);
     const tileSize = TILE_SIZE;
+    const STEP = 2;
+    const SAMPLE_STEP = 8;
 
     const getColor = (type: string): number => {
       if (type === 'water') return 0x3b7dd8;
@@ -66,6 +68,16 @@ export class MapRenderer {
     const seededRandom = (x: number, y: number, seed: number): number => {
       const n = Math.sin(x * 12.9898 + y * 78.233 + seed * 43.1234) * 43758.5453;
       return n - Math.floor(n);
+    };
+
+    const lerp = (a: number, b: number, t: number): number => a + (b - a) * t;
+
+    const sampleDepths = (x: number, y: number, seed: number, count: number): number[] => {
+      const depths: number[] = [];
+      for (let i = 0; i <= count; i++) {
+        depths.push(Math.floor(seededRandom(x, y + i * SAMPLE_STEP, seed) * 14) + 2);
+      }
+      return depths;
     };
 
     for (let y = 1; y < MAP_HEIGHT; y++) {
@@ -94,28 +106,57 @@ export class MapRenderer {
           const neighborPriority = priority[neighbor.type] ?? 0;
           if (myPriority <= neighborPriority) continue;
 
-          g.fillStyle(c, 1);
           const seed2 = seed + n.seedOff;
+          const sampleCount = Math.ceil(tileSize / SAMPLE_STEP);
+          const depths = sampleDepths(x, y, seed2, sampleCount);
 
           if (n.dx === 1) {
-            for (let dy = 0; dy < tileSize; dy += 4) {
-              const depth = Math.floor(seededRandom(x, dy, seed2) * 14) + 2;
-              g.fillRect(px + tileSize, py + dy, depth, 4);
+            for (let dy = 0; dy < tileSize; dy += STEP) {
+              const idx = dy / SAMPLE_STEP;
+              const i = Math.floor(idx);
+              const t = idx - i;
+              const d1 = depths[i] ?? depths[depths.length - 1];
+              const d2 = depths[Math.min(i + 1, depths.length - 1)];
+              const depth = lerp(d1, d2, t);
+              const alpha = 1.0 - (dy / tileSize) * 0.6;
+              g.fillStyle(c, alpha);
+              g.fillRect(px + tileSize, py + dy, depth, STEP);
             }
           } else if (n.dy === 1) {
-            for (let dx = 0; dx < tileSize; dx += 4) {
-              const depth = Math.floor(seededRandom(dx, y, seed2) * 14) + 2;
-              g.fillRect(px + dx, py + tileSize, 4, depth);
+            for (let dx = 0; dx < tileSize; dx += STEP) {
+              const idx = dx / SAMPLE_STEP;
+              const i = Math.floor(idx);
+              const t = idx - i;
+              const d1 = depths[i] ?? depths[depths.length - 1];
+              const d2 = depths[Math.min(i + 1, depths.length - 1)];
+              const depth = lerp(d1, d2, t);
+              const alpha = 1.0 - (dx / tileSize) * 0.6;
+              g.fillStyle(c, alpha);
+              g.fillRect(px + dx, py + tileSize, STEP, depth);
             }
           } else if (n.dx === -1) {
-            for (let dy = 0; dy < tileSize; dy += 4) {
-              const depth = Math.floor(seededRandom(x, dy, seed2) * 14) + 2;
-              g.fillRect(px - depth, py + dy, depth, 4);
+            for (let dy = 0; dy < tileSize; dy += STEP) {
+              const idx = dy / SAMPLE_STEP;
+              const i = Math.floor(idx);
+              const t = idx - i;
+              const d1 = depths[i] ?? depths[depths.length - 1];
+              const d2 = depths[Math.min(i + 1, depths.length - 1)];
+              const depth = lerp(d1, d2, t);
+              const alpha = 1.0 - (dy / tileSize) * 0.6;
+              g.fillStyle(c, alpha);
+              g.fillRect(px - depth, py + dy, depth, STEP);
             }
           } else if (n.dy === -1) {
-            for (let dx = 0; dx < tileSize; dx += 4) {
-              const depth = Math.floor(seededRandom(dx, y, seed2) * 14) + 2;
-              g.fillRect(px + dx, py - depth, 4, depth);
+            for (let dx = 0; dx < tileSize; dx += STEP) {
+              const idx = dx / SAMPLE_STEP;
+              const i = Math.floor(idx);
+              const t = idx - i;
+              const d1 = depths[i] ?? depths[depths.length - 1];
+              const d2 = depths[Math.min(i + 1, depths.length - 1)];
+              const depth = lerp(d1, d2, t);
+              const alpha = 1.0 - (dx / tileSize) * 0.6;
+              g.fillStyle(c, alpha);
+              g.fillRect(px + dx, py - depth, STEP, depth);
             }
           }
         }
