@@ -65,7 +65,6 @@ export class GameScene extends Phaser.Scene {
   private infoPanel!: Phaser.GameObjects.Container;
   private infoText!: Phaser.GameObjects.Text;
   private collectBtn!: Phaser.GameObjects.Text;
-  private toastManager!: ToastManager;
 
   private gameOver: boolean = false;
   private gameOverContainer!: Phaser.GameObjects.Container;
@@ -320,7 +319,6 @@ export class GameScene extends Phaser.Scene {
           const msg = spawns[Math.floor(Math.random() * spawns.length)];
           this.addLog(msg);
           this.addEvent(msg);
-          this.toastManager.show(msg);
         }
       }
     );
@@ -354,7 +352,6 @@ export class GameScene extends Phaser.Scene {
     this.drawMap();
     this.createEventArea();
     this.drawEntities();
-    this.toastManager = new ToastManager(this);
     this.createLeftPanel();
     this.createActionLog();
     this.createBottomHUD();
@@ -363,7 +360,6 @@ export class GameScene extends Phaser.Scene {
 
     this.addLog(languageManager.narrative.intro[0] + ` [${languageManager.ui.day} 1]`);
     this.addEvent(languageManager.narrative.intro[1]);
-    this.toastManager.show(languageManager.narrative.intro[1]);
 
     this.hoverRect = this.add.rectangle(FIELD_X, FIELD_Y, TILE_SIZE, TILE_SIZE)
       .setStrokeStyle(2, COLORS.hoverTile)
@@ -426,13 +422,11 @@ export class GameScene extends Phaser.Scene {
               .replace('{attacker}', e.attacker)
               .replace('{defender}', e.defender);
             this.addLog(msg);
-            this.addEvent(msg);
             if (e.killed) {
               const deathLines = languageManager.narrative.combat.settlerDeath;
               const deathMsg = deathLines[Math.floor(Math.random() * deathLines.length)]
                 .replace('{name}', e.attacker);
               this.addLog(deathMsg);
-              this.addEvent(deathMsg);
             }
           } else if (e.type === 'dino_vs_dino') {
             const lines = languageManager.narrative.combat.dinoAttack;
@@ -440,13 +434,11 @@ export class GameScene extends Phaser.Scene {
               .replace('{attacker}', e.attacker)
               .replace('{defender}', e.defender);
             this.addLog(msg);
-            this.addEvent(msg);
             if (e.killed) {
               const deathLines = languageManager.narrative.combat.dinoDeath;
               const deathMsg = deathLines[Math.floor(Math.random() * deathLines.length)]
                 .replace('{species}', e.defender);
               this.addLog(deathMsg);
-              this.addEvent(deathMsg);
             }
           }
         }
@@ -480,7 +472,6 @@ export class GameScene extends Phaser.Scene {
     if (lines && lines.length > 0) {
       this.milestonesShown.add(key);
       const msg = lines[Math.floor(Math.random() * lines.length)];
-      this.toastManager.show(msg);
       this.addLog(msg);
     }
   }
