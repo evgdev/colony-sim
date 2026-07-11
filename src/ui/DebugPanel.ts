@@ -9,6 +9,7 @@ import { Building } from '../entities/Building';
 import { Dinosaur } from '../entities/Dinosaur';
 import { Resource } from '../entities/Resource';
 import { TileGrid } from '../core/TileGrid';
+import { languageManager } from '../data/LanguageManager';
 
 const PAD = 14;
 const LINE_H = 26;
@@ -35,7 +36,7 @@ export class DebugPanel {
       .setOrigin(0).setStrokeStyle(1, COLORS.panelBorder);
     this.container.add(bg);
 
-    const title = this.scene.add.text(PANEL_X + PAD, PAD, 'DEBUG', {
+    const title = this.scene.add.text(PANEL_X + PAD, PAD, languageManager.ui.debug, {
       fontSize: '20px', color: '#58a6ff', fontFamily: 'monospace',
       fontStyle: 'bold',
     }).setDepth(31);
@@ -49,11 +50,11 @@ export class DebugPanel {
       backgroundColor: '#21262d', padding: { x: 10, y: 5 },
     };
 
-    this.pauseBtn = this.scene.add.text(PANEL_X + PAD, btnY, '[PAUSE]', btnStyle)
+    this.pauseBtn = this.scene.add.text(PANEL_X + PAD, btnY, `[${languageManager.ui.pause}]`, btnStyle)
       .setInteractive({ useHandCursor: true }).setDepth(31)
       .on('pointerdown', () => {
         this.paused = !this.paused;
-        this.pauseBtn.setText(this.paused ? '[RESUME]' : '[PAUSE]');
+        this.pauseBtn.setText(this.paused ? `[${languageManager.ui.resume}]` : `[${languageManager.ui.pause}]`);
         this.pauseBtn.setColor(this.paused ? '#ff6666' : '#c9d1d9');
       });
     this.container.add(this.pauseBtn);
@@ -61,7 +62,7 @@ export class DebugPanel {
     const speeds = [1, 2, 4];
     let xOff = PANEL_X + PAD + 120;
     for (const spd of speeds) {
-      const btn = this.scene.add.text(xOff, btnY, `×${spd}`, {
+      const btn = this.scene.add.text(xOff, btnY, `\u00d7${spd}`, {
         ...btnStyle,
         color: spd === 1 ? '#58a6ff' : '#8b949e',
       }).setInteractive({ useHandCursor: true }).setDepth(31)
@@ -73,6 +74,16 @@ export class DebugPanel {
       this.container.add(btn);
       xOff += btn.width + 10;
     }
+
+    const langBtn = this.scene.add.text(PANEL_X + PAD, btnY + 32, `[${languageManager.lang.toUpperCase()}]`, {
+      ...btnStyle,
+      color: '#ffd700',
+    }).setInteractive({ useHandCursor: true }).setDepth(31)
+      .on('pointerdown', () => {
+        languageManager.toggle();
+        langBtn.setText(`[${languageManager.lang.toUpperCase()}]`);
+      });
+    this.container.add(langBtn);
   }
 
   private updateSpeedButtons(): void {
@@ -85,62 +96,63 @@ export class DebugPanel {
   update(sim: Simulation): void {
     this.lines.forEach(l => l.destroy());
     this.lines = [];
+    const u = languageManager.ui;
 
     let y = PAD + 36;
 
     const tileCounts = this.countTiles(sim.tileGrid);
-    y = this.addSection('MAP', y);
-    y = this.addLine(`${tileCounts.grass} grass  ${tileCounts.water} water  ${tileCounts.stone} stone`, y);
-    y = this.addLine(`${tileCounts.sand} sand  ${tileCounts.dirt} dirt`, y);
-    y = this.addLine(`Size: ${sim.tileGrid.width}x${sim.tileGrid.height}`, y);
+    y = this.addSection(u.mapSection, y);
+    y = this.addLine(`${tileCounts.grass} ${u.grass}  ${tileCounts.water} ${u.water}  ${tileCounts.stone} ${u.stone}`, y);
+    y = this.addLine(`${tileCounts.sand} ${u.sand}  ${tileCounts.dirt} ${u.dirt}`, y);
+    y = this.addLine(`${u.size}: ${sim.tileGrid.width}x${sim.tileGrid.height}`, y);
 
-    y = this.addSection('SIMULATION', y);
-    y = this.addLine(`Tick: ${sim.tickCount}  Rate: ${sim.tickRate}ms  Speed: ×${this.speed}`, y);
-    y = this.addLine(`Paused: ${this.paused ? 'YES' : 'no'}`, y);
+    y = this.addSection(u.simulationSection, y);
+    y = this.addLine(`${u.tick}: ${sim.tickCount}  Rate: ${sim.tickRate}ms  ${u.speed}: \u00d7${this.speed}`, y);
+    y = this.addLine(`${u.paused}: ${this.paused ? u.yes : u.no}`, y);
 
     const settlers = sim.entityManager.getByType('settler') as Settler[];
-    y = this.addSection(`SETTLERS (${settlers.length})`, y);
+    y = this.addSection(`${u.settlersSection} (${settlers.length})`, y);
     for (const s of settlers) {
-      const inv = s.inventory.map(i => `${i.resourceType}:${i.quantity}`).join(' ') || 'empty';
-      const task = s.currentTaskId ? s.currentTaskId.slice(0, 8) : 'idle';
+      const inv = s.inventory.map(i => `${i.resourceType}:${i.quantity}`).join(' ') || u.empty;
+      const task = s.currentTaskId ? s.currentTaskId.slice(0, 8) : u.idle;
       y = this.addLine(`${s.name} [${s.x},${s.y}]`, y);
-      y = this.addLine(`  hunger:${Math.round(s.hunger)} energy:${Math.round(s.energy)}`, y);
+      y = this.addLine(`  ${u.hunger}:${Math.round(s.hunger)} ${u.energy}:${Math.round(s.energy)}`, y);
       y = this.addLine(`  inv: [${inv}]`, y);
       y = this.addLine(`  task: ${task}  path:${s.path.length}`, y);
     }
 
     const buildings = sim.entityManager.getByType('building') as Building[];
-    y = this.addSection(`BUILDINGS (${buildings.length})`, y);
+    y = this.addSection(`${u.buildingsSection} (${buildings.length})`, y);
     for (const b of buildings) {
-      const status = b.built ? 'DONE' : `${Math.round(b.progressPercent * 100)}%`;
+      const status = b.built ? u.done : `${Math.round(b.progressPercent * 100)}%`;
       const stor = b.storage.length > 0
         ? b.storage.map(s => `${s.resourceType}:${s.quantity}`).join(' ')
         : '';
       y = this.addLine(`${b.buildingType} [${b.x},${b.y}] ${status}`, y);
-      y = this.addLine(`  hp:${b.hp}/${b.maxHp}`, y);
-      if (stor) y = this.addLine(`  store: ${stor}`, y);
+      y = this.addLine(`  ${u.hp}:${b.hp}/${b.maxHp}`, y);
+      if (stor) y = this.addLine(`  ${u.storage}: ${stor}`, y);
     }
 
     const dinos = sim.entityManager.getByType('dinosaur') as Dinosaur[];
-    y = this.addSection(`DINOSAURS (${dinos.length})`, y);
+    y = this.addSection(`${u.dinosSection} (${dinos.length})`, y);
     for (const d of dinos) {
       y = this.addLine(`${d.species} [${d.x},${d.y}] ${d.state}`, y);
-      y = this.addLine(`  hp:${d.hp}/${d.maxHp} speed:${d.speed}`, y);
+      y = this.addLine(`  ${u.hp}:${d.hp}/${d.maxHp} speed:${d.speed}`, y);
     }
 
     const resources = sim.entityManager.getByType('resource') as Resource[];
-    y = this.addSection(`RESOURCES (${resources.length})`, y);
+    y = this.addSection(`${u.resourcesSection} (${resources.length})`, y);
     for (const r of resources) {
       y = this.addLine(`${r.resourceType}:${r.quantity} [${r.x},${r.y}]`, y);
     }
 
     const tasks = sim.taskQueue.length;
-    y = this.addSection('TASK QUEUE', y);
-    y = this.addLine(`Pending: ${tasks}`, y);
+    y = this.addSection(u.taskQueueSection, y);
+    y = this.addLine(`${u.pending}: ${tasks}`, y);
   }
 
   private addSection(title: string, y: number): number {
-    const t = this.scene.add.text(PANEL_X + PAD, y, `── ${title} ──`, {
+    const t = this.scene.add.text(PANEL_X + PAD, y, `\u2500\u2500 ${title} \u2500\u2500`, {
       fontSize: '16px', color: '#58a6ff', fontFamily: 'monospace',
       fontStyle: 'bold',
     }).setDepth(31);

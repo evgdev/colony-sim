@@ -1,0 +1,104 @@
+{
+  "tiles": {
+    "grass": "Dense grass sways in the hot wind. Something moved there a moment ago.",
+    "dirt": "Packed earth, marked with enormous footprints.",
+    "water": "Murky water. Reflections ripple — from below, not above.",
+    "stone": "Jagged rocks, warm to the touch. A good vantage point.",
+    "sand": "Fine sand muffles footsteps. Tracks appear and vanish."
+  },
+  "dinosaurSpawns": {
+    "trex": [
+      "The ground trembles. A low growl rolls across the canopy.",
+      "Something massive just displaced a hundred trees."
+    ],
+    "raptor": [
+      "Chittering from the undergrowth. Too many legs moving at once.",
+      "Red eyes blink in the shadows between the ferns."
+    ],
+    "brontosaur": [
+      "A shadow falls over the colony — slow, gentle, enormous.",
+      "The trees part like curtains. A mountain with a heartbeat."
+    ],
+    "pterodactyl": [
+      "A shriek from above. The sky has teeth today.",
+      "Wings blot out the sun. Then gone."
+    ]
+  },
+  "combat": {
+    "settlerAttack": [
+      "{attacker} swings desperately at the {defender}!",
+      "Steel meets scale. {attacker} does not flinch."
+    ],
+    "dinoAttack": [
+      "The {defender} reels from the blow!",
+      "{attacker} strikes with terrifying precision."
+    ],
+    "settlerDeath": [
+      "{name} falls. The jungle swallows the silence.",
+      "The colony grows quieter."
+    ],
+    "dinoDeath": [
+      "The {species} collapses. The ground shudders one last time.",
+      "Nature reclaims what was borrowed."
+    ]
+  },
+  "milestones": {
+    "firstBuilding": [
+      "A structure rises from the wilderness. It is not much, but it is ours.",
+      "Walls against the wild. The first of many, perhaps."
+    ],
+    "firstResource": [
+      "Wood. Stone. The beginnings of civilization.",
+      "The colony feeds. For now."
+    ],
+    "survivedDino": [
+      "The predator retreats. We live to see another dawn.",
+      "That was too close. But we are still here."
+    ]
+  },
+  "settlerThoughts": [
+    "The wind carries the scent of damp earth... and something primal.",
+    "I should eat soon. The jungle does not wait for the weak.",
+    "Every sound could be a bird. Or a mouth with teeth.",
+    "The stars here are wrong. I do not recognize any of them.",
+    "If I die here, the trees will grow over my bones within a week.",
+    "Another sunrise. Another day not being eaten. Progress.",
+    "The Rex watches from the ridgeline. It is patient. Too patient.",
+    "I found tracks this morning. Three different species. None friendly.",
+    "The warehouse is full. If only safety could be stored alongside the wood.",
+    "At night, they call to each other across the valley. I pretend not to hear.",
+    "The ferns part behind me. I do not turn around.",
+    "Hunger is a slow enemy. Slower than any dinosaur, but just as deadly.",
+    "This clearing was someone's home once. The bones suggest it did not end well.",
+    "I talk to myself now. When you are the only human for miles, it is either that or scream.",
+    "The river runs brown after the rain. Probably just sediment. Probably."
+  ],
+  "intro": [
+    "The drop pod carved a scar through the canopy.",
+    "When the smoke cleared, there was nothing but jungle in every direction.",
+    "The radio is dead. The navigation is dead. Only the mission remains:",
+    "Build. Survive. Signal for extraction.",
+    "The dinosaurs were not part of the briefing."
+  ],
+  "tutorial": {
+    "title": "COLONY SIM",
+    "screens": [
+      {
+        "text": "The drop pod carved a scar through the canopy.\n\nWhen the smoke cleared, there was nothing but jungle in every direction.\n\nThe radio is dead. The navigation is dead.",
+        "button": "NEXT"
+      },
+      {
+        "text": "Only the mission remains:\n\nBuild. Survive. Signal for extraction.\n\nThe dinosaurs were not part of the briefing.",
+        "button": "NEXT"
+      },
+      {
+        "text": "LEFT CLICK — select entities, move your settler, collect resources.\n\nBUILD — select a structure from the bottom panel, then click a tile.\n\nINFO — click any entity to see details.",
+        "button": "NEXT"
+      },
+      {
+        "text": "Gather wood and stone. Build a shelter.\n\nKeep your settler alive.\n\nThe jungle remembers those who fail.",
+        "button": "BEGIN"
+      }
+    ]
+  }
+}

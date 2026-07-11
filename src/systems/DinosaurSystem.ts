@@ -12,11 +12,13 @@ export class DinosaurSystem {
   private spawnInterval: number = 30;
   private maxDinosaurs: number = 6;
   private onSettlerDeath?: (name: string) => void;
+  private onSpawn?: (species: string) => void;
 
-  constructor(entityManager: EntityManager, tileGrid: TileGrid, onSettlerDeath?: (name: string) => void) {
+  constructor(entityManager: EntityManager, tileGrid: TileGrid, onSettlerDeath?: (name: string) => void, onSpawn?: (species: string) => void) {
     this.entityManager = entityManager;
     this.tileGrid = tileGrid;
     this.onSettlerDeath = onSettlerDeath;
+    this.onSpawn = onSpawn;
   }
 
   update(tickDelta: number): void {
@@ -210,6 +212,7 @@ export class DinosaurSystem {
     );
     this.entityManager.add(dino);
     this.tileGrid.setOccupied(spawnPoint.x, spawnPoint.y, true);
+    this.onSpawn?.(species);
   }
 
   private getRandomSpecies(): string {

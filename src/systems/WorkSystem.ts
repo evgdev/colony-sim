@@ -97,7 +97,7 @@ export class WorkSystem {
   private executePickUp(settler: Settler, task: Task, tickDelta: number): void {
     if (settler.path.length === 0 || settler.pathIndex === 0) {
       const resource = this.findResourceAt(task.targetX, task.targetY);
-      if (!resource) {
+      if (!resource || resource.depleted) {
         task.completed = true;
         return;
       }
@@ -113,8 +113,8 @@ export class WorkSystem {
         }
         if (resource.depleted) {
           this.entityManager.remove(resource.id);
+          task.completed = true;
         }
-        task.completed = true;
         return;
       }
 
@@ -131,7 +131,7 @@ export class WorkSystem {
 
     if (settler.pathIndex >= settler.path.length) {
       const resource = this.findResourceAt(task.targetX, task.targetY);
-      if (resource) {
+      if (resource && !resource.depleted) {
         const amount = resource.harvest(5);
         if (amount > 0) {
           settler.addToInventory({
@@ -142,9 +142,11 @@ export class WorkSystem {
         }
         if (resource.depleted) {
           this.entityManager.remove(resource.id);
+          task.completed = true;
         }
+      } else {
+        task.completed = true;
       }
-      task.completed = true;
       settler.path = [];
       settler.pathIndex = 0;
     }
