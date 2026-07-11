@@ -3,7 +3,7 @@ import {
   TILE_SIZE, MAP_WIDTH, MAP_HEIGHT, COLORS,
   CANVAS_WIDTH, CANVAS_HEIGHT, HUD_HEIGHT,
   LEFT_PANEL_WIDTH, FIELD_X, FIELD_Y, FIELD_W, FIELD_H,
-  PANEL_X, BOTTOM_HUD_Y, PANEL_WIDTH,
+  PANEL_X, BOTTOM_HUD_Y, PANEL_WIDTH, EVENT_HEIGHT,
 } from '../config';
 import { Simulation } from '../core/Simulation';
 import { Settler } from '../entities/Settler';
@@ -73,6 +73,9 @@ export class GameScene extends Phaser.Scene {
   private thoughtIndex: number = 0;
   private thoughtTimer: number = 0;
   private milestonesShown: Set<string> = new Set();
+
+  private eventText!: Phaser.GameObjects.Text;
+  private eventLog: string[] = [];
 
   constructor() {
     super({ key: 'GameScene' });
@@ -279,6 +282,7 @@ export class GameScene extends Phaser.Scene {
     this.children.removeAll(true);
     this.gameOver = false;
     this.taskLog = [];
+    this.eventLog = [];
     this.thoughtIndex = 0;
     this.thoughtTimer = 0;
     this.milestonesShown.clear();
@@ -315,6 +319,7 @@ export class GameScene extends Phaser.Scene {
         if (spawns && spawns.length > 0) {
           const msg = spawns[Math.floor(Math.random() * spawns.length)];
           this.addLog(msg);
+          this.addEvent(msg);
           this.toastManager.show(msg);
         }
       }
@@ -347,6 +352,7 @@ export class GameScene extends Phaser.Scene {
 
     this.createTileTextures();
     this.drawMap();
+    this.createEventArea();
     this.drawEntities();
     this.toastManager = new ToastManager(this);
     this.createLeftPanel();
@@ -356,6 +362,7 @@ export class GameScene extends Phaser.Scene {
     this.debugPanel = new DebugPanel(this);
 
     this.addLog(languageManager.narrative.intro[0] + ` [${languageManager.ui.day} 1]`);
+    this.addEvent(languageManager.narrative.intro[1]);
     this.toastManager.show(languageManager.narrative.intro[1]);
 
     this.hoverRect = this.add.rectangle(FIELD_X, FIELD_Y, TILE_SIZE, TILE_SIZE)
@@ -378,7 +385,7 @@ export class GameScene extends Phaser.Scene {
       const tileX = Math.floor((pointer.x - FIELD_X) / TILE_SIZE);
       const tileY = Math.floor((pointer.y - FIELD_Y) / TILE_SIZE);
       const tile = this.simulation.tileGrid.get(tileX, tileY);
-      if (tile && pointer.x >= FIELD_X && pointer.y < FIELD_H) {
+      if (tile && pointer.x >= FIELD_X && pointer.x < FIELD_X + FIELD_W && pointer.y >= FIELD_Y && pointer.y < FIELD_Y + FIELD_H) {
         this.hoverRect.setPosition(FIELD_X + tileX * TILE_SIZE, FIELD_Y + tileY * TILE_SIZE);
         this.hoverRect.setVisible(true);
       } else {
@@ -388,7 +395,7 @@ export class GameScene extends Phaser.Scene {
 
     this.input.on('pointerdown', (pointer: Phaser.Input.Pointer) => {
       if (pointer.x < FIELD_X || pointer.x >= FIELD_X + FIELD_W) return;
-      if (pointer.y >= FIELD_H) return;
+      if (pointer.y < FIELD_Y || pointer.y >= FIELD_Y + FIELD_H) return;
       const tileX = Math.floor((pointer.x - FIELD_X) / TILE_SIZE);
       const tileY = Math.floor((pointer.y - FIELD_Y) / TILE_SIZE);
       this.handleTileClick(tileX, tileY);
@@ -419,11 +426,13 @@ export class GameScene extends Phaser.Scene {
               .replace('{attacker}', e.attacker)
               .replace('{defender}', e.defender);
             this.addLog(msg);
+            this.addEvent(msg);
             if (e.killed) {
               const deathLines = languageManager.narrative.combat.settlerDeath;
               const deathMsg = deathLines[Math.floor(Math.random() * deathLines.length)]
                 .replace('{name}', e.attacker);
               this.addLog(deathMsg);
+              this.addEvent(deathMsg);
             }
           } else if (e.type === 'dino_vs_dino') {
             const lines = languageManager.narrative.combat.dinoAttack;
@@ -431,11 +440,13 @@ export class GameScene extends Phaser.Scene {
               .replace('{attacker}', e.attacker)
               .replace('{defender}', e.defender);
             this.addLog(msg);
+            this.addEvent(msg);
             if (e.killed) {
               const deathLines = languageManager.narrative.combat.dinoDeath;
               const deathMsg = deathLines[Math.floor(Math.random() * deathLines.length)]
                 .replace('{species}', e.defender);
               this.addLog(deathMsg);
+              this.addEvent(deathMsg);
             }
           }
         }
@@ -551,6 +562,28 @@ export class GameScene extends Phaser.Scene {
       wordWrap: { width: 214 },
       lineSpacing: 3,
     }).setDepth(21);
+  }
+
+  private createEventArea(): void {
+    const evBg = this.add.rectangle(FIELD_X, 0, FIELD_W, EVENT_HEIGHT, 0x0a0a2e, 0.95)
+      .setOrigin(0).setStrokeStyle(1, COLORS.panelBorder).setDepth(20);
+
+    const evTitle = this.add.text(FIELD_X + 8, 4, `\u2500\u2500 ${languageManager.ui.events} \u2500\u2500`, {
+      fontSize: '14px', color: '#ff6347', fontFamily: 'monospace',
+      fontStyle: 'bold',
+    }).setDepth(21);
+
+    this.eventText = this.add.text(FIELD_X + 8, 24, '', {
+      fontSize: '13px', color: '#c9d1d9', fontFamily: 'monospace',
+      wordWrap: { width: FIELD_W - 16 },
+      lineSpacing: 3,
+    }).setDepth(21);
+  }
+
+  private addEvent(msg: string): void {
+    this.eventLog.push(msg);
+    if (this.eventLog.length > 3) this.eventLog.shift();
+    this.eventText.setText(this.eventLog.join('\n'));
   }
 
   private createBottomHUD(): void {
@@ -838,13 +871,13 @@ export class GameScene extends Phaser.Scene {
     if (this.selectedBuilding) {
       this.selectionRect.setPosition(
         FIELD_X + this.selectedBuilding.x * TILE_SIZE + TILE_SIZE / 2,
-        FIELD_Y + this.selectedBuilding.y * TILE_SIZE + TILE_SIZE / 2
+        FIELD_Y + (this.selectedBuilding.y - 1) * TILE_SIZE + TILE_SIZE / 2
       );
       this.selectionRect.setVisible(true);
     } else if (this.selectedEntity) {
       this.selectionRect.setPosition(
         FIELD_X + this.selectedEntity.x * TILE_SIZE + TILE_SIZE / 2,
-        FIELD_Y + this.selectedEntity.y * TILE_SIZE + TILE_SIZE / 2
+        FIELD_Y + (this.selectedEntity.y - 1) * TILE_SIZE + TILE_SIZE / 2
       );
       this.selectionRect.setVisible(true);
     } else {
@@ -911,7 +944,7 @@ export class GameScene extends Phaser.Scene {
   }
 
   private drawMap(): void {
-    for (let y = 0; y < MAP_HEIGHT; y++) {
+    for (let y = 1; y < MAP_HEIGHT; y++) {
       this.tileSprites[y] = [];
       for (let x = 0; x < MAP_WIDTH; x++) {
         const tile = this.simulation.tileGrid.get(x, y)!;
@@ -920,14 +953,14 @@ export class GameScene extends Phaser.Scene {
 
         if (hasTexture) {
           const img = this.add.image(
-            FIELD_X + x * TILE_SIZE, FIELD_Y + y * TILE_SIZE,
+            FIELD_X + x * TILE_SIZE, FIELD_Y + (y - 1) * TILE_SIZE,
             texKey
           ).setOrigin(0).setDisplaySize(TILE_SIZE, TILE_SIZE);
           this.tileSprites[y][x] = img;
         } else {
           const color = COLORS[tile.type as keyof typeof COLORS] || 0x333333;
           const rect = this.add.rectangle(
-            FIELD_X + x * TILE_SIZE, FIELD_Y + y * TILE_SIZE,
+            FIELD_X + x * TILE_SIZE, FIELD_Y + (y - 1) * TILE_SIZE,
             TILE_SIZE, TILE_SIZE, color
           ).setOrigin(0).setStrokeStyle(1, 0x222222);
           this.tileSprites[y][x] = rect;
@@ -963,14 +996,14 @@ export class GameScene extends Phaser.Scene {
       return n - Math.floor(n);
     };
 
-    for (let y = 0; y < MAP_HEIGHT; y++) {
+    for (let y = 1; y < MAP_HEIGHT; y++) {
       for (let x = 0; x < MAP_WIDTH; x++) {
         const tile = this.simulation.tileGrid.get(x, y)!;
         const myPriority = priority[tile.type] ?? 0;
         if (myPriority === 0) continue;
 
         const px = FIELD_X + x * tileSize;
-        const py = FIELD_Y + y * tileSize;
+        const py = FIELD_Y + (y - 1) * tileSize;
         const seed = x * 100 + y;
         const c = getColor(tile.type);
 
@@ -1035,9 +1068,10 @@ export class GameScene extends Phaser.Scene {
     this.entityTexts = [];
 
     for (const entity of this.simulation.entityManager.getAll()) {
+      if (entity.y === 0) continue;
       const g = this.add.graphics().setDepth(10);
       const cx = FIELD_X + entity.x * TILE_SIZE + TILE_SIZE / 2;
-      const cy = FIELD_Y + entity.y * TILE_SIZE + TILE_SIZE / 2;
+      const cy = FIELD_Y + (entity.y - 1) * TILE_SIZE + TILE_SIZE / 2;
 
       if (entity.entityType === 'settler') {
         const settler = entity as Settler;
@@ -1055,7 +1089,7 @@ export class GameScene extends Phaser.Scene {
         const barWidth = TILE_SIZE - 4;
         const barHeight = 5;
         const barX = FIELD_X + entity.x * TILE_SIZE + 2;
-        const barY = FIELD_Y + entity.y * TILE_SIZE - 8;
+        const barY = FIELD_Y + (entity.y - 1) * TILE_SIZE - 8;
 
         g.fillStyle(0x333333, 0.8);
         g.fillRect(barX, barY, barWidth, barHeight);
@@ -1164,13 +1198,13 @@ export class GameScene extends Phaser.Scene {
         this.pathGraphics.beginPath();
         this.pathGraphics.moveTo(
           FIELD_X + settler.x * TILE_SIZE + TILE_SIZE / 2,
-          FIELD_Y + settler.y * TILE_SIZE + TILE_SIZE / 2
+          FIELD_Y + (settler.y - 1) * TILE_SIZE + TILE_SIZE / 2
         );
         for (let i = settler.pathIndex; i < settler.path.length; i++) {
           const p = settler.path[i];
           this.pathGraphics.lineTo(
             FIELD_X + p.x * TILE_SIZE + TILE_SIZE / 2,
-            FIELD_Y + p.y * TILE_SIZE + TILE_SIZE / 2
+            FIELD_Y + (p.y - 1) * TILE_SIZE + TILE_SIZE / 2
           );
         }
         this.pathGraphics.strokePath();

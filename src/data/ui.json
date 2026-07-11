@@ -2,6 +2,7 @@
   "colonyStatus": "СОСТОЯНИЕ КОЛОНИИ",
   "thoughts": "МЫСЛИ",
   "actionLog": "ЖУРНАЛ ДЕЙСТВИЙ",
+  "events": "СОБЫТИЯ",
   "taskSection": "ЗАДАЧА",
   "inventorySection": "ИНВЕНТАРЬ",
   "buildMode": "СТРОИТЬ",
