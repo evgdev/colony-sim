@@ -1,6 +1,6 @@
 import Phaser from 'phaser';
 import {
-  TILE_SIZE, COLORS,
+  TILE_SIZE, COLORS, VIEWPORT_TILES,
   CANVAS_WIDTH, CANVAS_HEIGHT, HUD_HEIGHT,
   LEFT_PANEL_WIDTH, FIELD_X, FIELD_Y, FIELD_W, FIELD_H,
   PANEL_X, BOTTOM_HUD_Y, PANEL_WIDTH, EVENT_HEIGHT,
@@ -39,6 +39,10 @@ export class UIManager {
   colonistTaskText!: Phaser.GameObjects.Text;
   colonistInvText!: Phaser.GameObjects.Text;
   thoughtText!: Phaser.GameObjects.Text;
+  private minimapGraphics!: Phaser.GameObjects.Graphics;
+  private minimapBg!: Phaser.GameObjects.Rectangle;
+  private minimapSize: number = 210;
+  private minimapTileSize: number = 7;
 
   buildMode: BuildingType | null = null;
   buildButtons: (Phaser.GameObjects.Text | Phaser.GameObjects.Container)[] = [];
@@ -145,6 +149,20 @@ export class UIManager {
       fontStyle: 'italic',
     });
     this.leftPanelContainer.add(this.thoughtText);
+
+    const minimapY = 560;
+    const minimapTitle = this.scene.add.text(14, minimapY, `\u2500\u2500 Map \u2500\u2500`, {
+      fontSize: '14px', color: '#58a6ff', fontFamily: 'monospace',
+      fontStyle: 'bold',
+    });
+    this.leftPanelContainer.add(minimapTitle);
+
+    this.minimapBg = this.scene.add.rectangle(14, minimapY + 24, this.minimapSize, this.minimapSize, 0x000000, 0.9)
+      .setOrigin(0).setStrokeStyle(1, COLORS.panelBorder);
+    this.leftPanelContainer.add(this.minimapBg);
+
+    this.minimapGraphics = this.scene.add.graphics();
+    this.leftPanelContainer.add(this.minimapGraphics);
   }
 
   createActionLog(): void {
@@ -486,6 +504,53 @@ export class UIManager {
       this.thoughtText.setText(thoughts[this.thoughtIndex % thoughts.length]);
       this.thoughtIndex++;
     }
+  }
+
+  updateMinimap(): void {
+    this.minimapGraphics.clear();
+    const grid = this.simulation.tileGrid;
+    const ts = this.minimapTileSize;
+    const ox = 14;
+    const oy = 584;
+
+    const tileColors: Record<string, number> = {
+      grass: 0x3a5a2a,
+      dirt: 0x8b7355,
+      water: 0x3b7dd8,
+      stone: 0x808080,
+      sand: 0xc2b280,
+    };
+
+    for (let y = 0; y < grid.height; y++) {
+      for (let x = 0; x < grid.width; x++) {
+        if (!grid.isRevealed(x, y)) continue;
+        const tile = grid.get(x, y);
+        if (!tile) continue;
+        const color = tileColors[tile.type] ?? 0x333333;
+        this.minimapGraphics.fillStyle(color, 1);
+        this.minimapGraphics.fillRect(ox + x * ts, oy + y * ts, ts, ts);
+      }
+    }
+
+    const entities = this.simulation.entityManager.getAll();
+    for (const e of entities) {
+      if (!grid.isRevealed(e.x, e.y)) continue;
+      let color = 0xffffff;
+      if (e.entityType === 'settler') color = COLORS.settler;
+      else if (e.entityType === 'dinosaur') color = COLORS.dinosaur;
+      else if (e.entityType === 'resource') color = COLORS.resource;
+      else if (e.entityType === 'building') color = COLORS.building;
+      else if (e.entityType === 'artifact') color = 0xffd700;
+      this.minimapGraphics.fillStyle(color, 1);
+      this.minimapGraphics.fillRect(ox + e.x * ts, oy + e.y * ts, ts, ts);
+    }
+
+    const vx = ox + this.scrollX * ts;
+    const vy = oy + (this.scrollY + 1) * ts;
+    const vw = VIEWPORT_TILES * ts;
+    const vh = VIEWPORT_TILES * ts;
+    this.minimapGraphics.lineStyle(1, 0xffffff, 0.8);
+    this.minimapGraphics.strokeRect(vx, vy, vw, vh);
   }
 
   checkMilestone(key: string): void {
