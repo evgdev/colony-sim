@@ -45,6 +45,9 @@ export class WorkSystem {
   }
 
   interruptSettler(settler: Settler): void {
+    if (settler.currentTaskId) {
+      this.taskQueue.remove(settler.currentTaskId);
+    }
     settler.currentTaskId = null;
     settler.path = [];
     settler.pathIndex = 0;
