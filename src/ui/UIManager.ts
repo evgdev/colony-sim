@@ -662,7 +662,16 @@ export class UIManager {
     });
   }
 
+  private lastInventoryHash: string = '';
+
   updateInventoryIcons(settler: Settler): void {
+    const hash = settler.inventory.map(i => `${i.resourceType}:${i.quantity}:${i.name}`).join(',');
+    const artifactHash = this.artifactSystem ? Array.from(this.artifactSystem.getCollectedArtifacts().entries()).map(([n,c]) => `${n}:${c}`).join(',') : '';
+    const fullHash = hash + '|' + artifactHash;
+
+    if (fullHash === this.lastInventoryHash) return;
+    this.lastInventoryHash = fullHash;
+
     for (const icon of this.inventoryIcons) {
       icon.destroy();
     }
@@ -715,7 +724,6 @@ export class UIManager {
 
     if (this.artifactSystem) {
       const collected = this.artifactSystem.getCollectedArtifacts();
-      this.addLog(`Artifacts: ${collected.size}`);
       collected.forEach((count, name) => {
         if (count <= 0) return;
         const effect = this.artifactSystem!.getArtifactEffect(name);
