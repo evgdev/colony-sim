@@ -235,13 +235,10 @@ export class InputHandler {
   }
 
   private handleMinimapClick(tileX: number, tileY: number): void {
-    const tile = this.simulation.tileGrid.get(tileX, tileY);
-    if (!tile || !tile.walkable) return;
-
     const settler = this.simulation.entityManager.getByType('settler')[0] as Settler | undefined;
     if (!settler) return;
 
-    this.workSystem.createMoveTask(tileX, tileY);
-    this.uiManager.addLog(`${settler.name} ${languageManager.ui.logWorkerHeadsTo} (${tileX},${tileY})`);
+    this.scene.input.keyboard?.emit('scroll-to', tileX, tileY);
+    this.uiManager.addLog(`${languageManager.ui.logAt} (${tileX},${tileY})`);
   }
 }
