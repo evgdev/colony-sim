@@ -128,9 +128,6 @@ export class InputHandler {
     if (!tile) return;
     if (!this.simulation.tileGrid.isRevealed(tileX, tileY)) return;
 
-    const settler = this.simulation.entityManager.getByType('settler')[0] as Settler | undefined;
-    if (!settler) return;
-
     if (this.uiManager.buildMode) {
       this.handleBuildClick(tileX, tileY, tile);
       return;
@@ -147,6 +144,18 @@ export class InputHandler {
       this.uiManager.updateBuildButtonStates();
       const def = (buildingsData as any)[buildingAtTile.buildingType];
       this.uiManager.addLog(`${languageManager.ui.selected}: ${def?.name ?? buildingAtTile.buildingType}`);
+      return;
+    }
+
+    const settlerAtTile = this.simulation.entityManager.getAll().find(
+      e => e.entityType === 'settler' && e.x === tileX && e.y === tileY
+    ) as Settler | undefined;
+
+    if (settlerAtTile) {
+      (this.scene as any).selectSettler(settlerAtTile);
+      this.uiManager.selectedBuilding = null;
+      this.uiManager.selectedEntity = null;
+      this.uiManager.addLog(`${languageManager.ui.selected}: ${settlerAtTile.name} (${settlerAtTile.settlerClass})`);
       return;
     }
 
@@ -183,8 +192,11 @@ export class InputHandler {
     this.uiManager.updateBuildButtonStates();
 
     if (tile.walkable) {
-      this.workSystem.createMoveTask(tileX, tileY);
-      this.uiManager.addLog(`${settler.name} ${languageManager.ui.logWorkerHeadsTo} (${tileX},${tileY})`);
+      const settler = (this.scene as any).getSelectedSettler() as Settler;
+      if (settler) {
+        this.workSystem.createMoveTask(tileX, tileY, undefined, settler);
+        this.uiManager.addLog(`${settler.name} ${languageManager.ui.logWorkerHeadsTo} (${tileX},${tileY})`);
+      }
     }
   }
 
@@ -203,7 +215,7 @@ export class InputHandler {
     }
 
     const def = (buildingsData as any)[this.uiManager.buildMode!];
-    const settler = this.simulation.entityManager.getByType('settler')[0] as Settler;
+    const settler = (this.scene as any).getSelectedSettler() as Settler;
     const hasAll = Object.entries(def.requires).every(([res, qty]) =>
       settler.hasResource(res, qty as number)
     );
@@ -223,7 +235,7 @@ export class InputHandler {
     this.simulation.entityManager.add(building);
     this.simulation.tileGrid.setOccupied(tileX, tileY, true);
 
-    this.workSystem.createBuildTask(building, TaskPriority.High);
+    this.workSystem.createBuildTask(building, TaskPriority.High, settler);
     this.uiManager.addLog(`${languageManager.ui.logBuildingAt} ${def.name} ${tileX},${tileY}`);
     this.uiManager.checkMilestone('firstBuilding');
 

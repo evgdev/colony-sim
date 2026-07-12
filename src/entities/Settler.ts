@@ -7,23 +7,30 @@ export interface InventoryItem {
   resourceType: string;
 }
 
+export type SettlerClass = 'engineer' | 'biologist' | 'pilot';
+
 export class Settler extends Entity {
   name: string;
+  color: number;
+  settlerClass: SettlerClass;
   inventory: InventoryItem[] = [];
   hunger: number = 100;
   energy: number = 100;
-  hp: number = 1000;
-  maxHp: number = 1000;
+  hp: number = 100;
+  maxHp: number = 100;
   food: number = 5;
   foodTimer: number = 0;
   currentTaskId: string | null = null;
   attackCooldown: number = 0;
   path: { x: number; y: number }[] = [];
   pathIndex: number = 0;
+  artifactFogBonus: number = 0;
 
-  constructor(x: number, y: number, name: string = 'Settler') {
+  constructor(x: number, y: number, name: string = 'Settler', color: number = 0xffd700, settlerClass: SettlerClass = 'engineer') {
     super('settler', x, y);
     this.name = name;
+    this.color = color;
+    this.settlerClass = settlerClass;
   }
 
   takeDamage(amount: number): boolean {
@@ -59,10 +66,25 @@ export class Settler extends Entity {
     return item !== undefined && item.quantity >= quantity;
   }
 
+  getBuildSpeedBonus(): number {
+    return this.settlerClass === 'engineer' ? 1.5 : 1.0;
+  }
+
+  getFogRadiusBonus(): number {
+    const classBonus = this.settlerClass === 'biologist' ? 1 : 0;
+    return classBonus + this.artifactFogBonus;
+  }
+
+  getMoveSpeedBonus(): number {
+    return this.settlerClass === 'pilot' ? 1.2 : 1.0;
+  }
+
   serialize(): object {
     return {
       ...super.serialize(),
       name: this.name,
+      color: this.color,
+      settlerClass: this.settlerClass,
       inventory: this.inventory,
       hunger: this.hunger,
       energy: this.energy,
@@ -73,11 +95,12 @@ export class Settler extends Entity {
       currentTaskId: this.currentTaskId,
       path: this.path,
       pathIndex: this.pathIndex,
+      artifactFogBonus: this.artifactFogBonus,
     };
   }
 
   static deserialize(data: any): Settler {
-    const s = new Settler(data.x, data.y, data.name);
+    const s = new Settler(data.x, data.y, data.name, data.color ?? 0xffd700, data.settlerClass ?? 'engineer');
     s.id = data.id;
     s.inventory = data.inventory || [];
     s.hunger = data.hunger ?? 100;
@@ -89,6 +112,7 @@ export class Settler extends Entity {
     s.currentTaskId = data.currentTaskId ?? null;
     s.path = data.path || [];
     s.pathIndex = data.pathIndex ?? 0;
+    s.artifactFogBonus = data.artifactFogBonus ?? 0;
     return s;
   }
 }

@@ -7,8 +7,21 @@ import {
   HUNGER_STARVATION_MULTIPLIER,
 } from '../config';
 
+const TICKS_PER_DAY = 24;
+const NIGHT_START = 18;
+const NIGHT_END = 6;
+const NIGHT_ENERGY_MULTIPLIER = 1.5;
+
 export class NeedsSystem {
-  update(settlers: Settler[], tickDelta: number): void {
+  private isNight(tickCount: number): boolean {
+    const hour = tickCount % TICKS_PER_DAY;
+    return hour >= NIGHT_START || hour < NIGHT_END;
+  }
+
+  update(settlers: Settler[], tickDelta: number, tickCount: number = 0): void {
+    const isNight = this.isNight(tickCount);
+    const energyMultiplier = isNight ? NIGHT_ENERGY_MULTIPLIER : 1;
+
     for (const settler of settlers) {
       if (!settler.isAlive) continue;
 
@@ -17,7 +30,7 @@ export class NeedsSystem {
         : 0.05;
       settler.hunger = Math.max(0, settler.hunger - hungerRate * tickDelta);
 
-      settler.energy = Math.max(0, settler.energy - 0.03 * tickDelta);
+      settler.energy = Math.max(0, settler.energy - 0.03 * energyMultiplier * tickDelta);
 
       if (settler.hunger <= 0) {
         settler.energy = Math.max(0, settler.energy - 0.3 * tickDelta);

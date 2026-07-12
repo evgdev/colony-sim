@@ -5,12 +5,18 @@ import {
 } from '../config';
 import { Simulation } from '../core/Simulation';
 
+const TICKS_PER_DAY = 24;
+const NIGHT_START = 18;
+const NIGHT_END = 6;
+const NIGHT_MAX_ALPHA = 0.4;
+
 export class MapRenderer {
   private scene: Phaser.Scene;
   private simulation: Simulation;
   tileSprites: (Phaser.GameObjects.Rectangle | Phaser.GameObjects.Image)[][] = [];
   private transitionGraphics: Phaser.GameObjects.Graphics;
   private fogGraphics: Phaser.GameObjects.Graphics;
+  private nightOverlay!: Phaser.GameObjects.Rectangle;
   private scrollX: number = 0;
   private scrollY: number = 0;
 
@@ -20,6 +26,28 @@ export class MapRenderer {
     this.transitionGraphics = scene.add.graphics().setDepth(1);
     this.fogGraphics = scene.add.graphics().setDepth(3);
     this.setViewportClip();
+    this.createNightOverlay();
+  }
+
+  private createNightOverlay(): void {
+    this.nightOverlay = this.scene.add.rectangle(FIELD_X, FIELD_Y, FIELD_W, FIELD_H, 0x000033, 0)
+      .setOrigin(0)
+      .setDepth(4);
+  }
+
+  updateNight(tickCount: number): void {
+    const hour = tickCount % TICKS_PER_DAY;
+    let alpha = 0;
+
+    if (hour >= NIGHT_START) {
+      const hoursSinceNight = hour - NIGHT_START;
+      alpha = Math.min(hoursSinceNight / 2, 1) * NIGHT_MAX_ALPHA;
+    } else if (hour < NIGHT_END) {
+      const hoursUntilDawn = NIGHT_END - hour;
+      alpha = Math.min(hoursUntilDawn / 2, 1) * NIGHT_MAX_ALPHA;
+    }
+
+    this.nightOverlay.setAlpha(alpha);
   }
 
   private setViewportClip(): void {

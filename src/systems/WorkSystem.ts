@@ -8,6 +8,7 @@ import { Building } from '../entities/Building';
 import { Artifact } from '../entities/Artifact';
 import { Task, TaskType, TaskPriority } from '../core/Task';
 import { TaskQueue } from '../core/TaskQueue';
+import { QuestSystem } from './QuestSystem';
 
 export class WorkSystem {
   private movementSystem: MovementSystem;
@@ -15,6 +16,7 @@ export class WorkSystem {
   private entityManager: EntityManager;
   private taskQueue: TaskQueue;
   artifactSystem: ArtifactSystem | null = null;
+  questSystem: QuestSystem | null = null;
 
   constructor(
     movementSystem: MovementSystem,
@@ -31,7 +33,10 @@ export class WorkSystem {
   update(tickDelta: number): void {
     const settlers = this.entityManager.getByType('settler') as Settler[];
 
+    this.cleanupDeadSettlerTasks(settlers);
+
     for (const settler of settlers) {
+      if (!settler.isAlive) continue;
       if (settler.currentTaskId) {
         this.executeCurrentTask(settler, tickDelta);
       } else {
@@ -40,9 +45,20 @@ export class WorkSystem {
     }
   }
 
+  private cleanupDeadSettlerTasks(settlers: Settler[]): void {
+    const aliveIds = new Set(settlers.filter(s => s.isAlive).map(s => s.id));
+    const tasks = this.taskQueue.getAll();
+    for (const task of tasks) {
+      if (task.assignedSettlerId !== undefined && !aliveIds.has(task.assignedSettlerId)) {
+        this.taskQueue.remove(task.id);
+      }
+    }
+  }
+
   private assignNextTask(settler: Settler): void {
     const task = this.taskQueue.peek();
     if (!task) return;
+    if (task.assignedSettlerId && task.assignedSettlerId !== settler.id) return;
     settler.currentTaskId = task.id;
   }
 
@@ -100,7 +116,11 @@ export class WorkSystem {
       settler.pathIndex = 1;
     }
 
-    settler.pathIndex = this.movementSystem.stepAlongPath(settler, settler.path, settler.pathIndex);
+    const speedBonus = settler.getMoveSpeedBonus();
+    const steps = speedBonus > 1 ? 2 : 1;
+    for (let i = 0; i < steps && settler.pathIndex < settler.path.length; i++) {
+      settler.pathIndex = this.movementSystem.stepAlongPath(settler, settler.path, settler.pathIndex);
+    }
 
     if (settler.pathIndex >= settler.path.length) {
       task.completed = true;
@@ -171,6 +191,25 @@ export class WorkSystem {
     const building = this.findBuildingAt(task.targetX, task.targetY);
 
     if (!building || building.built) {
+      if (task.returnX !== undefined && task.returnY !== undefined) {
+        if (settler.x !== task.returnX || settler.y !== task.returnY) {
+          if (settler.path.length === 0 || settler.pathIndex === 0) {
+            const path = this.movementSystem.findPath(settler.x, settler.y, task.returnX, task.returnY);
+            if (path.length <= 1) {
+              task.completed = true;
+              return;
+            }
+            settler.path = path;
+            settler.pathIndex = 1;
+          }
+
+          settler.pathIndex = this.movementSystem.stepAlongPath(settler, settler.path, settler.pathIndex);
+
+          if (settler.pathIndex < settler.path.length) return;
+          settler.path = [];
+          settler.pathIndex = 0;
+        }
+      }
       task.completed = true;
       return;
     }
@@ -203,11 +242,8 @@ export class WorkSystem {
       building.requiresConsumed = true;
     }
 
-    building.work(1);
-
-    if (building.built) {
-      task.completed = true;
-    }
+    const buildBonus = settler.getBuildSpeedBonus();
+    building.work(buildBonus);
   }
 
   private findTaskById(id: string): Task | undefined {
@@ -248,6 +284,10 @@ export class WorkSystem {
         });
         if (this.artifactSystem) {
           this.artifactSystem.addArtifact(artifact.name);
+          this.artifactSystem.applyEffects(settler);
+        }
+        if (this.questSystem) {
+          this.questSystem.onFragmentFound();
         }
         this.entityManager.remove(artifact.id);
         this.tileGrid.setOccupied(task.targetX, task.targetY, false);
@@ -274,6 +314,13 @@ export class WorkSystem {
           quantity: 1,
           resourceType: 'artifact',
         });
+        if (this.artifactSystem) {
+          this.artifactSystem.addArtifact(artifact.name);
+          this.artifactSystem.applyEffects(settler);
+        }
+        if (this.questSystem) {
+          this.questSystem.onFragmentFound();
+        }
         this.entityManager.remove(artifact.id);
         this.tileGrid.setOccupied(task.targetX, task.targetY, false);
       }
@@ -283,55 +330,77 @@ export class WorkSystem {
     }
   }
 
-  createMoveTask(targetX: number, targetY: number, priority: TaskPriority = TaskPriority.Normal): Task {
-    const settlers = this.entityManager.getByType('settler') as Settler[];
-    for (const s of settlers) this.interruptSettler(s);
+  createMoveTask(targetX: number, targetY: number, priority: TaskPriority = TaskPriority.Normal, settler?: Settler): Task {
+    if (settler) {
+      this.interruptSettler(settler);
+    } else {
+      const settlers = this.entityManager.getByType('settler') as Settler[];
+      for (const s of settlers) this.interruptSettler(s);
+    }
     const task = new Task({
       type: TaskType.MoveTo,
       priority,
       targetX,
       targetY,
+      assignedSettlerId: settler?.id,
     });
     this.taskQueue.add(task);
     return task;
   }
 
-  createPickUpTask(resource: Resource, priority: TaskPriority = TaskPriority.Normal): Task {
-    const settlers = this.entityManager.getByType('settler') as Settler[];
-    for (const s of settlers) this.interruptSettler(s);
+  createPickUpTask(resource: Resource, priority: TaskPriority = TaskPriority.Normal, settler?: Settler): Task {
+    if (settler) {
+      this.interruptSettler(settler);
+    } else {
+      const settlers = this.entityManager.getByType('settler') as Settler[];
+      for (const s of settlers) this.interruptSettler(s);
+    }
     const task = new Task({
       type: TaskType.PickUp,
       priority,
       targetX: resource.x,
       targetY: resource.y,
       resourceType: resource.resourceType,
+      assignedSettlerId: settler?.id,
     });
     this.taskQueue.add(task);
     return task;
   }
 
-  createBuildTask(building: Building, priority: TaskPriority = TaskPriority.Normal): Task {
-    const settlers = this.entityManager.getByType('settler') as Settler[];
-    for (const s of settlers) this.interruptSettler(s);
+  createBuildTask(building: Building, priority: TaskPriority = TaskPriority.Normal, settler?: Settler): Task {
+    if (settler) {
+      this.interruptSettler(settler);
+    } else {
+      const settlers = this.entityManager.getByType('settler') as Settler[];
+      for (const s of settlers) this.interruptSettler(s);
+    }
     const task = new Task({
       type: TaskType.Build,
       priority,
       targetX: building.x,
       targetY: building.y,
       buildingId: `${building.id}`,
+      assignedSettlerId: settler?.id,
+      returnX: settler?.x,
+      returnY: settler?.y,
     });
     this.taskQueue.add(task);
     return task;
   }
 
-  createPickUpArtifactTask(artifact: Artifact, priority: TaskPriority = TaskPriority.Normal): Task {
-    const settlers = this.entityManager.getByType('settler') as Settler[];
-    for (const s of settlers) this.interruptSettler(s);
+  createPickUpArtifactTask(artifact: Artifact, priority: TaskPriority = TaskPriority.Normal, settler?: Settler): Task {
+    if (settler) {
+      this.interruptSettler(settler);
+    } else {
+      const settlers = this.entityManager.getByType('settler') as Settler[];
+      for (const s of settlers) this.interruptSettler(s);
+    }
     const task = new Task({
       type: TaskType.PickUpArtifact,
       priority,
       targetX: artifact.x,
       targetY: artifact.y,
+      assignedSettlerId: settler?.id,
     });
     this.taskQueue.add(task);
     return task;

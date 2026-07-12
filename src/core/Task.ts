@@ -22,6 +22,9 @@ export interface TaskData {
   itemId?: string;
   buildingId?: string;
   resourceType?: string;
+  assignedSettlerId?: number;
+  returnX?: number;
+  returnY?: number;
 }
 
 export class Task {
@@ -33,6 +36,9 @@ export class Task {
   itemId?: string;
   buildingId?: string;
   resourceType?: string;
+  assignedSettlerId?: number;
+  returnX?: number;
+  returnY?: number;
   completed: boolean = false;
 
   constructor(data: TaskData) {
@@ -44,6 +50,9 @@ export class Task {
     this.itemId = data.itemId;
     this.buildingId = data.buildingId;
     this.resourceType = data.resourceType;
+    this.assignedSettlerId = data.assignedSettlerId;
+    this.returnX = data.returnX;
+    this.returnY = data.returnY;
   }
 
   serialize(): object {

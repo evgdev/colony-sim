@@ -17,6 +17,7 @@ import { BuildingSystem } from '../systems/BuildingSystem';
 import { DinosaurSystem } from '../systems/DinosaurSystem';
 import { CombatSystem } from '../systems/CombatSystem';
 import { ArtifactSystem } from '../systems/ArtifactSystem';
+import { QuestSystem } from '../systems/QuestSystem';
 import { TaskPriority } from '../core/Task';
 import { SaveManager } from '../core/SaveManager';
 import { DebugPanel } from '../ui/DebugPanel';
@@ -39,7 +40,10 @@ export class GameScene extends Phaser.Scene {
   dinosaurSystem!: DinosaurSystem;
   combatSystem!: CombatSystem;
   artifactSystem!: ArtifactSystem;
+  questSystem!: QuestSystem;
   debugPanel!: DebugPanel;
+
+  selectedSettler!: Settler;
 
   private mapRenderer!: MapRenderer;
   private entityRenderer!: EntityRenderer;
@@ -61,6 +65,7 @@ export class GameScene extends Phaser.Scene {
     DOWN: Phaser.Input.Keyboard.Key;
     LEFT: Phaser.Input.Keyboard.Key;
     RIGHT: Phaser.Input.Keyboard.Key;
+    TAB: Phaser.Input.Keyboard.Key;
   };
 
   constructor() {
@@ -85,6 +90,7 @@ export class GameScene extends Phaser.Scene {
       DOWN: Phaser.Input.Keyboard.KeyCodes.DOWN,
       LEFT: Phaser.Input.Keyboard.KeyCodes.LEFT,
       RIGHT: Phaser.Input.Keyboard.KeyCodes.RIGHT,
+      TAB: Phaser.Input.Keyboard.KeyCodes.TAB,
     }) as any;
 
     this.input.keyboard!.on('scroll-up', () => this.scrollBy(0, -1));
@@ -103,6 +109,12 @@ export class GameScene extends Phaser.Scene {
     );
     this.artifactSystem = new ArtifactSystem();
     this.workSystem.artifactSystem = this.artifactSystem;
+    this.questSystem = new QuestSystem();
+    this.questSystem.onEvent((event) => {
+      this.uiManager.addLog(event.message);
+      this.uiManager.addEvent(event.message);
+    });
+    this.workSystem.questSystem = this.questSystem;
     this.buildingSystem = new BuildingSystem(
       this.simulation.entityManager,
       this.simulation.tileGrid
@@ -128,14 +140,21 @@ export class GameScene extends Phaser.Scene {
       this.simulation.entityManager,
       this.simulation.tileGrid
     );
-    this.artifactSystem = new ArtifactSystem();
 
     const centerX = Math.floor(MAP_WIDTH / 2);
     const centerY = Math.floor(MAP_HEIGHT / 2);
-    const settler = new Settler(centerX, centerY, 'Worker');
-    this.simulation.entityManager.add(settler);
-    this.simulation.tileGrid.setOccupied(centerX, centerY, true);
+
+    const settlers = [
+      new Settler(centerX - 1, centerY, 'Engineer', 0x4488ff, 'engineer'),
+      new Settler(centerX, centerY, 'Biologist', 0x44ff44, 'biologist'),
+      new Settler(centerX + 1, centerY, 'Pilot', 0xffaa00, 'pilot'),
+    ];
+    for (const s of settlers) {
+      this.simulation.entityManager.add(s);
+      this.simulation.tileGrid.setOccupied(s.x, s.y, true);
+    }
     this.simulation.tileGrid.reveal(centerX, centerY, FOG_REVEAL_RADIUS);
+    this.selectedSettler = settlers[0];
 
     this.scrollX = Math.max(0, centerX - Math.floor(VIEWPORT_TILES / 2));
     this.scrollY = Math.max(0, centerY - Math.floor(VIEWPORT_TILES / 2));
@@ -184,6 +203,8 @@ export class GameScene extends Phaser.Scene {
     this.inputHandler.createSelectionRect();
     this.inputHandler.setupInputHandlers();
     this.inputHandler.updateScroll(this.scrollX, this.scrollY);
+
+    this.debugPanel = new DebugPanel(this);
 
     this.uiManager.createBottomHUD(
       () => {
@@ -245,10 +266,9 @@ export class GameScene extends Phaser.Scene {
       },
       () => {
         createBuildingIcons(this);
-      }
+      },
+      this.debugPanel
     );
-
-    this.debugPanel = new DebugPanel(this);
 
     this.uiManager.addLog(languageManager.narrative.intro[0] + ` [${languageManager.ui.day} 1]`);
     this.uiManager.addEvent(languageManager.narrative.intro[1]);
@@ -261,6 +281,10 @@ export class GameScene extends Phaser.Scene {
 
     this.handleScrollInput();
 
+    if (Phaser.Input.Keyboard.JustDown(this.keys.TAB)) {
+      this.cycleSettler();
+    }
+
     if (!this.debugPanel.paused) {
       const adjustedDelta = delta * this.debugPanel.speed;
       const ticked = this.simulation.update(adjustedDelta);
@@ -268,11 +292,12 @@ export class GameScene extends Phaser.Scene {
         const td = (this.simulation.tickRate / 1000) * this.debugPanel.speed;
         this.needsSystem.update(
           this.simulation.entityManager.getByType('settler') as Settler[],
-          td
+          td,
+          this.simulation.tickCount
         );
         this.workSystem.update(td);
         this.buildingSystem.update(td);
-        this.dinosaurSystem.update(td);
+        this.dinosaurSystem.update(td, this.simulation.tickCount);
         const combatEvents = this.combatSystem.update(td);
         for (const e of combatEvents) {
           if (e.type === 'settler_attack') {
@@ -282,19 +307,14 @@ export class GameScene extends Phaser.Scene {
               .replace('{defender}', e.defender);
             this.uiManager.addLog(msg);
             if (e.killed && e.killedAt && e.killedSpecies) {
-              const artifactName = `${e.killedSpecies} tooth`;
+              const artifactName = e.killedSpecies === 'pterodactyl' ? 'pterodactyl wing' : `${e.killedSpecies} tooth`;
               const artifact = new Artifact(e.killedAt.x, e.killedAt.y, 'trophy', artifactName);
               this.simulation.entityManager.add(artifact);
               this.simulation.tileGrid.setOccupied(e.killedAt.x, e.killedAt.y, true);
 
-              const achieveMsg = `${e.attacker} earned: ${artifactName}`;
+              const achieveMsg = `${e.attacker} dropped: ${artifactName}`;
               this.uiManager.addEvent(achieveMsg);
               this.uiManager.addLog(achieveMsg);
-
-              this.artifactSystem.addArtifact(artifactName);
-              this.artifactSystem.applyEffects(
-                this.simulation.entityManager.getByType('settler')[0] as Settler
-              );
             }
           } else if (e.type === 'dino_vs_dino') {
             const lines = languageManager.narrative.combat.dinoAttack;
@@ -316,6 +336,8 @@ export class GameScene extends Phaser.Scene {
       }
     }
     this.mapRenderer.redrawFog();
+    this.mapRenderer.updateNight(this.simulation.tickCount);
+    this.entityRenderer.selectedSettler = this.selectedSettler;
     this.entityRenderer.drawEntities();
     this.entityRenderer.drawPath();
     this.uiManager.updateLeftPanel(this.gameOver, this.simulation.tickCount);
@@ -380,6 +402,27 @@ export class GameScene extends Phaser.Scene {
     this.scrollY = Math.max(0, Math.min(this.scrollY, MAP_HEIGHT - VIEWPORT_TILES));
   }
 
+  getSelectedSettler(): Settler {
+    return this.selectedSettler;
+  }
+
+  selectSettler(settler: Settler): void {
+    this.selectedSettler = settler;
+  }
+
+  cycleSettler(): void {
+    const alive = this.getAllSettlers().filter(s => s.isAlive);
+    if (alive.length <= 1) return;
+    const idx = alive.indexOf(this.selectedSettler);
+    const nextIdx = (idx + 1) % alive.length;
+    this.selectedSettler = alive[nextIdx];
+    this.uiManager.addLog(`Selected: ${this.selectedSettler.name} (${this.selectedSettler.settlerClass})`);
+  }
+
+  getAllSettlers(): Settler[] {
+    return this.simulation.entityManager.getByType('settler') as Settler[];
+  }
+
   private formatDays(ticks: number): string {
     const days = Math.floor(ticks / TICKS_PER_DAY);
     const hours = Math.floor((ticks % TICKS_PER_DAY));
@@ -388,17 +431,17 @@ export class GameScene extends Phaser.Scene {
   }
 
   private handleCollect(entity: import('../core/Entity').Entity): void {
+    const settler = this.selectedSettler;
     if (entity.entityType === 'resource') {
       const res = entity as Resource;
-      this.workSystem.createPickUpTask(res, TaskPriority.High);
+      this.workSystem.createPickUpTask(res, TaskPriority.High, settler);
       this.uiManager.addLog(`${languageManager.ui.logHarvesting} ${res.resourceType} ${languageManager.ui.logFrom}...`);
-      const settler = this.simulation.entityManager.getByType('settler')[0] as Settler;
       if (settler && settler.inventory.length === 0) {
         this.uiManager.checkMilestone('firstResource');
       }
     } else if (entity.entityType === 'artifact') {
       const artifact = entity as Artifact;
-      this.workSystem.createPickUpArtifactTask(artifact, TaskPriority.High);
+      this.workSystem.createPickUpArtifactTask(artifact, TaskPriority.High, settler);
       this.uiManager.addLog(`Picking up ${artifact.name}...`);
     }
     this.uiManager.deselectAll();
@@ -408,8 +451,15 @@ export class GameScene extends Phaser.Scene {
     if (this.gameOver) return;
     const settlers = this.simulation.entityManager.getByType('settler') as Settler[];
     const alive = settlers.filter(s => s.isAlive);
+
     if (alive.length === 0) {
       this.showGameOver();
+      return;
+    }
+
+    if (this.selectedSettler && !this.selectedSettler.isAlive) {
+      this.selectedSettler = alive[0];
+      this.uiManager.addLog(`Selected: ${this.selectedSettler.name} (${this.selectedSettler.settlerClass})`);
     }
   }
 

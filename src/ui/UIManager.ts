@@ -38,6 +38,7 @@ export class UIManager {
   colonistStatusText!: Phaser.GameObjects.Text;
   colonistTaskText!: Phaser.GameObjects.Text;
   colonistInvText!: Phaser.GameObjects.Text;
+  questText!: Phaser.GameObjects.Text;
   private scrollUpBtn!: Phaser.GameObjects.Text;
   private scrollDownBtn!: Phaser.GameObjects.Text;
   private scrollLeftBtn!: Phaser.GameObjects.Text;
@@ -51,7 +52,6 @@ export class UIManager {
 
   buildMode: BuildingType | null = null;
   buildButtons: (Phaser.GameObjects.Text | Phaser.GameObjects.Container)[] = [];
-  buildStatusTexts: Phaser.GameObjects.Text[] = [];
   buildTypeMap: Map<Phaser.GameObjects.Text | Phaser.GameObjects.Container, BuildingType> = new Map();
 
   selectedBuilding: Building | null = null;
@@ -151,6 +151,13 @@ export class UIManager {
       lineSpacing: 4,
     });
     this.leftPanelContainer.add(this.colonistInvText);
+
+    this.questText = this.scene.add.text(14, 400, '', {
+      fontSize: '14px', color: '#ffaa00', fontFamily: 'monospace',
+      wordWrap: { width: LEFT_PANEL_WIDTH - 28 },
+      lineSpacing: 4,
+    });
+    this.leftPanelContainer.add(this.questText);
 
     this.inventoryIconContainer = this.scene.add.container(0, 0);
     this.leftPanelContainer.add(this.inventoryIconContainer);
@@ -271,7 +278,8 @@ export class UIManager {
     onSave: () => void,
     onLoad: () => void,
     onClear: () => void,
-    onBuildIconCreated: () => void
+    onBuildIconCreated: () => void,
+    debugPanel?: import('./DebugPanel').DebugPanel
   ): void {
     this.scene.add.rectangle(FIELD_X, BOTTOM_HUD_Y, FIELD_W, HUD_HEIGHT, COLORS.uiPanel, 0.95)
       .setOrigin(0).setDepth(20);
@@ -295,19 +303,50 @@ export class UIManager {
       .setInteractive({ useHandCursor: true }).setDepth(22)
       .on('pointerdown', onClear);
 
+    if (debugPanel) {
+      const controlX = FIELD_X + FIELD_W - 200;
+
+      const langBtn = this.scene.add.text(controlX, BOTTOM_HUD_Y + 10, `[${languageManager.lang.toUpperCase()}]`, {
+        ...btnStyle,
+        color: '#ffd700',
+      }).setInteractive({ useHandCursor: true }).setDepth(22)
+        .on('pointerdown', () => {
+          languageManager.toggle();
+          langBtn.setText(`[${languageManager.lang.toUpperCase()}]`);
+        });
+
+      const speeds = [1, 2, 4];
+      let xOff = controlX + 50;
+      const speedBtns: Phaser.GameObjects.Text[] = [];
+      for (const spd of speeds) {
+        const btn = this.scene.add.text(xOff, BOTTOM_HUD_Y + 10, `\u00d7${spd}`, {
+          ...btnStyle,
+          color: spd === 1 ? '#58a6ff' : '#8b949e',
+        }).setInteractive({ useHandCursor: true }).setDepth(22)
+          .on('pointerdown', () => {
+            debugPanel.speed = spd;
+            for (let i = 0; i < speedBtns.length; i++) {
+              speedBtns[i].setColor(speeds[i] === spd ? '#58a6ff' : '#8b949e');
+            }
+          });
+        speedBtns.push(btn);
+        xOff += btn.width + 8;
+      }
+    }
+
     onBuildIconCreated();
     this.createBuildButtons();
   }
 
   createBuildButtons(): void {
     const types = Object.keys(buildingsData) as BuildingType[];
-    const btnY = BOTTOM_HUD_Y + 50;
-    const ICON_SIZE = 40;
-    const ICON_GAP = 8;
+    const btnY = BOTTOM_HUD_Y + 45;
+    const ICON_SIZE = 50;
+    const ICON_GAP = 10;
 
-    const cancelBtn = this.scene.add.text(FIELD_X + 10, btnY, '[X]', {
-      fontSize: '14px', color: '#ff4444', fontFamily: 'monospace',
-      backgroundColor: '#16213e', padding: { x: 6, y: 3 },
+    const cancelBtn = this.scene.add.text(FIELD_X + 10, btnY + 5, '[X]', {
+      fontSize: '16px', color: '#ff4444', fontFamily: 'monospace',
+      backgroundColor: '#16213e', padding: { x: 8, y: 6 },
     }).setInteractive({ useHandCursor: true }).setDepth(22)
       .on('pointerdown', () => {
         this.buildMode = null;
@@ -315,36 +354,43 @@ export class UIManager {
       });
     this.buildButtons.push(cancelBtn);
 
-    let xOff = FIELD_X + 45;
+    let xOff = FIELD_X + 50;
     for (const type of types) {
       const def = (buildingsData as any)[type];
-      const reqStr = Object.entries(def.requires).map(([k, v]) => `${k}:${v}`).join(' ');
+      const reqEntries = Object.entries(def.requires);
+      const reqStr = reqEntries.map(([k, v]) => `${k}:${v}`).join(' ');
 
       const container = this.scene.add.container(xOff, btnY).setDepth(22);
 
-      const icon = this.scene.add.image(0, 0, `icon_${type}`)
-        .setOrigin(0)
-        .setDisplaySize(ICON_SIZE, ICON_SIZE);
+      const bg = this.scene.add.rectangle(ICON_SIZE / 2, ICON_SIZE / 2, ICON_SIZE + 8, ICON_SIZE + 8, 0x21262d, 0.9)
+        .setStrokeStyle(1, COLORS.panelBorder);
+      container.add(bg);
+
+      const icon = this.scene.add.image(ICON_SIZE / 2, ICON_SIZE / 2, `icon_${type}`)
+        .setDisplaySize(ICON_SIZE - 8, ICON_SIZE - 8);
       container.add(icon);
 
-      const label = this.scene.add.text(ICON_SIZE + 4, 2, def.name, {
-        fontSize: '13px', color: '#c9d1d9', fontFamily: 'monospace',
-      });
-      container.add(label);
+      const costTooltip = this.scene.add.text(ICON_SIZE / 2, ICON_SIZE + 6, reqStr, {
+        fontSize: '10px', color: '#8b949e', fontFamily: 'monospace',
+      }).setOrigin(0.5, 0);
+      container.add(costTooltip);
 
-      const cost = this.scene.add.text(ICON_SIZE + 4, 18, reqStr, {
-        fontSize: '11px', color: '#8b949e', fontFamily: 'monospace',
-      });
-      container.add(cost);
+      const affordable = this.canAfford(type);
+      if (!affordable) {
+        icon.setAlpha(0.35);
+        bg.setFillStyle(0x161b22, 0.9);
+      } else {
+        bg.setFillStyle(0x21262d, 0.9);
+      }
 
-      const status = this.scene.add.text(ICON_SIZE + 4, 32, '', {
-        fontSize: '11px', color: '#8b949e', fontFamily: 'monospace',
-      });
-      container.add(status);
-      this.buildStatusTexts.push(status);
-
-      container.setSize(ICON_SIZE + 120, ICON_SIZE);
+      container.setSize(ICON_SIZE + 8, ICON_SIZE + 20);
       container.setInteractive({ useHandCursor: true })
+        .on('pointerover', () => {
+          bg.setStrokeStyle(2, 0x58a6ff);
+        })
+        .on('pointerout', () => {
+          bg.setStrokeStyle(1, COLORS.panelBorder);
+        })
         .on('pointerdown', () => {
           this.selectedBuilding = null;
           this.selectionRect.setVisible(false);
@@ -361,13 +407,13 @@ export class UIManager {
       this.buildTypeMap.set(container, type);
       this.buildButtons.push(container);
 
-      xOff += ICON_SIZE + 120 + ICON_GAP;
+      xOff += ICON_SIZE + 16 + ICON_GAP;
     }
   }
 
   canAfford(type: BuildingType): boolean {
     const def = (buildingsData as any)[type];
-    const settler = this.simulation.entityManager.getByType('settler')[0] as Settler;
+    const settler = (this.scene as any).getSelectedSettler() as Settler;
     if (!settler) return false;
     return Object.entries(def.requires).every(([res, qty]) =>
       settler.hasResource(res, qty as number)
@@ -376,41 +422,34 @@ export class UIManager {
 
   updateBuildButtonStates(): void {
     const types = Object.keys(buildingsData) as BuildingType[];
-    const settler = this.simulation.entityManager.getByType('settler')[0] as Settler;
+    const settler = (this.scene as any).getSelectedSettler() as Settler;
 
-    for (let i = 0; i < this.buildStatusTexts.length; i++) {
+    for (let i = 0; i < types.length; i++) {
       const type = types[i];
       const def = (buildingsData as any)[type];
-      const status = this.buildStatusTexts[i];
       const btn = this.buildButtons[i + 1];
-      const icon = (btn as Phaser.GameObjects.Container).list[0] as Phaser.GameObjects.Image;
+
+      if (!btn || !(btn instanceof Phaser.GameObjects.Container)) continue;
+
+      const bg = btn.list[0] as Phaser.GameObjects.Rectangle;
+      const icon = btn.list[1] as Phaser.GameObjects.Image;
 
       const affordable = settler && Object.entries(def.requires).every(([res, qty]) =>
         (settler.inventory.find(item => item.resourceType === res)?.quantity ?? 0) >= (qty as number)
       );
 
       if (!settler) {
-        status.setText('');
-        icon.setTint(0x888888);
+        icon.setAlpha(0.35);
+        bg.setFillStyle(0x161b22, 0.9);
         continue;
       }
 
       if (affordable) {
-        status.setText('\u2713');
-        status.setColor('#44cc44');
-        icon.clearTint();
+        icon.setAlpha(1);
+        bg.setFillStyle(0x21262d, 0.9);
       } else {
-        const missing: string[] = [];
-        for (const [res, qty] of Object.entries(def.requires)) {
-          const have = settler.inventory.find(item => item.resourceType === res)?.quantity ?? 0;
-          const need = qty as number;
-          if (have < need) {
-            missing.push(`${res}:${need - have}`);
-          }
-        }
-        status.setText(`${languageManager.ui.logNeed} ${missing.join(' ')}`);
-        status.setColor('#ff4444');
-        icon.setTint(0x666666);
+        icon.setAlpha(0.35);
+        bg.setFillStyle(0x161b22, 0.9);
       }
     }
 
@@ -514,36 +553,50 @@ export class UIManager {
 
   updateLeftPanel(gameOver: boolean, tickCount: number): void {
     if (gameOver) return;
-    const settlers = this.simulation.entityManager.getByType('settler') as Settler[];
-    if (settlers.length > 0) {
-      const s = settlers[0];
-      const taskStr = s.currentTaskId ? languageManager.ui.working : languageManager.ui.idle;
-      const invItems = s.inventory.map(i => `${i.resourceType}: ${i.quantity}`).join('\n') || `  (${languageManager.ui.empty})`;
-      const buildStr = this.buildMode ? `\n${languageManager.ui.buildMode}: ${(buildingsData as any)[this.buildMode].name}` : '';
+    const s = (this.scene as any).getSelectedSettler() as Settler;
+    if (!s) return;
 
-      this.colonistStatusText.setText(
-        `${s.name}\n` +
-        `${languageManager.ui.position}: ${s.x},${s.y}\n` +
-        `${languageManager.ui.hp}: ${Math.round(s.hp)}/${s.maxHp}\n` +
-        `${languageManager.ui.hunger}: ${Math.round(s.hunger)}%\n` +
-        `${languageManager.ui.energy}: ${Math.round(s.energy)}%\n` +
-        `${languageManager.ui.food}: ${s.food}\n` +
-        `${languageManager.ui.tick}: ${tickCount}` +
-        buildStr
-      );
+    const taskStr = s.currentTaskId ? languageManager.ui.working : languageManager.ui.idle;
+    const buildStr = this.buildMode ? `\n${languageManager.ui.buildMode}: ${(buildingsData as any)[this.buildMode].name}` : '';
 
-      this.colonistTaskText.setText(
-        `\u2500\u2500 ${languageManager.ui.taskSection} \u2500\u2500\n` +
-        `${languageManager.ui.status}: ${taskStr}\n` +
-        `${languageManager.ui.taskId}: ${s.currentTaskId ?? languageManager.ui.none}\n` +
-        `${languageManager.ui.pathLen}: ${s.path.length}`
-      );
+    const colorHex = '#' + s.color.toString(16).padStart(6, '0');
+    this.colonistStatusText.setText(
+      `${s.name} (${s.settlerClass})\n` +
+      `${languageManager.ui.position}: ${s.x},${s.y}\n` +
+      `${languageManager.ui.hp}: ${Math.round(s.hp)}/${s.maxHp}\n` +
+      `${languageManager.ui.hunger}: ${Math.round(s.hunger)}%\n` +
+      `${languageManager.ui.energy}: ${Math.round(s.energy)}%\n` +
+      `${languageManager.ui.food}: ${s.food}\n` +
+      `${languageManager.ui.tick}: ${tickCount}` +
+      buildStr
+    );
+    this.colonistStatusText.setColor(colorHex);
 
-      this.colonistInvText.setText(
-        `\u2500\u2500 ${languageManager.ui.inventorySection} \u2500\u2500`
-      );
+    this.colonistTaskText.setText(
+      `\u2500\u2500 ${languageManager.ui.taskSection} \u2500\u2500\n` +
+      `${languageManager.ui.status}: ${taskStr}\n` +
+      `${languageManager.ui.taskId}: ${s.currentTaskId ?? languageManager.ui.none}\n` +
+      `${languageManager.ui.pathLen}: ${s.path.length}`
+    );
 
-      this.updateInventoryIcons(s);
+    this.colonistInvText.setText(
+      `\u2500\u2500 ${languageManager.ui.inventorySection} \u2500\u2500`
+    );
+
+    this.updateInventoryIcons(s);
+
+    const questSystem = (this.scene as any).questSystem;
+    if (questSystem) {
+      const questState = questSystem.getState();
+      if (questState.completed) {
+        this.questText.setText('\u2500\u2500 Quest \u2500\u2500\nComplete!');
+      } else {
+        this.questText.setText(
+          `\u2500\u2500 Quest \u2500\u2500\n` +
+          `${questSystem.getStageDescription()}\n` +
+          `${questSystem.getProgressText()}`
+        );
+      }
     }
   }
 
@@ -661,7 +714,7 @@ export class UIManager {
   private lastInventoryHash: string = '';
 
   updateInventoryIcons(settler: Settler): void {
-    const hash = settler.inventory.map(i => `${i.resourceType}:${i.quantity}:${i.name}`).join(',');
+    const hash = `${settler.id}|` + settler.inventory.map(i => `${i.resourceType}:${i.quantity}:${i.name}`).join(',');
     const artifactHash = this.artifactSystem ? Array.from(this.artifactSystem.getCollectedArtifacts().entries()).map(([n,c]) => `${n}:${c}`).join(',') : '';
     const fullHash = hash + '|' + artifactHash;
 
@@ -727,9 +780,16 @@ export class UIManager {
 
         const color = Phaser.Display.Color.HexStringToColor(effect.color).color;
 
-        const bg = this.scene.add.rectangle(x, startY, iconSize, iconSize, color, 0.8)
-          .setOrigin(0).setStrokeStyle(1, COLORS.panelBorder).setDepth(25)
+        const bg = this.scene.add.rectangle(0, 0, iconSize, iconSize, color, 0.8)
+          .setOrigin(0).setStrokeStyle(1, COLORS.panelBorder)
           .setInteractive({ useHandCursor: true });
+
+        const iconText = this.scene.add.text(iconSize / 2, iconSize / 2, effect.icon, {
+          fontSize: '12px', color: '#ffffff', fontFamily: 'monospace', fontStyle: 'bold',
+        }).setOrigin(0.5);
+
+        const artifactContainer = this.scene.add.container(x, startY, [bg, iconText]);
+        artifactContainer.setSize(iconSize, iconSize);
 
         bg.on('pointerover', () => {
           bg.setStrokeStyle(2, 0xffffff);
@@ -742,7 +802,8 @@ export class UIManager {
           this.artifactTooltip.setVisible(false);
         });
 
-        this.inventoryIcons.push(bg);
+        this.inventoryIconContainer.add(artifactContainer);
+        this.inventoryIcons.push(artifactContainer);
 
         x += iconSize + gap;
       });
@@ -781,7 +842,6 @@ export class UIManager {
     this.selectedBuilding = null;
     this.selectedEntity = null;
     this.buildButtons = [];
-    this.buildStatusTexts = [];
     this.buildTypeMap.clear();
   }
 }

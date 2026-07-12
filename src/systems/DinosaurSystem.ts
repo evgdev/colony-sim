@@ -5,14 +5,19 @@ import { Settler } from '../entities/Settler';
 import { Building } from '../entities/Building';
 import dinosaursData from '../data/dinosaurs.json';
 
+const TICKS_PER_DAY = 24;
+const NIGHT_START = 18;
+const NIGHT_END = 6;
+
 export class DinosaurSystem {
   private entityManager: EntityManager;
   private tileGrid: TileGrid;
   private spawnTimer: number = 0;
-  private spawnInterval: number = 1;
+  private spawnInterval: number = 30;
   private maxDinosaurs: number = 6;
   private onSettlerDeath?: (name: string) => void;
   private onSpawn?: (species: string) => void;
+  private nightSpawnMultiplier: number = 2;
 
   constructor(entityManager: EntityManager, tileGrid: TileGrid, onSettlerDeath?: (name: string) => void, onSpawn?: (species: string) => void) {
     this.entityManager = entityManager;
@@ -21,10 +26,18 @@ export class DinosaurSystem {
     this.onSpawn = onSpawn;
   }
 
-  update(tickDelta: number): void {
+  private isNight(tickCount: number): boolean {
+    const hour = tickCount % TICKS_PER_DAY;
+    return hour >= NIGHT_START || hour < NIGHT_END;
+  }
+
+  update(tickDelta: number, tickCount: number = 0): void {
+    const isNight = this.isNight(tickCount);
+    const effectiveSpawnInterval = isNight ? this.spawnInterval / this.nightSpawnMultiplier : this.spawnInterval;
+
     this.spawnTimer += tickDelta;
-    if (this.spawnTimer >= this.spawnInterval) {
-      this.spawnTimer -= this.spawnInterval;
+    if (this.spawnTimer >= effectiveSpawnInterval) {
+      this.spawnTimer -= effectiveSpawnInterval;
       this.trySpawn();
     }
 

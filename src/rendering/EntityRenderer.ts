@@ -20,6 +20,7 @@ export class EntityRenderer {
   pathGraphics: Phaser.GameObjects.Graphics;
   private scrollX: number = 0;
   private scrollY: number = 0;
+  selectedSettler: Settler | null = null;
 
   constructor(scene: Phaser.Scene, simulation: Simulation) {
     this.scene = scene;
@@ -83,36 +84,44 @@ export class EntityRenderer {
   }
 
   private drawSettler(g: Phaser.GameObjects.Graphics, settler: Settler, cx: number, cy: number, ex: number, ey: number): void {
-    g.fillStyle(COLORS.settler, 1);
+    if (this.selectedSettler === settler) {
+      g.lineStyle(2, 0xccaa00, 0.8);
+      g.strokeCircle(cx, cy, TILE_SIZE / 2);
+    }
+
+    g.fillStyle(settler.color, 1);
     g.fillCircle(cx, cy, TILE_SIZE / 3);
     g.lineStyle(2, 0x000000);
     g.strokeCircle(cx, cy, TILE_SIZE / 3);
 
+    const colorHex = '#' + settler.color.toString(16).padStart(6, '0');
     this.entityTexts.push(
       this.scene.add.text(cx, cy - TILE_SIZE / 2 - 10, settler.name, {
-        fontSize: '14px', color: '#ffd700', fontFamily: 'monospace',
+        fontSize: '12px', color: colorHex, fontFamily: 'monospace',
       }).setOrigin(0.5).setDepth(10)
     );
 
-    const barWidth = TILE_SIZE - 4;
-    const barHeight = 5;
-    const barX = FIELD_X + (ex - this.scrollX) * TILE_SIZE + 2;
-    const barY = FIELD_Y + (ey - this.scrollY) * TILE_SIZE - 8;
+    if (this.selectedSettler === settler) {
+      const barWidth = TILE_SIZE - 4;
+      const barHeight = 5;
+      const barX = FIELD_X + (ex - this.scrollX) * TILE_SIZE + 2;
+      const barY = FIELD_Y + (ey - this.scrollY) * TILE_SIZE - 8;
 
-    g.fillStyle(0x333333, 0.8);
-    g.fillRect(barX, barY, barWidth, barHeight);
-    g.fillStyle(0x22cc22, 1);
-    g.fillRect(barX, barY, barWidth * (settler.hunger / 100), barHeight);
+      g.fillStyle(0x333333, 0.8);
+      g.fillRect(barX, barY, barWidth, barHeight);
+      g.fillStyle(0x22cc22, 1);
+      g.fillRect(barX, barY, barWidth * (settler.hunger / 100), barHeight);
 
-    g.fillStyle(0x333333, 0.8);
-    g.fillRect(barX, barY - barHeight - 2, barWidth, barHeight);
-    g.fillStyle(0xff3333, 1);
-    g.fillRect(barX, barY - barHeight - 2, barWidth * (settler.hp / settler.maxHp), barHeight);
+      g.fillStyle(0x333333, 0.8);
+      g.fillRect(barX, barY - barHeight - 2, barWidth, barHeight);
+      g.fillStyle(0xff3333, 1);
+      g.fillRect(barX, barY - barHeight - 2, barWidth * (settler.hp / settler.maxHp), barHeight);
 
-    g.fillStyle(0x333333, 0.8);
-    g.fillRect(barX, barY + barHeight + 2, barWidth, barHeight);
-    g.fillStyle(0x2299ff, 1);
-    g.fillRect(barX, barY + barHeight + 2, barWidth * (settler.energy / 100), barHeight);
+      g.fillStyle(0x333333, 0.8);
+      g.fillRect(barX, barY + barHeight + 2, barWidth, barHeight);
+      g.fillStyle(0x2299ff, 1);
+      g.fillRect(barX, barY + barHeight + 2, barWidth * (settler.energy / 100), barHeight);
+    }
 
     if (settler.inventory.length > 0) {
       g.fillStyle(0xffaa00, 0.9);

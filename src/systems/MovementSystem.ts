@@ -116,7 +116,8 @@ export class MovementSystem {
 
     this.tileGrid.setOccupied(entity.x, entity.y, false);
     entity.moveTo(target.x, target.y);
-    this.tileGrid.reveal(target.x, target.y, FOG_REVEAL_RADIUS);
+    const fogBonus = (entity as any).getFogRadiusBonus?.() ?? 0;
+    this.tileGrid.reveal(target.x, target.y, FOG_REVEAL_RADIUS + fogBonus);
     if (!isLastStep) {
       this.tileGrid.setOccupied(target.x, target.y, true);
     }

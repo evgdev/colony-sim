@@ -37,6 +37,9 @@ export class ArtifactSystem {
         case 'maxHp':
           settler.maxHp = 100 + effect.value * count;
           break;
+        case 'fogRadius':
+          settler.artifactFogBonus = effect.value * count;
+          break;
       }
     }
   }

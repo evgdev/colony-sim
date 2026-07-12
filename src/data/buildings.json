@@ -36,5 +36,14 @@
     "buildTime": 15,
     "requires": { "wood": 12, "stone": 8 },
     "description": "Enables advanced crafting (coming soon)"
+  },
+  "radio": {
+    "name": "Radio",
+    "color": 16777215,
+    "maxHp": 200,
+    "buildTime": 20,
+    "requires": { "wood": 15, "stone": 10 },
+    "isRadio": true,
+    "description": "Build radio to call for rescue. Requires fragments and components."
   }
 }

@@ -81,26 +81,20 @@ export function createTileTextures(scene: Phaser.Scene): void {
   grassG.destroy();
 
   const stoneG = scene.add.graphics().setVisible(false);
-  stoneG.fillStyle(0x808080);
+  stoneG.fillStyle(0x4a4a4a);
   stoneG.fillRect(0, 0, s, s);
-  stoneG.fillStyle(0x909090);
-  stoneG.fillRect(2, 2, 10, 8);
-  stoneG.fillRect(14, 4, 12, 6);
-  stoneG.fillRect(28, 2, 8, 10);
-  stoneG.fillRect(6, 14, 14, 8);
-  stoneG.fillRect(22, 12, 10, 8);
-  stoneG.fillRect(2, 26, 12, 10);
-  stoneG.fillRect(16, 24, 16, 12);
-  stoneG.fillRect(34, 28, 8, 8);
-  stoneG.lineStyle(1, 0x606060);
-  stoneG.strokeRect(2, 2, 10, 8);
-  stoneG.strokeRect(14, 4, 12, 6);
-  stoneG.strokeRect(28, 2, 8, 10);
-  stoneG.strokeRect(6, 14, 14, 8);
-  stoneG.strokeRect(22, 12, 10, 8);
-  stoneG.strokeRect(2, 26, 12, 10);
-  stoneG.strokeRect(16, 24, 16, 12);
-  stoneG.strokeRect(34, 28, 8, 8);
+  const stoneColors = [0x555555, 0x606060, 0x404040, 0x505050, 0x3a3a3a, 0x6a6a6a, 0x454545];
+  const stoneSeed = 89;
+  for (let y = 0; y < s; y++) {
+    for (let x = 0; x < s; x++) {
+      const r = seededRandom(x, y, stoneSeed);
+      if (r < 0.4) {
+        const ci = Math.floor(seededRandom(x + 100, y + 100, stoneSeed) * stoneColors.length);
+        stoneG.fillStyle(stoneColors[ci]);
+        stoneG.fillRect(x, y, 1, 1);
+      }
+    }
+  }
   stoneG.generateTexture('tile_stone', s, s);
   stoneG.destroy();
 

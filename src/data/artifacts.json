@@ -20,7 +20,7 @@
     "value": 20,
     "description": "+20 к вместимости хранилищ"
   },
-  "pterodactyl tooth": {
+  "pterodactyl wing": {
     "icon": "P",
     "color": "#ffff44",
     "effect": "fogRadius",

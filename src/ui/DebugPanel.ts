@@ -58,32 +58,6 @@ export class DebugPanel {
         this.pauseBtn.setColor(this.paused ? '#ff6666' : '#c9d1d9');
       });
     this.container.add(this.pauseBtn);
-
-    const speeds = [1, 2, 4];
-    let xOff = PANEL_X + PAD + 120;
-    for (const spd of speeds) {
-      const btn = this.scene.add.text(xOff, btnY, `\u00d7${spd}`, {
-        ...btnStyle,
-        color: spd === 1 ? '#58a6ff' : '#8b949e',
-      }).setInteractive({ useHandCursor: true }).setDepth(31)
-        .on('pointerdown', () => {
-          this.speed = spd;
-          this.updateSpeedButtons();
-        });
-      this.speedBtns.push(btn);
-      this.container.add(btn);
-      xOff += btn.width + 10;
-    }
-
-    const langBtn = this.scene.add.text(PANEL_X + PAD, btnY + 32, `[${languageManager.lang.toUpperCase()}]`, {
-      ...btnStyle,
-      color: '#ffd700',
-    }).setInteractive({ useHandCursor: true }).setDepth(31)
-      .on('pointerdown', () => {
-        languageManager.toggle();
-        langBtn.setText(`[${languageManager.lang.toUpperCase()}]`);
-      });
-    this.container.add(langBtn);
   }
 
   private updateSpeedButtons(): void {
