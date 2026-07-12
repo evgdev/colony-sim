@@ -540,8 +540,7 @@ export class UIManager {
       );
 
       this.colonistInvText.setText(
-        `\u2500\u2500 ${languageManager.ui.inventorySection} \u2500\u2500\n` +
-        invItems
+        `\u2500\u2500 ${languageManager.ui.inventorySection} \u2500\u2500`
       );
 
       this.updateInventoryIcons(s);

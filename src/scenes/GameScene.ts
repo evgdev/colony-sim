@@ -142,12 +142,12 @@ export class GameScene extends Phaser.Scene {
     this.clampScroll();
 
     const resources = [
-      { x: 2, y: 2, type: 'wood', qty: 20 },
-      { x: 27, y: 3, type: 'stone', qty: 15 },
-      { x: 4, y: 25, type: 'wood', qty: 10 },
-      { x: 20, y: 8, type: 'stone', qty: 8 },
-      { x: 8, y: 18, type: 'wood', qty: 12 },
-      { x: 22, y: 22, type: 'stone', qty: 10 },
+      { x: centerX - 2, y: centerY - 1, type: 'wood', qty: 20 },
+      { x: centerX + 2, y: centerY - 1, type: 'stone', qty: 15 },
+      { x: centerX - 1, y: centerY + 2, type: 'wood', qty: 10 },
+      { x: centerX + 1, y: centerY + 2, type: 'stone', qty: 8 },
+      { x: centerX, y: centerY - 3, type: 'wood', qty: 12 },
+      { x: centerX, y: centerY + 3, type: 'stone', qty: 10 },
     ];
 
     for (const r of resources) {
