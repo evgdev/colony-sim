@@ -67,7 +67,7 @@ export class UIManager {
   thoughtTimer: number = 0;
   milestonesShown: Set<string> = new Set();
 
-  private inventoryIcons: Phaser.GameObjects.Container[] = [];
+  private inventoryIcons: Phaser.GameObjects.GameObject[] = [];
   private inventoryIconContainer!: Phaser.GameObjects.Container;
 
   private artifactIcons: Phaser.GameObjects.Container[] = [];
@@ -723,25 +723,29 @@ export class UIManager {
         const color = Phaser.Display.Color.HexStringToColor(effect.color).color;
 
         const bg = this.scene.add.rectangle(0, 0, iconSize, iconSize, color, 0.8)
-          .setOrigin(0).setStrokeStyle(1, COLORS.panelBorder);
+          .setOrigin(0).setStrokeStyle(1, COLORS.panelBorder).setDepth(30);
 
         const iconText = this.scene.add.text(iconSize / 2, iconSize / 2, effect.icon, {
           fontSize: '14px', color: '#ffffff', fontFamily: 'monospace', fontStyle: 'bold',
-        }).setOrigin(0.5);
+        }).setOrigin(0.5).setDepth(31);
 
         const countText = this.scene.add.text(iconSize - 2, 2, `${count}`, {
           fontSize: '9px', color: '#ffff00', fontFamily: 'monospace',
-        }).setOrigin(1, 0);
+        }).setOrigin(1, 0).setDepth(31);
 
-        const iconContainer = this.scene.add.container(x, startY, [bg, iconText, countText]);
-        iconContainer.setSize(iconSize, iconSize);
-        iconContainer.setInteractive({ useHandCursor: true });
-        iconContainer.on('pointerdown', () => {
+        const hitZone = this.scene.add.rectangle(x + iconSize/2, startY + iconSize/2, iconSize, iconSize)
+          .setOrigin(0.5).setDepth(32).setAlpha(0.001)
+          .setInteractive({ useHandCursor: true });
+
+        bg.setPosition(x, startY);
+        iconText.setPosition(x + iconSize/2, startY + iconSize/2);
+        countText.setPosition(x + iconSize - 2, startY + 2);
+
+        hitZone.on('pointerdown', () => {
           this.showArtifactTooltip(name, effect.description, x, startY - 60);
         });
 
-        this.inventoryIconContainer.add(iconContainer);
-        this.inventoryIcons.push(iconContainer);
+        this.inventoryIcons.push(bg, iconText, countText, hitZone);
 
         x += iconSize + gap;
       });
