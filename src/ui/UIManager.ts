@@ -722,37 +722,32 @@ export class UIManager {
 
         const color = Phaser.Display.Color.HexStringToColor(effect.color).color;
 
-        const bg = this.scene.add.rectangle(0, 0, iconSize, iconSize, color, 0.8)
-          .setOrigin(0).setStrokeStyle(1, COLORS.panelBorder).setDepth(30);
+        const bg = this.scene.add.rectangle(x, startY, iconSize, iconSize, color, 0.8)
+          .setOrigin(0).setStrokeStyle(1, COLORS.panelBorder).setDepth(25);
 
-        const iconText = this.scene.add.text(iconSize / 2, iconSize / 2, effect.icon, {
+        const iconText = this.scene.add.text(x + iconSize / 2, startY + iconSize / 2, effect.icon, {
           fontSize: '14px', color: '#ffffff', fontFamily: 'monospace', fontStyle: 'bold',
-        }).setOrigin(0.5).setDepth(31);
+        }).setOrigin(0.5).setDepth(26);
 
-        const countText = this.scene.add.text(iconSize - 2, 2, `${count}`, {
+        const countText = this.scene.add.text(x + iconSize - 2, startY + 2, `${count}`, {
           fontSize: '9px', color: '#ffff00', fontFamily: 'monospace',
-        }).setOrigin(1, 0).setDepth(31);
+        }).setOrigin(1, 0).setDepth(26);
 
-        const hitZone = this.scene.add.rectangle(x + iconSize/2, startY + iconSize/2, iconSize, iconSize)
-          .setOrigin(0.5).setDepth(32).setAlpha(0.001)
-          .setInteractive({ useHandCursor: true });
-
-        bg.setPosition(x, startY);
-        iconText.setPosition(x + iconSize/2, startY + iconSize/2);
-        countText.setPosition(x + iconSize - 2, startY + 2);
-
-        hitZone.on('pointerover', () => {
+        bg.setInteractive({ useHandCursor: true });
+        bg.on('pointerover', () => {
           bg.setStrokeStyle(2, 0xffffff);
+          bg.setFillStyle(color, 1);
         });
-        hitZone.on('pointerout', () => {
+        bg.on('pointerout', () => {
           bg.setStrokeStyle(1, COLORS.panelBorder);
+          bg.setFillStyle(color, 0.8);
         });
-        hitZone.on('pointerdown', () => {
+        bg.on('pointerdown', () => {
           this.addLog(`Clicked: ${name}`);
           this.showArtifactTooltip(name, effect.description, x, startY - 60);
         });
 
-        this.inventoryIcons.push(bg, iconText, countText, hitZone);
+        this.inventoryIcons.push(bg, iconText, countText);
 
         x += iconSize + gap;
       });
