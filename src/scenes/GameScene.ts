@@ -136,8 +136,8 @@ export class GameScene extends Phaser.Scene {
       { x: 27, y: 3, type: 'stone', qty: 15 },
       { x: 4, y: 25, type: 'wood', qty: 10 },
       { x: 20, y: 8, type: 'stone', qty: 8 },
-      { x: 15, y: 15, type: 'wood', qty: 12 },
-      { x: 10, y: 20, type: 'stone', qty: 10 },
+      { x: 8, y: 18, type: 'wood', qty: 12 },
+      { x: 22, y: 22, type: 'stone', qty: 10 },
     ];
 
     for (const r of resources) {
