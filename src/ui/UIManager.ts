@@ -107,6 +107,10 @@ export class UIManager {
     const evBg = this.scene.add.rectangle(FIELD_X, 0, FIELD_W, EVENT_HEIGHT, 0x0a0a2e, 0.95)
       .setOrigin(0).setStrokeStyle(1, COLORS.panelBorder).setDepth(20);
 
+    this.globalInventoryContainer = this.scene.add.container(FIELD_X + 8, 4);
+    this.scene.add.existing(this.globalInventoryContainer).setDepth(21);
+    this.updateGlobalInventory();
+
     this.eventText = this.scene.add.text(FIELD_X + 8, 8, '', {
       fontSize: '14px', color: '#c9d1d9', fontFamily: 'monospace',
       wordWrap: { width: FIELD_W - 16 },
@@ -130,10 +134,6 @@ export class UIManager {
       fontStyle: 'bold',
     });
     this.leftPanelContainer.add(title);
-
-    this.globalInventoryContainer = this.scene.add.container(14, 40);
-    this.leftPanelContainer.add(this.globalInventoryContainer);
-    this.updateGlobalInventory();
 
     const line1 = this.scene.add.rectangle(14, 38, LEFT_PANEL_WIDTH - 28, 1, COLORS.panelBorder, 0.5)
       .setOrigin(0);
@@ -590,8 +590,6 @@ export class UIManager {
     this.colonistInvText.setText(
       `\u2500\u2500 ${languageManager.ui.inventorySection} \u2500\u2500`
     );
-
-    this.updateGlobalInventory();
 
     const questSystem = (this.scene as any).questSystem;
     if (questSystem) {
