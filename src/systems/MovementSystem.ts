@@ -48,7 +48,6 @@ export class MovementSystem {
 
         const tile = this.tileGrid.get(neighbor.x, neighbor.y);
         if (!tile || !tile.walkable) continue;
-        if (!this.tileGrid.isRevealed(neighbor.x, neighbor.y)) continue;
 
         const isEnd = neighbor.x === endX && neighbor.y === endY;
         if (!isEnd && tile.occupied) continue;
