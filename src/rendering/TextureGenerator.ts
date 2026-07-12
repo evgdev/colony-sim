@@ -107,17 +107,17 @@ export function createTileTextures(scene: Phaser.Scene): void {
   const sandG = scene.add.graphics().setVisible(false);
   sandG.fillStyle(0xc2b280);
   sandG.fillRect(0, 0, s, s);
-  sandG.fillStyle(0xd4c490);
-  for (let i = 0; i < 12; i++) {
-    const dx = (i * 7 + 3) % s;
-    const dy = (i * 11 + 5) % s;
-    sandG.fillCircle(dx, dy, 1);
-  }
-  sandG.fillStyle(0xb8a870);
-  for (let i = 0; i < 8; i++) {
-    const dx = (i * 13 + 8) % s;
-    const dy = (i * 9 + 2) % s;
-    sandG.fillCircle(dx, dy, 1);
+  const sandColors = [0xd4c490, 0xb8a870, 0xc9ba88, 0xa89860, 0xd0c080];
+  const sandSeed = 137;
+  for (let y = 0; y < s; y++) {
+    for (let x = 0; x < s; x++) {
+      const r = seededRandom(x, y, sandSeed);
+      if (r < 0.4) {
+        const ci = Math.floor(seededRandom(x + 100, y + 100, sandSeed) * sandColors.length);
+        sandG.fillStyle(sandColors[ci]);
+        sandG.fillRect(x, y, 1, 1);
+      }
+    }
   }
   sandG.generateTexture('tile_sand', s, s);
   sandG.destroy();
@@ -154,18 +154,18 @@ export function createTileTextures(scene: Phaser.Scene): void {
   const dirtG = scene.add.graphics().setVisible(false);
   dirtG.fillStyle(0x8b7355);
   dirtG.fillRect(0, 0, s, s);
-  dirtG.fillStyle(0x7a6548);
-  dirtG.fillCircle(8, 10, 2);
-  dirtG.fillCircle(22, 6, 1);
-  dirtG.fillCircle(35, 14, 2);
-  dirtG.fillCircle(12, 28, 1);
-  dirtG.fillCircle(28, 32, 2);
-  dirtG.fillCircle(40, 38, 1);
-  dirtG.fillStyle(0x9c8562);
-  dirtG.fillCircle(5, 40, 1);
-  dirtG.fillCircle(18, 20, 1);
-  dirtG.fillCircle(32, 26, 1);
-  dirtG.fillCircle(42, 8, 1);
+  const dirtColors = [0x7a6548, 0x9c8562, 0x6e5a40, 0x8a7050, 0x786245];
+  const dirtSeed = 256;
+  for (let y = 0; y < s; y++) {
+    for (let x = 0; x < s; x++) {
+      const r = seededRandom(x, y, dirtSeed);
+      if (r < 0.4) {
+        const ci = Math.floor(seededRandom(x + 100, y + 100, dirtSeed) * dirtColors.length);
+        dirtG.fillStyle(dirtColors[ci]);
+        dirtG.fillRect(x, y, 1, 1);
+      }
+    }
+  }
   dirtG.generateTexture('tile_dirt', s, s);
   dirtG.destroy();
 }
