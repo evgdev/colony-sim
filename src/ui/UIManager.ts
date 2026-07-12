@@ -107,13 +107,13 @@ export class UIManager {
     const evBg = this.scene.add.rectangle(FIELD_X, 0, FIELD_W, EVENT_HEIGHT, 0x0a0a2e, 0.95)
       .setOrigin(0).setStrokeStyle(1, COLORS.panelBorder).setDepth(20);
 
-    this.globalInventoryContainer = this.scene.add.container(FIELD_X + FIELD_W - 300, 4);
-    this.scene.add.existing(this.globalInventoryContainer).setDepth(21);
+    this.globalInventoryContainer = this.scene.add.container(FIELD_X + 4, 1);
+    this.globalInventoryContainer.setDepth(21);
     this.updateGlobalInventory();
 
-    this.eventText = this.scene.add.text(FIELD_X + 8, 8, '', {
+    this.eventText = this.scene.add.text(FIELD_X + 220, 8, '', {
       fontSize: '14px', color: '#c9d1d9', fontFamily: 'monospace',
-      wordWrap: { width: FIELD_W - 16 },
+      wordWrap: { width: FIELD_W - 230 },
       lineSpacing: 4,
     }).setDepth(21);
   }
@@ -591,6 +591,8 @@ export class UIManager {
       `\u2500\u2500 ${languageManager.ui.inventorySection} \u2500\u2500`
     );
 
+    this.updateGlobalInventory();
+
     const questSystem = (this.scene as any).questSystem;
     if (questSystem) {
       const questState = questSystem.getState();
@@ -843,10 +845,10 @@ export class UIManager {
       food: 'F',
     };
 
-    const startX = 14;
+    const startX = 0;
     const startY = 0;
-    const iconSize = 24;
-    const gap = 4;
+    const iconSize = 48;
+    const gap = 8;
 
     let x = startX;
     for (const item of inventory) {
@@ -859,11 +861,11 @@ export class UIManager {
         .setOrigin(0).setStrokeStyle(1, COLORS.panelBorder);
 
       const iconText = this.scene.add.text(iconSize / 2, iconSize / 2, icon, {
-        fontSize: '12px', color: '#ffffff', fontFamily: 'monospace', fontStyle: 'bold',
+        fontSize: '24px', color: '#ffffff', fontFamily: 'monospace', fontStyle: 'bold',
       }).setOrigin(0.5);
 
       const countText = this.scene.add.text(iconSize - 2, 2, `${item.quantity}`, {
-        fontSize: '9px', color: '#ffff00', fontFamily: 'monospace',
+        fontSize: '18px', color: '#ffff00', fontFamily: 'monospace',
       }).setOrigin(1, 0);
 
       const iconContainer = this.scene.add.container(x, startY, [bg, iconText, countText]);
@@ -889,7 +891,7 @@ export class UIManager {
           .setInteractive({ useHandCursor: true });
 
         const iconText = this.scene.add.text(iconSize / 2, iconSize / 2, effect.icon, {
-          fontSize: '12px', color: '#ffffff', fontFamily: 'monospace', fontStyle: 'bold',
+          fontSize: '24px', color: '#ffffff', fontFamily: 'monospace', fontStyle: 'bold',
         }).setOrigin(0.5);
 
         const artifactContainer = this.scene.add.container(x, startY, [bg, iconText]);
