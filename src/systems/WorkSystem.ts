@@ -273,18 +273,11 @@ export class WorkSystem {
       }
 
       if (settler.x === task.targetX && settler.y === task.targetY) {
-        settler.addToInventory({
-          name: artifact.name,
-          quantity: 1,
-          resourceType: 'artifact',
-        });
         if (this.artifactSystem) {
           this.artifactSystem.addArtifact(artifact.name);
           this.artifactSystem.applyEffects(settler);
         }
-        if (this.questSystem) {
-          this.questSystem.onFragmentFound();
-        }
+        this.simulation.addToInventory(artifact.name, 1, artifact.name);
         this.entityManager.remove(artifact.id);
         this.tileGrid.setOccupied(task.targetX, task.targetY, false);
         task.completed = true;
@@ -305,18 +298,11 @@ export class WorkSystem {
     if (settler.pathIndex >= settler.path.length) {
       const artifact = this.findArtifactAt(task.targetX, task.targetY);
       if (artifact) {
-        settler.addToInventory({
-          name: artifact.name,
-          quantity: 1,
-          resourceType: 'artifact',
-        });
         if (this.artifactSystem) {
           this.artifactSystem.addArtifact(artifact.name);
           this.artifactSystem.applyEffects(settler);
         }
-        if (this.questSystem) {
-          this.questSystem.onFragmentFound();
-        }
+        this.simulation.addToInventory(artifact.name, 1, artifact.name);
         this.entityManager.remove(artifact.id);
         this.tileGrid.setOccupied(task.targetX, task.targetY, false);
       }
