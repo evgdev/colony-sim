@@ -67,7 +67,7 @@ export class UIManager {
   thoughtTimer: number = 0;
   milestonesShown: Set<string> = new Set();
 
-  private inventoryIcons: Phaser.GameObjects.Container[] = [];
+  private inventoryIcons: Phaser.GameObjects.GameObject[] = [];
   private inventoryIconContainer!: Phaser.GameObjects.Container;
 
   private artifactIcons: Phaser.GameObjects.Container[] = [];
@@ -705,21 +705,19 @@ export class UIManager {
         fontSize: '9px', color: '#ffff00', fontFamily: 'monospace',
       }).setOrigin(1, 0);
 
-      const container = this.scene.add.container(x, startY, [bg, iconText, countText]);
-      container.setSize(iconSize, iconSize);
-
       if (item.resourceType === 'artifact') {
-        container.setInteractive({ useHandCursor: true });
-        container.on('pointerdown', () => {
-          const effect = this.artifactSystem?.getArtifactEffect(item.name);
+        bg.setInteractive({ useHandCursor: true });
+        const capturedName = item.name;
+        bg.on('pointerdown', () => {
+          const effect = this.artifactSystem?.getArtifactEffect(capturedName);
           if (effect) {
-            this.showArtifactTooltip(item.name, effect.description, x, startY - 60);
+            this.showArtifactTooltip(capturedName, effect.description, x, startY - 60);
           }
         });
       }
 
-      this.leftPanelContainer.add(container);
-      this.inventoryIcons.push(container);
+      this.inventoryIconContainer.add([bg, iconText, countText]);
+      this.inventoryIcons.push(bg, iconText, countText);
 
       x += iconSize + gap;
     }
