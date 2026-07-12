@@ -28,6 +28,7 @@ export class InputHandler {
   hoverRect!: Phaser.GameObjects.Rectangle;
   private scrollX: number = 0;
   private scrollY: number = 0;
+  scrollTo: ((tileX: number, tileY: number) => void) | null = null;
 
   constructor(
     scene: Phaser.Scene,
@@ -235,10 +236,9 @@ export class InputHandler {
   }
 
   private handleMinimapClick(tileX: number, tileY: number): void {
-    const settler = this.simulation.entityManager.getByType('settler')[0] as Settler | undefined;
-    if (!settler) return;
-
-    this.scene.input.keyboard?.emit('scroll-to', tileX, tileY);
+    if (this.scrollTo) {
+      this.scrollTo(tileX, tileY);
+    }
     this.uiManager.addLog(`${languageManager.ui.logAt} (${tileX},${tileY})`);
   }
 }

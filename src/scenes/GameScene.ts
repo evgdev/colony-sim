@@ -89,7 +89,6 @@ export class GameScene extends Phaser.Scene {
     this.input.keyboard!.on('scroll-down', () => this.scrollBy(0, 1));
     this.input.keyboard!.on('scroll-left', () => this.scrollBy(-1, 0));
     this.input.keyboard!.on('scroll-right', () => this.scrollBy(1, 0));
-    this.input.keyboard!.on('scroll-to', (_: any, tileX: number, tileY: number) => this.scrollTo(tileX, tileY));
 
     this.simulation = new Simulation(MAP_WIDTH, MAP_HEIGHT);
     this.movementSystem = new MovementSystem(this.simulation.tileGrid);
@@ -174,6 +173,7 @@ export class GameScene extends Phaser.Scene {
     this.entityRenderer.drawEntities();
 
     this.inputHandler = new InputHandler(this, this.simulation, this.uiManager, this.workSystem);
+    this.inputHandler.scrollTo = (tileX: number, tileY: number) => this.scrollTo(tileX, tileY);
     this.inputHandler.createHoverRect();
     this.inputHandler.createSelectionRect();
     this.inputHandler.setupInputHandlers();
