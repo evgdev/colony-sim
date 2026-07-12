@@ -134,6 +134,12 @@ export class InputHandler {
     );
 
     if (entityAtTile) {
+      if (this.uiManager.selectedEntity === entityAtTile &&
+          (entityAtTile.entityType === 'resource' || entityAtTile.entityType === 'artifact')) {
+        this.uiManager.onCollectCallback?.(entityAtTile);
+        this.uiManager.deselectAll();
+        return;
+      }
       this.uiManager.selectedBuilding = null;
       this.uiManager.selectedEntity = entityAtTile;
       this.uiManager.buildMode = null;
