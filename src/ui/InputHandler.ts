@@ -53,7 +53,7 @@ export class InputHandler {
     if (px < FIELD_X || px >= FIELD_X + FIELD_W) return null;
     if (py < FIELD_Y || py >= FIELD_Y + FIELD_H) return null;
     const tileX = Math.floor((px - FIELD_X) / TILE_SIZE) + this.scrollX;
-    const tileY = Math.floor((py - FIELD_Y) / TILE_SIZE) + 1 + this.scrollY;
+    const tileY = Math.floor((py - FIELD_Y) / TILE_SIZE) + this.scrollY;
     if (tileX < 0 || tileX >= MAP_WIDTH || tileY < 0 || tileY >= MAP_HEIGHT) return null;
     return { tileX, tileY };
   }
@@ -61,7 +61,7 @@ export class InputHandler {
   private tileToScreen(tileX: number, tileY: number): { sx: number; sy: number } {
     return {
       sx: FIELD_X + (tileX - this.scrollX) * TILE_SIZE,
-      sy: FIELD_Y + (tileY - 1 - this.scrollY) * TILE_SIZE,
+      sy: FIELD_Y + (tileY - this.scrollY) * TILE_SIZE,
     };
   }
 
