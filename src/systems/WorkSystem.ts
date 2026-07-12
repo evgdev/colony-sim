@@ -1,6 +1,7 @@
 import { EntityManager } from '../core/EntityManager';
 import { TileGrid } from '../core/TileGrid';
 import { MovementSystem } from './MovementSystem';
+import { ArtifactSystem } from './ArtifactSystem';
 import { Settler } from '../entities/Settler';
 import { Resource } from '../entities/Resource';
 import { Building } from '../entities/Building';
@@ -13,6 +14,7 @@ export class WorkSystem {
   private tileGrid: TileGrid;
   private entityManager: EntityManager;
   private taskQueue: TaskQueue;
+  artifactSystem: ArtifactSystem | null = null;
 
   constructor(
     movementSystem: MovementSystem,
@@ -244,6 +246,9 @@ export class WorkSystem {
           quantity: 1,
           resourceType: 'artifact',
         });
+        if (this.artifactSystem) {
+          this.artifactSystem.addArtifact(artifact.name);
+        }
         this.entityManager.remove(artifact.id);
         this.tileGrid.setOccupied(task.targetX, task.targetY, false);
         task.completed = true;

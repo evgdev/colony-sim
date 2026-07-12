@@ -16,6 +16,7 @@ import { NeedsSystem } from '../systems/NeedsSystem';
 import { BuildingSystem } from '../systems/BuildingSystem';
 import { DinosaurSystem } from '../systems/DinosaurSystem';
 import { CombatSystem } from '../systems/CombatSystem';
+import { ArtifactSystem } from '../systems/ArtifactSystem';
 import { TaskPriority } from '../core/Task';
 import { SaveManager } from '../core/SaveManager';
 import { DebugPanel } from '../ui/DebugPanel';
@@ -37,6 +38,7 @@ export class GameScene extends Phaser.Scene {
   buildingSystem!: BuildingSystem;
   dinosaurSystem!: DinosaurSystem;
   combatSystem!: CombatSystem;
+  artifactSystem!: ArtifactSystem;
   debugPanel!: DebugPanel;
 
   private mapRenderer!: MapRenderer;
@@ -99,6 +101,8 @@ export class GameScene extends Phaser.Scene {
       this.simulation.entityManager,
       this.simulation.taskQueue
     );
+    this.artifactSystem = new ArtifactSystem();
+    this.workSystem.artifactSystem = this.artifactSystem;
     this.buildingSystem = new BuildingSystem(
       this.simulation.entityManager,
       this.simulation.tileGrid
@@ -124,6 +128,7 @@ export class GameScene extends Phaser.Scene {
       this.simulation.entityManager,
       this.simulation.tileGrid
     );
+    this.artifactSystem = new ArtifactSystem();
 
     const centerX = Math.floor(MAP_WIDTH / 2);
     const centerY = Math.floor(MAP_HEIGHT / 2);
@@ -161,6 +166,7 @@ export class GameScene extends Phaser.Scene {
     this.mapRenderer.updateScroll(this.scrollX, this.scrollY);
 
     this.uiManager = new UIManager(this, this.simulation);
+    this.uiManager.setArtifactSystem(this.artifactSystem);
     this.uiManager.createEventArea();
     this.uiManager.createLeftPanel();
     this.uiManager.createActionLog();
@@ -316,6 +322,7 @@ export class GameScene extends Phaser.Scene {
     this.uiManager.updateSelection();
     this.uiManager.updateInfoPanel();
     this.uiManager.updateMinimap();
+    this.uiManager.updateArtifacts();
     this.debugPanel.update(this.simulation);
   }
 

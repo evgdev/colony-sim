@@ -1,0 +1,30 @@
+{
+  "trex tooth": {
+    "icon": "T",
+    "color": "#ff4444",
+    "effect": "maxHp",
+    "value": 20,
+    "description": "+20 к максимальному здоровью поселенца"
+  },
+  "raptor tooth": {
+    "icon": "R",
+    "color": "#44ff44",
+    "effect": "attackSpeed",
+    "value": 0.2,
+    "description": "+20% к скорости атаки"
+  },
+  "brontosaur tooth": {
+    "icon": "B",
+    "color": "#4444ff",
+    "effect": "storage",
+    "value": 20,
+    "description": "+20 к вместимости хранилищ"
+  },
+  "pterodactyl tooth": {
+    "icon": "P",
+    "color": "#ffff44",
+    "effect": "fogRadius",
+    "value": 1,
+    "description": "+1 к радиусу обзора"
+  }
+}

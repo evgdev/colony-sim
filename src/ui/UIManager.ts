@@ -67,9 +67,17 @@ export class UIManager {
   thoughtTimer: number = 0;
   milestonesShown: Set<string> = new Set();
 
+  private artifactIcons: Phaser.GameObjects.Container[] = [];
+  private artifactTooltip!: Phaser.GameObjects.Container;
+  private artifactSystem: import('../systems/ArtifactSystem').ArtifactSystem | null = null;
+
   constructor(scene: Phaser.Scene, simulation: Simulation) {
     this.scene = scene;
     this.simulation = simulation;
+  }
+
+  setArtifactSystem(artifactSystem: import('../systems/ArtifactSystem').ArtifactSystem): void {
+    this.artifactSystem = artifactSystem;
   }
 
   setSimulation(simulation: Simulation): void {
@@ -189,6 +197,23 @@ export class UIManager {
     this.scrollRightBtn = this.scene.add.text(14 + 90 + btnSize + 4, btnY + btnSize / 2 + 2, '\u25B6', btnStyle)
       .setOrigin(0.5).setInteractive({ useHandCursor: true }).on('pointerdown', () => this.scene.input.keyboard?.emit('scroll-right'));
     this.leftPanelContainer.add(this.scrollRightBtn);
+
+    const artifactY = btnY + btnSize + 16;
+    const artifactTitle = this.scene.add.text(14, artifactY, `\u2500\u2500 ${languageManager.ui.artifacts ?? 'Artifacts'} \u2500\u2500`, {
+      fontSize: '14px', color: '#58a6ff', fontFamily: 'monospace',
+      fontStyle: 'bold',
+    });
+    this.leftPanelContainer.add(artifactTitle);
+
+    this.artifactTooltip = this.scene.add.container(0, 0).setDepth(25).setVisible(false);
+    const tooltipBg = this.scene.add.rectangle(0, 0, 220, 60, 0x0d1117, 0.95)
+      .setOrigin(0).setStrokeStyle(1, COLORS.panelBorder);
+    const tooltipText = this.scene.add.text(8, 8, '', {
+      fontSize: '12px', color: '#c9d1d9', fontFamily: 'monospace',
+      wordWrap: { width: 204 },
+    });
+    this.artifactTooltip.add([tooltipBg, tooltipText]);
+    (this.artifactTooltip as any).tooltipText = tooltipText;
   }
 
   createActionLog(): void {
@@ -578,6 +603,63 @@ export class UIManager {
     const vh = VIEWPORT_TILES * ts;
     this.minimapGraphics.lineStyle(1, 0xffffff, 0.8);
     this.minimapGraphics.strokeRect(vx, vy, vw, vh);
+  }
+
+  updateArtifacts(): void {
+    if (!this.artifactSystem) return;
+
+    for (const icon of this.artifactIcons) {
+      icon.destroy();
+    }
+    this.artifactIcons = [];
+
+    const collected = this.artifactSystem.getCollectedArtifacts();
+    if (collected.size === 0) return;
+
+    const startX = 14;
+    const startY = 830;
+    const iconSize = 28;
+    const gap = 4;
+
+    let x = startX;
+    collected.forEach((count, name) => {
+      const effect = this.artifactSystem!.getArtifactEffect(name);
+      if (!effect) return;
+
+      const bg = this.scene.add.rectangle(x, startY, iconSize, iconSize, Phaser.Display.Color.HexStringToColor(effect.color).color, 0.8)
+        .setOrigin(0).setStrokeStyle(1, COLORS.panelBorder);
+
+      const icon = this.scene.add.text(x + iconSize / 2, startY + iconSize / 2, effect.icon, {
+        fontSize: '16px', color: '#ffffff', fontFamily: 'monospace', fontStyle: 'bold',
+      }).setOrigin(0.5);
+
+      const countText = this.scene.add.text(x + iconSize - 4, startY + 2, `${count}`, {
+        fontSize: '10px', color: '#ffff00', fontFamily: 'monospace',
+      }).setOrigin(1, 0);
+
+      const container = this.scene.add.container(0, 0, [bg, icon, countText]);
+      container.setSize(iconSize, iconSize);
+      container.setInteractive({ useHandCursor: true });
+      container.on('pointerdown', () => {
+        this.showArtifactTooltip(name, effect.description, x, startY - 60);
+      });
+
+      this.leftPanelContainer.add(container);
+      this.artifactIcons.push(container);
+
+      x += iconSize + gap;
+    });
+  }
+
+  private showArtifactTooltip(name: string, description: string, x: number, y: number): void {
+    const tooltipText = (this.artifactTooltip as any).tooltipText as Phaser.GameObjects.Text;
+    tooltipText.setText(`${name}\n${description}`);
+    this.artifactTooltip.setPosition(x, y);
+    this.artifactTooltip.setVisible(true);
+
+    this.scene.time.delayedCall(3000, () => {
+      this.artifactTooltip.setVisible(false);
+    });
   }
 
   checkMilestone(key: string): void {
