@@ -44,6 +44,12 @@ export class WorkSystem {
     settler.currentTaskId = task.id;
   }
 
+  interruptSettler(settler: Settler): void {
+    settler.currentTaskId = null;
+    settler.path = [];
+    settler.pathIndex = 0;
+  }
+
   private executeCurrentTask(settler: Settler, tickDelta: number): void {
     const task = this.findTaskById(settler.currentTaskId!);
     if (!task) {
@@ -270,6 +276,8 @@ export class WorkSystem {
   }
 
   createMoveTask(targetX: number, targetY: number, priority: TaskPriority = TaskPriority.Normal): Task {
+    const settlers = this.entityManager.getByType('settler') as Settler[];
+    for (const s of settlers) this.interruptSettler(s);
     const task = new Task({
       type: TaskType.MoveTo,
       priority,
@@ -281,6 +289,8 @@ export class WorkSystem {
   }
 
   createPickUpTask(resource: Resource, priority: TaskPriority = TaskPriority.Normal): Task {
+    const settlers = this.entityManager.getByType('settler') as Settler[];
+    for (const s of settlers) this.interruptSettler(s);
     const task = new Task({
       type: TaskType.PickUp,
       priority,
@@ -293,6 +303,8 @@ export class WorkSystem {
   }
 
   createBuildTask(building: Building, priority: TaskPriority = TaskPriority.Normal): Task {
+    const settlers = this.entityManager.getByType('settler') as Settler[];
+    for (const s of settlers) this.interruptSettler(s);
     const task = new Task({
       type: TaskType.Build,
       priority,
@@ -305,6 +317,8 @@ export class WorkSystem {
   }
 
   createPickUpArtifactTask(artifact: Artifact, priority: TaskPriority = TaskPriority.Normal): Task {
+    const settlers = this.entityManager.getByType('settler') as Settler[];
+    for (const s of settlers) this.interruptSettler(s);
     const task = new Task({
       type: TaskType.PickUpArtifact,
       priority,
