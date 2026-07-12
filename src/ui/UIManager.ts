@@ -503,6 +503,7 @@ export class UIManager {
         `${languageManager.ui.hp}: ${Math.round(s.hp)}/${s.maxHp}\n` +
         `${languageManager.ui.hunger}: ${Math.round(s.hunger)}%\n` +
         `${languageManager.ui.energy}: ${Math.round(s.energy)}%\n` +
+        `${languageManager.ui.food}: ${s.food}\n` +
         `${languageManager.ui.tick}: ${tickCount}` +
         buildStr
       );
@@ -541,10 +542,10 @@ export class UIManager {
 
     const tileColors: Record<string, number> = {
       grass: 0x3a5a2a,
-      dirt: 0x8b7355,
+      dirt: 0x3a5a2a,
       water: 0x3b7dd8,
-      stone: 0x808080,
-      sand: 0xc2b280,
+      stone: 0x3a5a2a,
+      sand: 0x3a5a2a,
     };
 
     for (let y = 0; y < grid.height; y++) {

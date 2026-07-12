@@ -60,7 +60,6 @@ export class EntityRenderer {
     this.entityTexts = [];
 
     for (const entity of this.simulation.entityManager.getAll()) {
-      if (entity.y === 0) continue;
       if (!this.isInViewport(entity.x, entity.y)) continue;
       if (entity.entityType !== 'settler' && !this.simulation.tileGrid.isRevealed(entity.x, entity.y)) continue;
 

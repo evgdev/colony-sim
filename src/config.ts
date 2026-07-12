@@ -8,7 +8,7 @@ export const LEFT_PANEL_WIDTH = 250;
 export const CANVAS_WIDTH = 1500;
 export const CANVAS_HEIGHT = 900;
 export const HUD_HEIGHT = 90;
-export const EVENT_HEIGHT = 0;
+export const EVENT_HEIGHT = 50;
 
 export const FIELD_X = LEFT_PANEL_WIDTH;
 export const FIELD_Y = EVENT_HEIGHT;
@@ -16,6 +16,13 @@ export const FIELD_W = VIEWPORT_TILES * TILE_SIZE;
 export const FIELD_H = VIEWPORT_TILES * TILE_SIZE;
 export const PANEL_X = CANVAS_WIDTH - PANEL_WIDTH;
 export const BOTTOM_HUD_Y = FIELD_Y + FIELD_H;
+
+export const FOOD_EAT_INTERVAL = 20;
+export const FOOD_HUNGER_RESTORE = 25;
+export const FOOD_START_AMOUNT = 5;
+export const STARVATION_DAMAGE = 5;
+export const HUNGER_STARVATION_THRESHOLD = 0;
+export const HUNGER_STARVATION_MULTIPLIER = 2;
 
 export const COLORS = {
   grass: 0x3a5a2a,

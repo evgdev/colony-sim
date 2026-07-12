@@ -29,6 +29,10 @@ export class BuildingSystem {
       if (def.produceType && def.produceRate > 0) {
         this.applyFarmEffect(bld, def.produceType, def.produceRate, def.produceInterval, tickDelta);
       }
+
+      if (def.produceType === 'food') {
+        this.collectFoodFromFarm(bld, settlers);
+      }
     }
   }
 
@@ -47,6 +51,23 @@ export class BuildingSystem {
       const added = bld.addToStorage(produceType, rate);
       if (added < rate) {
         bld.produceTimer = 0;
+      }
+    }
+  }
+
+  private collectFoodFromFarm(bld: Building, settlers: Settler[]): void {
+    const foodInStorage = bld.getStorageAmount('food');
+    if (foodInStorage <= 0) return;
+
+    for (const settler of settlers) {
+      if (!this.isNearby(settler, bld, 3)) continue;
+      if (settler.food >= 10) continue;
+
+      const toCollect = Math.min(foodInStorage, 10 - settler.food);
+      const collected = bld.removeFromStorage('food', toCollect);
+      if (collected > 0) {
+        settler.food += collected;
+        break;
       }
     }
   }

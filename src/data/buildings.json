@@ -26,7 +26,8 @@
     "produceType": "food",
     "produceRate": 2,
     "produceInterval": 5,
-    "description": "Produces food every 5 ticks"
+    "storageCapacity": 20,
+    "description": "Produces food every 5 ticks. Settler collects food when nearby."
   },
   "workshop": {
     "name": "Workshop",

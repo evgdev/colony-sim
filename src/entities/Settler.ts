@@ -14,6 +14,8 @@ export class Settler extends Entity {
   energy: number = 100;
   hp: number = 100;
   maxHp: number = 100;
+  food: number = 5;
+  foodTimer: number = 0;
   currentTaskId: string | null = null;
   attackCooldown: number = 0;
   path: { x: number; y: number }[] = [];
@@ -66,6 +68,8 @@ export class Settler extends Entity {
       energy: this.energy,
       hp: this.hp,
       maxHp: this.maxHp,
+      food: this.food,
+      foodTimer: this.foodTimer,
       currentTaskId: this.currentTaskId,
       path: this.path,
       pathIndex: this.pathIndex,
@@ -80,6 +84,8 @@ export class Settler extends Entity {
     s.energy = data.energy ?? 100;
     s.hp = data.hp ?? 100;
     s.maxHp = data.maxHp ?? 100;
+    s.food = data.food ?? 5;
+    s.foodTimer = data.foodTimer ?? 0;
     s.currentTaskId = data.currentTaskId ?? null;
     s.path = data.path || [];
     s.pathIndex = data.pathIndex ?? 0;
