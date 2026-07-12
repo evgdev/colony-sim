@@ -67,7 +67,7 @@ export class UIManager {
   thoughtTimer: number = 0;
   milestonesShown: Set<string> = new Set();
 
-  private inventoryIcons: Phaser.GameObjects.GameObject[] = [];
+  private inventoryIcons: Phaser.GameObjects.Container[] = [];
   private inventoryIconContainer!: Phaser.GameObjects.Container;
 
   private artifactIcons: Phaser.GameObjects.Container[] = [];
@@ -694,21 +694,24 @@ export class UIManager {
       const color = resourceColors[item.resourceType] ?? 0x666666;
       const icon = resourceIcons[item.resourceType] ?? '?';
 
-      const bg = this.scene.add.rectangle(x, startY, iconSize, iconSize, color, 0.8)
+      const bg = this.scene.add.rectangle(0, 0, iconSize, iconSize, color, 0.8)
         .setOrigin(0).setStrokeStyle(1, COLORS.panelBorder);
 
-      const iconText = this.scene.add.text(x + iconSize / 2, startY + iconSize / 2, icon, {
+      const iconText = this.scene.add.text(iconSize / 2, iconSize / 2, icon, {
         fontSize: '12px', color: '#ffffff', fontFamily: 'monospace', fontStyle: 'bold',
       }).setOrigin(0.5);
 
-      const countText = this.scene.add.text(x + iconSize - 2, startY + 2, `${item.quantity}`, {
+      const countText = this.scene.add.text(iconSize - 2, 2, `${item.quantity}`, {
         fontSize: '9px', color: '#ffff00', fontFamily: 'monospace',
       }).setOrigin(1, 0);
 
+      const iconContainer = this.scene.add.container(x, startY, [bg, iconText, countText]);
+      iconContainer.setSize(iconSize, iconSize);
+
       if (item.resourceType === 'artifact') {
-        bg.setInteractive({ useHandCursor: true });
+        iconContainer.setInteractive({ useHandCursor: true });
         const capturedName = item.name;
-        bg.on('pointerdown', () => {
+        iconContainer.on('pointerdown', () => {
           const effect = this.artifactSystem?.getArtifactEffect(capturedName);
           if (effect) {
             this.showArtifactTooltip(capturedName, effect.description, x, startY - 60);
@@ -716,8 +719,8 @@ export class UIManager {
         });
       }
 
-      this.inventoryIconContainer.add([bg, iconText, countText]);
-      this.inventoryIcons.push(bg, iconText, countText);
+      this.inventoryIconContainer.add(iconContainer);
+      this.inventoryIcons.push(iconContainer);
 
       x += iconSize + gap;
     }
