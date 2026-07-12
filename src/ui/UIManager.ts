@@ -705,7 +705,7 @@ export class UIManager {
         fontSize: '9px', color: '#ffff00', fontFamily: 'monospace',
       }).setOrigin(1, 0);
 
-      const container = this.scene.add.container(0, 0, [bg, iconText, countText]);
+      const container = this.scene.add.container(x, startY, [bg, iconText, countText]);
       container.setSize(iconSize, iconSize);
 
       if (item.resourceType === 'artifact') {
