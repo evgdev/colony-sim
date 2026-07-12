@@ -2,6 +2,7 @@ export const TILE_SIZE = 50;
 export const MAP_WIDTH = 30;
 export const MAP_HEIGHT = 30;
 export const VIEWPORT_TILES = 15;
+export const FOG_REVEAL_RADIUS = 3;
 export const PANEL_WIDTH = 250;
 export const LEFT_PANEL_WIDTH = 250;
 export const CANVAS_WIDTH = 1500;

@@ -10,6 +10,7 @@ export class MapRenderer {
   private simulation: Simulation;
   tileSprites: (Phaser.GameObjects.Rectangle | Phaser.GameObjects.Image)[][] = [];
   private transitionGraphics: Phaser.GameObjects.Graphics;
+  private fogGraphics: Phaser.GameObjects.Graphics;
   private scrollX: number = 0;
   private scrollY: number = 0;
 
@@ -17,6 +18,7 @@ export class MapRenderer {
     this.scene = scene;
     this.simulation = simulation;
     this.transitionGraphics = scene.add.graphics().setDepth(1);
+    this.fogGraphics = scene.add.graphics().setDepth(3);
     this.setViewportClip();
   }
 
@@ -25,7 +27,14 @@ export class MapRenderer {
     mask.fillStyle(0xffffff);
     mask.fillRect(FIELD_X, FIELD_Y, FIELD_W, FIELD_H);
     mask.setVisible(false);
-    this.transitionGraphics.setMask(new Phaser.Display.Masks.GeometryMask(this.scene, mask));
+    const geomMask = new Phaser.Display.Masks.GeometryMask(this.scene, mask);
+    this.transitionGraphics.setMask(geomMask);
+
+    const fogMask = this.scene.add.graphics();
+    fogMask.fillStyle(0xffffff);
+    fogMask.fillRect(FIELD_X, FIELD_Y, FIELD_W, FIELD_H);
+    fogMask.setVisible(false);
+    this.fogGraphics.setMask(new Phaser.Display.Masks.GeometryMask(this.scene, fogMask));
   }
 
   drawMap(): void {
@@ -85,6 +94,29 @@ export class MapRenderer {
     }
 
     this.drawTileTransitions();
+    this.drawFog();
+  }
+
+  private drawFog(): void {
+    this.fogGraphics.clear();
+    const sx = this.scrollX;
+    const sy = this.scrollY;
+    const grid = this.simulation.tileGrid;
+
+    const minX = Math.max(0, sx);
+    const maxX = Math.min(MAP_WIDTH, sx + VIEWPORT_TILES);
+    const minY = Math.max(1, sy + 1);
+    const maxY = Math.min(MAP_HEIGHT, sy + VIEWPORT_TILES + 1);
+
+    for (let y = minY; y < maxY; y++) {
+      for (let x = minX; x < maxX; x++) {
+        if (grid.isRevealed(x, y)) continue;
+        const px = FIELD_X + (x - sx) * TILE_SIZE;
+        const py = FIELD_Y + (y - 1 - sy) * TILE_SIZE;
+        this.fogGraphics.fillStyle(0x000000, 0.85);
+        this.fogGraphics.fillRect(px, py, TILE_SIZE, TILE_SIZE);
+      }
+    }
   }
 
   private drawTileTransitions(): void {

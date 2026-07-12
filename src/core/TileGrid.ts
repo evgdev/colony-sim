@@ -16,17 +16,22 @@ export class TileGrid {
   width: number;
   height: number;
   tiles: TileState[][];
+  revealed: boolean[][];
 
   constructor(width: number, height: number) {
     this.width = width;
     this.height = height;
     this.tiles = [];
+    this.revealed = [];
     for (let y = 0; y < height; y++) {
       const row: TileState[] = [];
+      const revRow: boolean[] = [];
       for (let x = 0; x < width; x++) {
         row.push({ type: 'grass', walkCost: 1, walkable: true, x, y, occupied: false });
+        revRow.push(false);
       }
       this.tiles.push(row);
+      this.revealed.push(revRow);
     }
   }
 
@@ -53,6 +58,24 @@ export class TileGrid {
     return tile !== null && tile.walkable && !tile.occupied;
   }
 
+  isRevealed(x: number, y: number): boolean {
+    if (x < 0 || x >= this.width || y < 0 || y >= this.height) return false;
+    return this.revealed[y][x];
+  }
+
+  reveal(cx: number, cy: number, radius: number): void {
+    for (let dy = -radius; dy <= radius; dy++) {
+      for (let dx = -radius; dx <= radius; dx++) {
+        if (dx * dx + dy * dy > radius * radius) continue;
+        const x = cx + dx;
+        const y = cy + dy;
+        if (x >= 0 && x < this.width && y >= 0 && y < this.height) {
+          this.revealed[y][x] = true;
+        }
+      }
+    }
+  }
+
   serialize(): object {
     return {
       width: this.width,
@@ -63,6 +86,7 @@ export class TileGrid {
         walkable: t.walkable,
         occupied: t.occupied,
       }))),
+      revealed: this.revealed,
     };
   }
 
@@ -80,6 +104,9 @@ export class TileGrid {
           y,
         };
       }
+    }
+    if (data.revealed) {
+      grid.revealed = data.revealed;
     }
     return grid;
   }

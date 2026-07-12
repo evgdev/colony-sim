@@ -3,6 +3,7 @@ import {
   TILE_SIZE, MAP_WIDTH, MAP_HEIGHT, VIEWPORT_TILES, COLORS,
   CANVAS_WIDTH, CANVAS_HEIGHT,
   FIELD_X, FIELD_Y, FIELD_W, FIELD_H,
+  FOG_REVEAL_RADIUS,
 } from '../config';
 import { Simulation } from '../core/Simulation';
 import { Settler } from '../entities/Settler';
@@ -124,6 +125,7 @@ export class GameScene extends Phaser.Scene {
     const settler = new Settler(centerX, centerY, 'Worker');
     this.simulation.entityManager.add(settler);
     this.simulation.tileGrid.setOccupied(centerX, centerY, true);
+    this.simulation.tileGrid.reveal(centerX, centerY, FOG_REVEAL_RADIUS);
 
     this.scrollX = Math.max(0, centerX - Math.floor(VIEWPORT_TILES / 2));
     this.scrollY = Math.max(0, centerY - 1 - Math.floor(VIEWPORT_TILES / 2));

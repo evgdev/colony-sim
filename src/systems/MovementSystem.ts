@@ -1,6 +1,7 @@
 import { TileGrid, TileType } from '../core/TileGrid';
 import { EntityManager } from '../core/EntityManager';
 import { Entity } from '../core/Entity';
+import { FOG_REVEAL_RADIUS } from '../config';
 import tilesData from '../data/tiles.json';
 
 interface AStarNode {
@@ -115,6 +116,7 @@ export class MovementSystem {
 
     this.tileGrid.setOccupied(entity.x, entity.y, false);
     entity.moveTo(target.x, target.y);
+    this.tileGrid.reveal(target.x, target.y, FOG_REVEAL_RADIUS);
     if (!isLastStep) {
       this.tileGrid.setOccupied(target.x, target.y, true);
     }
