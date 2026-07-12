@@ -106,7 +106,7 @@ export class MapRenderer {
         if (grid.isRevealed(x, y)) continue;
         const px = FIELD_X + (x - sx) * TILE_SIZE;
         const py = FIELD_Y + (y - 1 - sy) * TILE_SIZE;
-        this.fogGraphics.fillStyle(0x000000, 0.85);
+        this.fogGraphics.fillStyle(0x000000, 1);
         this.fogGraphics.fillRect(px, py, TILE_SIZE, TILE_SIZE);
       }
     }

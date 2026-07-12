@@ -105,6 +105,7 @@ export class InputHandler {
   handleTileClick(tileX: number, tileY: number): void {
     const tile = this.simulation.tileGrid.get(tileX, tileY);
     if (!tile) return;
+    if (!this.simulation.tileGrid.isRevealed(tileX, tileY)) return;
 
     const settler = this.simulation.entityManager.getByType('settler')[0] as Settler | undefined;
     if (!settler) return;
