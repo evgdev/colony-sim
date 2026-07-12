@@ -66,8 +66,8 @@ export class MapRenderer {
 
     const minX = sx;
     const maxX = sx + VIEWPORT_TILES;
-    const minY = sy + 1;
-    const maxY = sy + VIEWPORT_TILES + 1;
+    const minY = sy;
+    const maxY = sy + VIEWPORT_TILES;
 
     for (let y = 0; y < MAP_HEIGHT; y++) {
       for (let x = 0; x < MAP_WIDTH; x++) {
@@ -77,7 +77,7 @@ export class MapRenderer {
         if (x >= minX && x < maxX && y >= minY && y < maxY) {
           sprite.setPosition(
             FIELD_X + (x - sx) * TILE_SIZE,
-            FIELD_Y + (y - 1 - sy) * TILE_SIZE
+            FIELD_Y + (y - sy) * TILE_SIZE
           );
           sprite.setVisible(true);
         } else {
@@ -98,14 +98,14 @@ export class MapRenderer {
 
     const minX = Math.max(0, sx);
     const maxX = Math.min(MAP_WIDTH, sx + VIEWPORT_TILES);
-    const minY = Math.max(1, sy + 1);
-    const maxY = Math.min(MAP_HEIGHT, sy + VIEWPORT_TILES + 1);
+    const minY = Math.max(0, sy);
+    const maxY = Math.min(MAP_HEIGHT, sy + VIEWPORT_TILES);
 
     for (let y = minY; y < maxY; y++) {
       for (let x = minX; x < maxX; x++) {
         if (grid.isRevealed(x, y)) continue;
         const px = FIELD_X + (x - sx) * TILE_SIZE;
-        const py = FIELD_Y + (y - 1 - sy) * TILE_SIZE;
+        const py = FIELD_Y + (y - sy) * TILE_SIZE;
         this.fogGraphics.fillStyle(0x000000, 1);
         this.fogGraphics.fillRect(px, py, TILE_SIZE, TILE_SIZE);
       }
@@ -152,7 +152,7 @@ export class MapRenderer {
         if (myPriority === 0) continue;
 
         const px = FIELD_X + (x - sx) * tileSize;
-        const py = FIELD_Y + (y - 1 - sy) * tileSize;
+        const py = FIELD_Y + (y - sy) * tileSize;
         const seed = x * 100 + y;
         const c = getColor(tile.type);
 

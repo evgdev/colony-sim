@@ -85,6 +85,11 @@ export class GameScene extends Phaser.Scene {
       RIGHT: Phaser.Input.Keyboard.KeyCodes.RIGHT,
     }) as any;
 
+    this.input.keyboard!.on('scroll-up', () => this.scrollBy(0, -1));
+    this.input.keyboard!.on('scroll-down', () => this.scrollBy(0, 1));
+    this.input.keyboard!.on('scroll-left', () => this.scrollBy(-1, 0));
+    this.input.keyboard!.on('scroll-right', () => this.scrollBy(1, 0));
+
     this.simulation = new Simulation(MAP_WIDTH, MAP_HEIGHT);
     this.movementSystem = new MovementSystem(this.simulation.tileGrid);
     this.needsSystem = new NeedsSystem();
@@ -128,7 +133,7 @@ export class GameScene extends Phaser.Scene {
     this.simulation.tileGrid.reveal(centerX, centerY, FOG_REVEAL_RADIUS);
 
     this.scrollX = Math.max(0, centerX - Math.floor(VIEWPORT_TILES / 2));
-    this.scrollY = Math.max(0, centerY - 1 - Math.floor(VIEWPORT_TILES / 2));
+    this.scrollY = Math.max(0, centerY - Math.floor(VIEWPORT_TILES / 2));
     this.clampScroll();
 
     const resources = [
@@ -211,7 +216,7 @@ export class GameScene extends Phaser.Scene {
           if (settlers.length > 0) {
             const s = settlers[0];
             this.scrollX = Math.max(0, s.x - Math.floor(VIEWPORT_TILES / 2));
-            this.scrollY = Math.max(0, s.y - 1 - Math.floor(VIEWPORT_TILES / 2));
+            this.scrollY = Math.max(0, s.y - Math.floor(VIEWPORT_TILES / 2));
             this.clampScroll();
           }
           this.uiManager.selectedBuilding = null;
@@ -328,7 +333,7 @@ export class GameScene extends Phaser.Scene {
       if (newScrollX >= 0 && newScrollX <= MAP_WIDTH - VIEWPORT_TILES) {
         this.scrollX = newScrollX;
       }
-      if (newScrollY >= 0 && newScrollY <= MAP_HEIGHT - VIEWPORT_TILES - 1) {
+      if (newScrollY >= 0 && newScrollY <= MAP_HEIGHT - VIEWPORT_TILES) {
         this.scrollY = newScrollY;
       }
       this.mapRenderer.updateScroll(this.scrollX, this.scrollY);
@@ -338,9 +343,24 @@ export class GameScene extends Phaser.Scene {
     }
   }
 
+  private scrollBy(dx: number, dy: number): void {
+    const newScrollX = this.scrollX + dx;
+    const newScrollY = this.scrollY + dy;
+    if (newScrollX >= 0 && newScrollX <= MAP_WIDTH - VIEWPORT_TILES) {
+      this.scrollX = newScrollX;
+    }
+    if (newScrollY >= 0 && newScrollY <= MAP_HEIGHT - VIEWPORT_TILES) {
+      this.scrollY = newScrollY;
+    }
+    this.mapRenderer.updateScroll(this.scrollX, this.scrollY);
+    this.entityRenderer.updateScroll(this.scrollX, this.scrollY);
+    this.inputHandler.updateScroll(this.scrollX, this.scrollY);
+    this.uiManager.updateScroll(this.scrollX, this.scrollY);
+  }
+
   private clampScroll(): void {
     this.scrollX = Math.max(0, Math.min(this.scrollX, MAP_WIDTH - VIEWPORT_TILES));
-    this.scrollY = Math.max(0, Math.min(this.scrollY, MAP_HEIGHT - VIEWPORT_TILES - 1));
+    this.scrollY = Math.max(0, Math.min(this.scrollY, MAP_HEIGHT - VIEWPORT_TILES));
   }
 
   private formatDays(ticks: number): string {

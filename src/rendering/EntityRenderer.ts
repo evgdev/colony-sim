@@ -43,13 +43,13 @@ export class EntityRenderer {
 
   private isInViewport(x: number, y: number): boolean {
     return x >= this.scrollX && x < this.scrollX + VIEWPORT_TILES
-        && y >= this.scrollY + 1 && y < this.scrollY + VIEWPORT_TILES + 1;
+        && y >= this.scrollY && y < this.scrollY + VIEWPORT_TILES;
   }
 
   private worldToScreen(wx: number, wy: number): { sx: number; sy: number } {
     return {
       sx: FIELD_X + (wx - this.scrollX) * TILE_SIZE + TILE_SIZE / 2,
-      sy: FIELD_Y + (wy - 1 - this.scrollY) * TILE_SIZE + TILE_SIZE / 2,
+      sy: FIELD_Y + (wy - this.scrollY) * TILE_SIZE + TILE_SIZE / 2,
     };
   }
 
@@ -98,7 +98,7 @@ export class EntityRenderer {
     const barWidth = TILE_SIZE - 4;
     const barHeight = 5;
     const barX = FIELD_X + (ex - this.scrollX) * TILE_SIZE + 2;
-    const barY = FIELD_Y + (ey - 1 - this.scrollY) * TILE_SIZE - 8;
+    const barY = FIELD_Y + (ey - this.scrollY) * TILE_SIZE - 8;
 
     g.fillStyle(0x333333, 0.8);
     g.fillRect(barX, barY, barWidth, barHeight);

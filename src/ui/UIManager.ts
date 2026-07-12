@@ -38,6 +38,11 @@ export class UIManager {
   colonistStatusText!: Phaser.GameObjects.Text;
   colonistTaskText!: Phaser.GameObjects.Text;
   colonistInvText!: Phaser.GameObjects.Text;
+  private scrollUpBtn!: Phaser.GameObjects.Text;
+  private scrollDownBtn!: Phaser.GameObjects.Text;
+  private scrollLeftBtn!: Phaser.GameObjects.Text;
+  private scrollRightBtn!: Phaser.GameObjects.Text;
+
   thoughtText!: Phaser.GameObjects.Text;
   private minimapGraphics!: Phaser.GameObjects.Graphics;
   private minimapBg!: Phaser.GameObjects.Rectangle;
@@ -79,7 +84,7 @@ export class UIManager {
   private tileToScreen(tileX: number, tileY: number): { sx: number; sy: number } {
     return {
       sx: FIELD_X + (tileX - this.scrollX) * TILE_SIZE + TILE_SIZE / 2,
-      sy: FIELD_Y + (tileY - 1 - this.scrollY) * TILE_SIZE + TILE_SIZE / 2,
+      sy: FIELD_Y + (tileY - this.scrollY) * TILE_SIZE + TILE_SIZE / 2,
     };
   }
 
@@ -163,6 +168,27 @@ export class UIManager {
 
     this.minimapGraphics = this.scene.add.graphics();
     this.leftPanelContainer.add(this.minimapGraphics);
+
+    const btnY = minimapY + 24 + this.minimapSize + 8;
+    const btnSize = 30;
+    const btnColor = '#58a6ff';
+    const btnStyle = { fontSize: '18px', color: btnColor, fontFamily: 'monospace', fontStyle: 'bold' as const };
+
+    this.scrollUpBtn = this.scene.add.text(14 + 90, btnY, '\u25B2', btnStyle)
+      .setOrigin(0.5).setInteractive({ useHandCursor: true }).on('pointerdown', () => this.scene.input.keyboard?.emit('scroll-up'));
+    this.leftPanelContainer.add(this.scrollUpBtn);
+
+    this.scrollDownBtn = this.scene.add.text(14 + 90, btnY + btnSize + 4, '\u25BC', btnStyle)
+      .setOrigin(0.5).setInteractive({ useHandCursor: true }).on('pointerdown', () => this.scene.input.keyboard?.emit('scroll-down'));
+    this.leftPanelContainer.add(this.scrollDownBtn);
+
+    this.scrollLeftBtn = this.scene.add.text(14 + 90 - btnSize - 4, btnY + btnSize / 2 + 2, '\u25C0', btnStyle)
+      .setOrigin(0.5).setInteractive({ useHandCursor: true }).on('pointerdown', () => this.scene.input.keyboard?.emit('scroll-left'));
+    this.leftPanelContainer.add(this.scrollLeftBtn);
+
+    this.scrollRightBtn = this.scene.add.text(14 + 90 + btnSize + 4, btnY + btnSize / 2 + 2, '\u25B6', btnStyle)
+      .setOrigin(0.5).setInteractive({ useHandCursor: true }).on('pointerdown', () => this.scene.input.keyboard?.emit('scroll-right'));
+    this.leftPanelContainer.add(this.scrollRightBtn);
   }
 
   createActionLog(): void {
@@ -546,7 +572,7 @@ export class UIManager {
     }
 
     const vx = ox + this.scrollX * ts;
-    const vy = oy + (this.scrollY + 1) * ts;
+    const vy = oy + this.scrollY * ts;
     const vw = VIEWPORT_TILES * ts;
     const vh = VIEWPORT_TILES * ts;
     this.minimapGraphics.lineStyle(1, 0xffffff, 0.8);
