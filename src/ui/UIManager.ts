@@ -715,6 +715,7 @@ export class UIManager {
 
     if (this.artifactSystem) {
       const collected = this.artifactSystem.getCollectedArtifacts();
+      this.addLog(`Artifacts: ${collected.size}`);
       collected.forEach((count, name) => {
         if (count <= 0) return;
         const effect = this.artifactSystem!.getArtifactEffect(name);
@@ -723,17 +724,9 @@ export class UIManager {
         const color = Phaser.Display.Color.HexStringToColor(effect.color).color;
 
         const bg = this.scene.add.rectangle(x, startY, iconSize, iconSize, color, 0.8)
-          .setOrigin(0).setStrokeStyle(1, COLORS.panelBorder).setDepth(25);
+          .setOrigin(0).setStrokeStyle(1, COLORS.panelBorder).setDepth(25)
+          .setInteractive({ useHandCursor: true });
 
-        const iconText = this.scene.add.text(x + iconSize / 2, startY + iconSize / 2, effect.icon, {
-          fontSize: '14px', color: '#ffffff', fontFamily: 'monospace', fontStyle: 'bold',
-        }).setOrigin(0.5).setDepth(26);
-
-        const countText = this.scene.add.text(x + iconSize - 2, startY + 2, `${count}`, {
-          fontSize: '9px', color: '#ffff00', fontFamily: 'monospace',
-        }).setOrigin(1, 0).setDepth(26);
-
-        bg.setInteractive({ useHandCursor: true });
         bg.on('pointerover', () => {
           bg.setStrokeStyle(2, 0xffffff);
           bg.setFillStyle(color, 1);
@@ -743,11 +736,10 @@ export class UIManager {
           bg.setFillStyle(color, 0.8);
         });
         bg.on('pointerdown', () => {
-          this.addLog(`Clicked: ${name}`);
           this.showArtifactTooltip(name, effect.description, x, startY - 60);
         });
 
-        this.inventoryIcons.push(bg, iconText, countText);
+        this.inventoryIcons.push(bg);
 
         x += iconSize + gap;
       });
