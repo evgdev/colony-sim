@@ -8,7 +8,7 @@ export const LEFT_PANEL_WIDTH = 250;
 export const CANVAS_WIDTH = 1500;
 export const CANVAS_HEIGHT = 900;
 export const HUD_HEIGHT = 90;
-export const EVENT_HEIGHT = 60;
+export const EVENT_HEIGHT = 0;
 
 export const FIELD_X = LEFT_PANEL_WIDTH;
 export const FIELD_Y = EVENT_HEIGHT;
