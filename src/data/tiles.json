@@ -1,5 +1,5 @@
 {
-  "grass": { "type": "grass", "walkCost": 1, "walkable": true, "color": 4881455 },
+  "grass": { "type": "grass", "walkCost": 1, "walkable": true, "color": 3824170 },
   "dirt": { "type": "dirt", "walkCost": 1, "walkable": true, "color": 9139029 },
   "water": { "type": "water", "walkCost": 999, "walkable": false, "color": 3929528 },
   "stone": { "type": "stone", "walkCost": 2, "walkable": true, "color": 8421504 },

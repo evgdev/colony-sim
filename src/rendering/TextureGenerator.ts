@@ -54,54 +54,29 @@ export function createBuildingIcons(scene: Phaser.Scene): void {
   wG.destroy();
 }
 
+function seededRandom(x: number, y: number, seed: number): number {
+  const n = Math.sin(x * 12.9898 + y * 78.233 + seed * 43.1234) * 43758.5453;
+  return n - Math.floor(n);
+}
+
 export function createTileTextures(scene: Phaser.Scene): void {
   const s = TILE_SIZE;
 
   const grassG = scene.add.graphics().setVisible(false);
-  grassG.fillStyle(0x4a7c3f);
+  grassG.fillStyle(0x3a5a2a);
   grassG.fillRect(0, 0, s, s);
-  grassG.fillStyle(0x5a8c4f);
-  grassG.fillCircle(6, 8, 2);
-  grassG.fillCircle(18, 5, 1);
-  grassG.fillCircle(32, 10, 2);
-  grassG.fillCircle(42, 6, 1);
-  grassG.fillCircle(10, 22, 1);
-  grassG.fillCircle(25, 18, 2);
-  grassG.fillCircle(38, 24, 1);
-  grassG.fillCircle(5, 36, 2);
-  grassG.fillCircle(20, 32, 1);
-  grassG.fillCircle(35, 38, 2);
-  grassG.fillCircle(45, 34, 1);
-  grassG.lineStyle(1, 0x3a6c2f, 0.4);
-  grassG.beginPath();
-  grassG.moveTo(8, 4);
-  grassG.lineTo(8, 12);
-  grassG.strokePath();
-  grassG.beginPath();
-  grassG.moveTo(22, 16);
-  grassG.lineTo(22, 24);
-  grassG.strokePath();
-  grassG.beginPath();
-  grassG.moveTo(38, 30);
-  grassG.lineTo(38, 38);
-  grassG.strokePath();
-  grassG.beginPath();
-  grassG.moveTo(14, 34);
-  grassG.lineTo(14, 42);
-  grassG.strokePath();
-  grassG.lineStyle(1, 0x6a9c5f, 0.3);
-  grassG.beginPath();
-  grassG.moveTo(30, 6);
-  grassG.lineTo(30, 14);
-  grassG.strokePath();
-  grassG.beginPath();
-  grassG.moveTo(44, 22);
-  grassG.lineTo(44, 30);
-  grassG.strokePath();
-  grassG.beginPath();
-  grassG.moveTo(4, 20);
-  grassG.lineTo(4, 28);
-  grassG.strokePath();
+  const grassColors = [0x336b25, 0x458a35, 0x2d4f1f, 0x3e6830, 0x2a5020];
+  const grassSeed = 42;
+  for (let y = 0; y < s; y++) {
+    for (let x = 0; x < s; x++) {
+      const r = seededRandom(x, y, grassSeed);
+      if (r < 0.4) {
+        const ci = Math.floor(seededRandom(x + 100, y + 100, grassSeed) * grassColors.length);
+        grassG.fillStyle(grassColors[ci]);
+        grassG.fillRect(x, y, 1, 1);
+      }
+    }
+  }
   grassG.generateTexture('tile_grass', s, s);
   grassG.destroy();
 

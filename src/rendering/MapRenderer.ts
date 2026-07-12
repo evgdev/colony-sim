@@ -99,27 +99,59 @@ export class MapRenderer {
 
           if (n.dx === 1) {
             for (let dy = 0; dy < tileSize; dy += 3) {
-              const w = dy % 6 === 0 ? 1 : 2;
-              const depth = Math.floor(seededRandom(x, dy, seed2) * 6) + 1;
-              g.fillRect(px + tileSize, py + dy, depth, w);
+              const edgeFactor = 1 - Math.abs(dy - tileSize / 2) / (tileSize / 2);
+              const maxDepth = 3 + Math.floor(edgeFactor * 4);
+              const depth = Math.floor(seededRandom(x, dy, seed2) * maxDepth) + 1;
+              const w = seededRandom(x + 200, dy, seed2) > 0.5 ? 1 : 2;
+              const solidLen = Math.floor(depth * 0.7);
+              g.fillRect(px + tileSize, py + dy, solidLen, w);
+              for (let px2 = solidLen; px2 < depth; px2++) {
+                if (seededRandom(x + 300, dy + px2, seed2) > 0.4) {
+                  g.fillRect(px + tileSize + px2, py + dy, 1, w);
+                }
+              }
             }
           } else if (n.dy === 1) {
             for (let dx = 0; dx < tileSize; dx += 3) {
-              const w = dx % 6 === 0 ? 1 : 2;
-              const depth = Math.floor(seededRandom(dx, y, seed2) * 6) + 1;
-              g.fillRect(px + dx, py + tileSize, w, depth);
+              const edgeFactor = 1 - Math.abs(dx - tileSize / 2) / (tileSize / 2);
+              const maxDepth = 3 + Math.floor(edgeFactor * 4);
+              const depth = Math.floor(seededRandom(dx, y, seed2) * maxDepth) + 1;
+              const w = seededRandom(dx, y + 200, seed2) > 0.5 ? 1 : 2;
+              const solidLen = Math.floor(depth * 0.7);
+              g.fillRect(px + dx, py + tileSize, w, solidLen);
+              for (let py2 = solidLen; py2 < depth; py2++) {
+                if (seededRandom(dx + 300, y + py2, seed2) > 0.4) {
+                  g.fillRect(px + dx, py + tileSize + py2, w, 1);
+                }
+              }
             }
           } else if (n.dx === -1) {
             for (let dy = 0; dy < tileSize; dy += 3) {
-              const w = dy % 6 === 0 ? 1 : 2;
-              const depth = Math.floor(seededRandom(x, dy, seed2) * 6) + 1;
-              g.fillRect(px - depth, py + dy, depth, w);
+              const edgeFactor = 1 - Math.abs(dy - tileSize / 2) / (tileSize / 2);
+              const maxDepth = 3 + Math.floor(edgeFactor * 4);
+              const depth = Math.floor(seededRandom(x, dy, seed2) * maxDepth) + 1;
+              const w = seededRandom(x + 200, dy, seed2) > 0.5 ? 1 : 2;
+              const solidLen = Math.floor(depth * 0.7);
+              g.fillRect(px - solidLen, py + dy, solidLen, w);
+              for (let px2 = solidLen; px2 < depth; px2++) {
+                if (seededRandom(x + 300, dy + px2, seed2) > 0.4) {
+                  g.fillRect(px - px2 - 1, py + dy, 1, w);
+                }
+              }
             }
           } else if (n.dy === -1) {
             for (let dx = 0; dx < tileSize; dx += 3) {
-              const w = dx % 6 === 0 ? 1 : 2;
-              const depth = Math.floor(seededRandom(dx, y, seed2) * 6) + 1;
-              g.fillRect(px + dx, py - depth, w, depth);
+              const edgeFactor = 1 - Math.abs(dx - tileSize / 2) / (tileSize / 2);
+              const maxDepth = 3 + Math.floor(edgeFactor * 4);
+              const depth = Math.floor(seededRandom(dx, y, seed2) * maxDepth) + 1;
+              const w = seededRandom(dx, y + 200, seed2) > 0.5 ? 1 : 2;
+              const solidLen = Math.floor(depth * 0.7);
+              g.fillRect(px + dx, py - solidLen, w, solidLen);
+              for (let py2 = solidLen; py2 < depth; py2++) {
+                if (seededRandom(dx + 300, y + py2, seed2) > 0.4) {
+                  g.fillRect(px + dx, py - py2 - 1, w, 1);
+                }
+              }
             }
           }
         }

@@ -16,7 +16,7 @@ export const PANEL_X = CANVAS_WIDTH - PANEL_WIDTH;
 export const BOTTOM_HUD_Y = FIELD_Y + FIELD_H;
 
 export const COLORS = {
-  grass: 0x4a7c3f,
+  grass: 0x3a5a2a,
   dirt: 0x8b7355,
   water: 0x3b7dd8,
   stone: 0x808080,
