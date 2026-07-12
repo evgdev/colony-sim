@@ -107,7 +107,7 @@ export class UIManager {
     const evBg = this.scene.add.rectangle(FIELD_X, 0, FIELD_W, EVENT_HEIGHT, 0x0a0a2e, 0.95)
       .setOrigin(0).setStrokeStyle(1, COLORS.panelBorder).setDepth(20);
 
-    this.globalInventoryContainer = this.scene.add.container(FIELD_X + 8, 4);
+    this.globalInventoryContainer = this.scene.add.container(FIELD_X + FIELD_W - 300, 4);
     this.scene.add.existing(this.globalInventoryContainer).setDepth(21);
     this.updateGlobalInventory();
 
