@@ -656,10 +656,6 @@ export class UIManager {
     tooltipText.setText(`${name}\n${description}`);
     this.artifactTooltip.setPosition(x, y);
     this.artifactTooltip.setVisible(true);
-
-    this.scene.time.delayedCall(3000, () => {
-      this.artifactTooltip.setVisible(false);
-    });
   }
 
   private lastInventoryHash: string = '';
@@ -738,13 +734,12 @@ export class UIManager {
         bg.on('pointerover', () => {
           bg.setStrokeStyle(2, 0xffffff);
           bg.setFillStyle(color, 1);
+          this.showArtifactTooltip(name, effect.description, x, startY - 60);
         });
         bg.on('pointerout', () => {
           bg.setStrokeStyle(1, COLORS.panelBorder);
           bg.setFillStyle(color, 0.8);
-        });
-        bg.on('pointerdown', () => {
-          this.showArtifactTooltip(name, effect.description, x, startY - 60);
+          this.artifactTooltip.setVisible(false);
         });
 
         this.inventoryIcons.push(bg);
