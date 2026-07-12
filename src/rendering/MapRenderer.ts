@@ -239,4 +239,8 @@ export class MapRenderer {
   redrawMap(): void {
     this.drawMap();
   }
+
+  redrawFog(): void {
+    this.drawFog();
+  }
 }

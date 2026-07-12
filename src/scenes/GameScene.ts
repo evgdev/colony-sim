@@ -303,6 +303,7 @@ export class GameScene extends Phaser.Scene {
         this.uiManager.updateBuildButtonStates();
       }
     }
+    this.mapRenderer.redrawFog();
     this.entityRenderer.drawEntities();
     this.entityRenderer.drawPath();
     this.uiManager.updateLeftPanel(this.gameOver, this.simulation.tickCount);
