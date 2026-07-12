@@ -62,6 +62,7 @@ export class EntityRenderer {
     for (const entity of this.simulation.entityManager.getAll()) {
       if (entity.y === 0) continue;
       if (!this.isInViewport(entity.x, entity.y)) continue;
+      if (entity.entityType !== 'settler' && !this.simulation.tileGrid.isRevealed(entity.x, entity.y)) continue;
 
       const g = this.scene.add.graphics().setDepth(10);
       const { sx: cx, sy: cy } = this.worldToScreen(entity.x, entity.y);

@@ -27,14 +27,7 @@ export class MapRenderer {
     mask.fillStyle(0xffffff);
     mask.fillRect(FIELD_X, FIELD_Y, FIELD_W, FIELD_H);
     mask.setVisible(false);
-    const geomMask = new Phaser.Display.Masks.GeometryMask(this.scene, mask);
-    this.transitionGraphics.setMask(geomMask);
-
-    const fogMask = this.scene.add.graphics();
-    fogMask.fillStyle(0xffffff);
-    fogMask.fillRect(FIELD_X, FIELD_Y, FIELD_W, FIELD_H);
-    fogMask.setVisible(false);
-    this.fogGraphics.setMask(new Phaser.Display.Masks.GeometryMask(this.scene, fogMask));
+    this.transitionGraphics.setMask(new Phaser.Display.Masks.GeometryMask(this.scene, mask));
   }
 
   drawMap(): void {
