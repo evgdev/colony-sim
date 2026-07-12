@@ -672,14 +672,12 @@ export class UIManager {
       wood: 0x8B4513,
       stone: 0x808080,
       food: 0x228B22,
-      artifact: 0xFFD700,
     };
 
     const resourceIcons: Record<string, string> = {
       wood: 'W',
       stone: 'S',
       food: 'F',
-      artifact: 'A',
     };
 
     const startX = 14;
@@ -690,6 +688,7 @@ export class UIManager {
     let x = startX;
     for (const item of settler.inventory) {
       if (item.quantity <= 0) continue;
+      if (item.resourceType === 'artifact') continue;
 
       const color = resourceColors[item.resourceType] ?? 0x666666;
       const icon = resourceIcons[item.resourceType] ?? '?';
@@ -708,21 +707,44 @@ export class UIManager {
       const iconContainer = this.scene.add.container(x, startY, [bg, iconText, countText]);
       iconContainer.setSize(iconSize, iconSize);
 
-      if (item.resourceType === 'artifact') {
-        iconContainer.setInteractive({ useHandCursor: true });
-        const capturedName = item.name;
-        iconContainer.on('pointerdown', () => {
-          const effect = this.artifactSystem?.getArtifactEffect(capturedName);
-          if (effect) {
-            this.showArtifactTooltip(capturedName, effect.description, x, startY - 60);
-          }
-        });
-      }
-
       this.inventoryIconContainer.add(iconContainer);
       this.inventoryIcons.push(iconContainer);
 
       x += iconSize + gap;
+    }
+
+    if (this.artifactSystem) {
+      const collected = this.artifactSystem.getCollectedArtifacts();
+      collected.forEach((count, name) => {
+        if (count <= 0) return;
+        const effect = this.artifactSystem!.getArtifactEffect(name);
+        if (!effect) return;
+
+        const color = Phaser.Display.Color.HexStringToColor(effect.color).color;
+
+        const bg = this.scene.add.rectangle(0, 0, iconSize, iconSize, color, 0.8)
+          .setOrigin(0).setStrokeStyle(1, COLORS.panelBorder);
+
+        const iconText = this.scene.add.text(iconSize / 2, iconSize / 2, effect.icon, {
+          fontSize: '14px', color: '#ffffff', fontFamily: 'monospace', fontStyle: 'bold',
+        }).setOrigin(0.5);
+
+        const countText = this.scene.add.text(iconSize - 2, 2, `${count}`, {
+          fontSize: '9px', color: '#ffff00', fontFamily: 'monospace',
+        }).setOrigin(1, 0);
+
+        const iconContainer = this.scene.add.container(x, startY, [bg, iconText, countText]);
+        iconContainer.setSize(iconSize, iconSize);
+        iconContainer.setInteractive({ useHandCursor: true });
+        iconContainer.on('pointerdown', () => {
+          this.showArtifactTooltip(name, effect.description, x, startY - 60);
+        });
+
+        this.inventoryIconContainer.add(iconContainer);
+        this.inventoryIcons.push(iconContainer);
+
+        x += iconSize + gap;
+      });
     }
   }
 
