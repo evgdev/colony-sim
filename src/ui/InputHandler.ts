@@ -15,6 +15,11 @@ import buildingsData from '../data/buildings.json';
 
 type BuildingType = keyof typeof buildingsData;
 
+const MINIMAP_X = 14;
+const MINIMAP_Y = 584;
+const MINIMAP_TILE_SIZE = 7;
+const MINIMAP_SIZE = 210;
+
 export class InputHandler {
   private scene: Phaser.Scene;
   private simulation: Simulation;
@@ -58,6 +63,15 @@ export class InputHandler {
     return { tileX, tileY };
   }
 
+  private screenToMinimapTile(px: number, py: number): { tileX: number; tileY: number } | null {
+    if (px < MINIMAP_X || px >= MINIMAP_X + MINIMAP_SIZE) return null;
+    if (py < MINIMAP_Y || py >= MINIMAP_Y + MINIMAP_SIZE) return null;
+    const tileX = Math.floor((px - MINIMAP_X) / MINIMAP_TILE_SIZE);
+    const tileY = Math.floor((py - MINIMAP_Y) / MINIMAP_TILE_SIZE);
+    if (tileX < 0 || tileX >= MAP_WIDTH || tileY < 0 || tileY >= MAP_HEIGHT) return null;
+    return { tileX, tileY };
+  }
+
   private tileToScreen(tileX: number, tileY: number): { sx: number; sy: number } {
     return {
       sx: FIELD_X + (tileX - this.scrollX) * TILE_SIZE,
@@ -96,6 +110,12 @@ export class InputHandler {
     });
 
     this.scene.input.on('pointerdown', (pointer: Phaser.Input.Pointer) => {
+      const minimapCoords = this.screenToMinimapTile(pointer.x, pointer.y);
+      if (minimapCoords) {
+        this.handleMinimapClick(minimapCoords.tileX, minimapCoords.tileY);
+        return;
+      }
+
       const coords = this.screenToTile(pointer.x, pointer.y);
       if (!coords) return;
       this.handleTileClick(coords.tileX, coords.tileY);
@@ -212,5 +232,16 @@ export class InputHandler {
 
   hideHover(): void {
     this.hoverRect.setVisible(false);
+  }
+
+  private handleMinimapClick(tileX: number, tileY: number): void {
+    const tile = this.simulation.tileGrid.get(tileX, tileY);
+    if (!tile || !tile.walkable) return;
+
+    const settler = this.simulation.entityManager.getByType('settler')[0] as Settler | undefined;
+    if (!settler) return;
+
+    this.workSystem.createMoveTask(tileX, tileY);
+    this.uiManager.addLog(`${settler.name} ${languageManager.ui.logWorkerHeadsTo} (${tileX},${tileY})`);
   }
 }
