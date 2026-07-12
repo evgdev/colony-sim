@@ -9,7 +9,7 @@ export class DinosaurSystem {
   private entityManager: EntityManager;
   private tileGrid: TileGrid;
   private spawnTimer: number = 0;
-  private spawnInterval: number = 30;
+  private spawnInterval: number = 1;
   private maxDinosaurs: number = 6;
   private onSettlerDeath?: (name: string) => void;
   private onSpawn?: (species: string) => void;

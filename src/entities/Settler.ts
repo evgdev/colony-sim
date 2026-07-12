@@ -12,8 +12,8 @@ export class Settler extends Entity {
   inventory: InventoryItem[] = [];
   hunger: number = 100;
   energy: number = 100;
-  hp: number = 100;
-  maxHp: number = 100;
+  hp: number = 1000;
+  maxHp: number = 1000;
   food: number = 5;
   foodTimer: number = 0;
   currentTaskId: string | null = null;

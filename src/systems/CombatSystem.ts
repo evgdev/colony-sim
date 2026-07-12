@@ -45,7 +45,7 @@ export class CombatSystem {
 
       const nearestDino = this.findNearestDino(settler, 1);
       if (nearestDino) {
-        const damage = 10;
+        const damage = 500;
         nearestDino.takeDamage(damage);
         settler.attackCooldown = 1.0;
         const killed = !nearestDino.isAlive;

@@ -282,19 +282,19 @@ export class GameScene extends Phaser.Scene {
               .replace('{defender}', e.defender);
             this.uiManager.addLog(msg);
             if (e.killed && e.killedAt && e.killedSpecies) {
-              const deathLines = languageManager.narrative.combat.settlerDeath;
-              const deathMsg = deathLines[Math.floor(Math.random() * deathLines.length)]
-                .replace('{name}', e.attacker);
-              this.uiManager.addLog(deathMsg);
-
               const artifactName = `${e.killedSpecies} tooth`;
               const artifact = new Artifact(e.killedAt.x, e.killedAt.y, 'trophy', artifactName);
               this.simulation.entityManager.add(artifact);
               this.simulation.tileGrid.setOccupied(e.killedAt.x, e.killedAt.y, true);
 
-              const achieveMsg = `${e.attacker} earned achievement: T-Rex Killer!`;
+              const achieveMsg = `${e.attacker} earned: ${artifactName}`;
               this.uiManager.addEvent(achieveMsg);
               this.uiManager.addLog(achieveMsg);
+
+              this.artifactSystem.addArtifact(artifactName);
+              this.artifactSystem.applyEffects(
+                this.simulation.entityManager.getByType('settler')[0] as Settler
+              );
             }
           } else if (e.type === 'dino_vs_dino') {
             const lines = languageManager.narrative.combat.dinoAttack;
