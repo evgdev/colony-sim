@@ -217,7 +217,7 @@ export class InputHandler {
     const def = (buildingsData as any)[this.uiManager.buildMode!];
     const settler = (this.scene as any).getSelectedSettler() as Settler;
     const hasAll = Object.entries(def.requires).every(([res, qty]) =>
-      settler.hasResource(res, qty as number)
+      this.simulation.hasResource(res, qty as number)
     );
     if (!hasAll) {
       const need = Object.entries(def.requires).map(([r, q]) => `${r}:${q}`).join(', ');

@@ -2,12 +2,19 @@ import { TileGrid } from '../core/TileGrid';
 import { EntityManager } from '../core/EntityManager';
 import { TaskQueue } from '../core/TaskQueue';
 
+export interface InventoryItem {
+  resourceType: string;
+  quantity: number;
+  name?: string;
+}
+
 export interface SimulationState {
   grid: ReturnType<TileGrid['serialize']>;
   entities: ReturnType<EntityManager['serialize']>;
   tasks: ReturnType<TaskQueue['serialize']>;
   tickCount: number;
   nextEntityId: number;
+  inventory: InventoryItem[];
 }
 
 export class Simulation {
@@ -17,12 +24,43 @@ export class Simulation {
   tickCount: number = 0;
   tickRate: number = 500;
   private tickAccumulator: number = 0;
+  inventory: InventoryItem[] = [];
 
   constructor(width: number = 20, height: number = 15) {
     this.tileGrid = new TileGrid(width, height);
     this.entityManager = new EntityManager();
     this.taskQueue = new TaskQueue();
     this.generateMap();
+  }
+
+  addToInventory(resourceType: string, quantity: number, name?: string): void {
+    if (quantity <= 0) return;
+    const existing = this.inventory.find(i => i.resourceType === resourceType);
+    if (existing) {
+      existing.quantity += quantity;
+    } else {
+      this.inventory.push({ resourceType, quantity, name });
+    }
+  }
+
+  removeFromInventory(resourceType: string, quantity: number): boolean {
+    const item = this.inventory.find(i => i.resourceType === resourceType);
+    if (!item || item.quantity < quantity) return false;
+    item.quantity -= quantity;
+    if (item.quantity <= 0) {
+      this.inventory = this.inventory.filter(i => i.resourceType !== resourceType);
+    }
+    return true;
+  }
+
+  hasResource(resourceType: string, quantity: number): boolean {
+    const item = this.inventory.find(i => i.resourceType === resourceType);
+    return item !== undefined && item.quantity >= quantity;
+  }
+
+  getResourceAmount(resourceType: string): number {
+    const item = this.inventory.find(i => i.resourceType === resourceType);
+    return item?.quantity ?? 0;
   }
 
   private generateMap(): void {
@@ -67,6 +105,7 @@ export class Simulation {
       nextEntityId: (this.entityManager.getAll().length > 0
         ? Math.max(...this.entityManager.getAll().map(e => e.id)) + 1
         : 1),
+      inventory: this.inventory,
     };
   }
 
@@ -76,6 +115,7 @@ export class Simulation {
     sim.entityManager = EntityManager.deserialize(data.entities);
     sim.taskQueue = TaskQueue.deserialize(data.tasks);
     sim.tickCount = data.tickCount;
+    sim.inventory = data.inventory || [];
     return sim;
   }
 }

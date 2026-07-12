@@ -70,6 +70,10 @@ export class UIManager {
   private inventoryIcons: Phaser.GameObjects.GameObject[] = [];
   private inventoryIconContainer!: Phaser.GameObjects.Container;
 
+  private globalInventoryContainer!: Phaser.GameObjects.Container;
+  private globalInventoryIcons: Phaser.GameObjects.GameObject[] = [];
+  private lastGlobalInventoryHash: string = '';
+
   private artifactIcons: Phaser.GameObjects.Container[] = [];
   private artifactTooltip!: Phaser.GameObjects.Container;
   private artifactSystem: import('../systems/ArtifactSystem').ArtifactSystem | null = null;
@@ -126,6 +130,10 @@ export class UIManager {
       fontStyle: 'bold',
     });
     this.leftPanelContainer.add(title);
+
+    this.globalInventoryContainer = this.scene.add.container(14, 40);
+    this.leftPanelContainer.add(this.globalInventoryContainer);
+    this.updateGlobalInventory();
 
     const line1 = this.scene.add.rectangle(14, 38, LEFT_PANEL_WIDTH - 28, 1, COLORS.panelBorder, 0.5)
       .setOrigin(0);
@@ -583,7 +591,7 @@ export class UIManager {
       `\u2500\u2500 ${languageManager.ui.inventorySection} \u2500\u2500`
     );
 
-    this.updateInventoryIcons(s);
+    this.updateGlobalInventory();
 
     const questSystem = (this.scene as any).questSystem;
     if (questSystem) {
@@ -804,6 +812,104 @@ export class UIManager {
 
         this.inventoryIconContainer.add(artifactContainer);
         this.inventoryIcons.push(artifactContainer);
+
+        x += iconSize + gap;
+      });
+    }
+  }
+
+  updateGlobalInventory(): void {
+    const sim = this.simulation as any;
+    if (!sim) return;
+    
+    const inventory = sim.inventory || [];
+    const hash = inventory.map((i: any) => `${i.resourceType}:${i.quantity}:${i.name || ''}`).join(',');
+    
+    if (hash === this.lastGlobalInventoryHash) return;
+    this.lastGlobalInventoryHash = hash;
+
+    for (const icon of this.globalInventoryIcons) {
+      icon.destroy();
+    }
+    this.globalInventoryIcons = [];
+
+    const resourceColors: Record<string, number> = {
+      wood: 0x8B4513,
+      stone: 0x808080,
+      food: 0x228B22,
+    };
+
+    const resourceIcons: Record<string, string> = {
+      wood: 'W',
+      stone: 'S',
+      food: 'F',
+    };
+
+    const startX = 14;
+    const startY = 0;
+    const iconSize = 24;
+    const gap = 4;
+
+    let x = startX;
+    for (const item of inventory) {
+      if (item.quantity <= 0) continue;
+
+      const color = resourceColors[item.resourceType] ?? 0x666666;
+      const icon = resourceIcons[item.resourceType] ?? '?';
+
+      const bg = this.scene.add.rectangle(0, 0, iconSize, iconSize, color, 0.8)
+        .setOrigin(0).setStrokeStyle(1, COLORS.panelBorder);
+
+      const iconText = this.scene.add.text(iconSize / 2, iconSize / 2, icon, {
+        fontSize: '12px', color: '#ffffff', fontFamily: 'monospace', fontStyle: 'bold',
+      }).setOrigin(0.5);
+
+      const countText = this.scene.add.text(iconSize - 2, 2, `${item.quantity}`, {
+        fontSize: '9px', color: '#ffff00', fontFamily: 'monospace',
+      }).setOrigin(1, 0);
+
+      const iconContainer = this.scene.add.container(x, startY, [bg, iconText, countText]);
+      iconContainer.setSize(iconSize, iconSize);
+
+      this.globalInventoryContainer.add(iconContainer);
+      this.globalInventoryIcons.push(iconContainer);
+
+      x += iconSize + gap;
+    }
+
+    if (this.artifactSystem) {
+      const collected = this.artifactSystem.getCollectedArtifacts();
+      collected.forEach((count, name) => {
+        if (count <= 0) return;
+        const effect = this.artifactSystem!.getArtifactEffect(name);
+        if (!effect) return;
+
+        const color = Phaser.Display.Color.HexStringToColor(effect.color).color;
+
+        const bg = this.scene.add.rectangle(0, 0, iconSize, iconSize, color, 0.8)
+          .setOrigin(0).setStrokeStyle(1, COLORS.panelBorder)
+          .setInteractive({ useHandCursor: true });
+
+        const iconText = this.scene.add.text(iconSize / 2, iconSize / 2, effect.icon, {
+          fontSize: '12px', color: '#ffffff', fontFamily: 'monospace', fontStyle: 'bold',
+        }).setOrigin(0.5);
+
+        const artifactContainer = this.scene.add.container(x, startY, [bg, iconText]);
+        artifactContainer.setSize(iconSize, iconSize);
+
+        bg.on('pointerover', () => {
+          bg.setStrokeStyle(2, 0xffffff);
+          bg.setFillStyle(color, 1);
+          this.showArtifactTooltip(name, effect.description, x, startY - 60);
+        });
+        bg.on('pointerout', () => {
+          bg.setStrokeStyle(1, COLORS.panelBorder);
+          bg.setFillStyle(color, 0.8);
+          this.artifactTooltip.setVisible(false);
+        });
+
+        this.globalInventoryContainer.add(artifactContainer);
+        this.globalInventoryIcons.push(artifactContainer);
 
         x += iconSize + gap;
       });

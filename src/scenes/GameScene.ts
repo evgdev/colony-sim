@@ -105,7 +105,8 @@ export class GameScene extends Phaser.Scene {
       this.movementSystem,
       this.simulation.tileGrid,
       this.simulation.entityManager,
-      this.simulation.taskQueue
+      this.simulation.taskQueue,
+      this.simulation
     );
     this.artifactSystem = new ArtifactSystem();
     this.workSystem.artifactSystem = this.artifactSystem;
@@ -222,7 +223,8 @@ export class GameScene extends Phaser.Scene {
           this.needsSystem = new NeedsSystem();
           this.workSystem = new WorkSystem(
             this.movementSystem, this.simulation.tileGrid,
-            this.simulation.entityManager, this.simulation.taskQueue
+            this.simulation.entityManager, this.simulation.taskQueue,
+            this.simulation
           );
           this.inputHandler.setWorkSystem(this.workSystem);
           this.buildingSystem = new BuildingSystem(

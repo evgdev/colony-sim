@@ -9,12 +9,14 @@ import { Artifact } from '../entities/Artifact';
 import { Task, TaskType, TaskPriority } from '../core/Task';
 import { TaskQueue } from '../core/TaskQueue';
 import { QuestSystem } from './QuestSystem';
+import { Simulation } from '../core/Simulation';
 
 export class WorkSystem {
   private movementSystem: MovementSystem;
   private tileGrid: TileGrid;
   private entityManager: EntityManager;
   private taskQueue: TaskQueue;
+  private simulation: Simulation;
   artifactSystem: ArtifactSystem | null = null;
   questSystem: QuestSystem | null = null;
 
@@ -22,12 +24,14 @@ export class WorkSystem {
     movementSystem: MovementSystem,
     tileGrid: TileGrid,
     entityManager: EntityManager,
-    taskQueue: TaskQueue
+    taskQueue: TaskQueue,
+    simulation: Simulation
   ) {
     this.movementSystem = movementSystem;
     this.tileGrid = tileGrid;
     this.entityManager = entityManager;
     this.taskQueue = taskQueue;
+    this.simulation = simulation;
   }
 
   update(tickDelta: number): void {
@@ -140,11 +144,7 @@ export class WorkSystem {
       if (settler.x === task.targetX && settler.y === task.targetY) {
         const amount = resource.harvest(5);
         if (amount > 0) {
-          settler.addToInventory({
-            name: resource.resourceType,
-            quantity: amount,
-            resourceType: resource.resourceType,
-          });
+          this.simulation.addToInventory(resource.resourceType, amount, resource.resourceType);
         }
         if (resource.depleted) {
           this.entityManager.remove(resource.id);
@@ -169,11 +169,7 @@ export class WorkSystem {
       if (resource && !resource.depleted) {
         const amount = resource.harvest(5);
         if (amount > 0) {
-          settler.addToInventory({
-            name: resource.resourceType,
-            quantity: amount,
-            resourceType: resource.resourceType,
-          });
+          this.simulation.addToInventory(resource.resourceType, amount, resource.resourceType);
         }
         if (resource.depleted) {
           this.entityManager.remove(resource.id);
@@ -233,12 +229,12 @@ export class WorkSystem {
     }
 
     if (!building.requiresConsumed) {
-      const hasAll = building.requires.every(r => settler.hasResource(r.resourceType, r.quantity));
+      const hasAll = building.requires.every(r => this.simulation.hasResource(r.resourceType, r.quantity));
       if (!hasAll) {
         task.completed = true;
         return;
       }
-      building.requires.forEach(r => settler.removeFromInventory(r.resourceType, r.quantity));
+      building.requires.forEach(r => this.simulation.removeFromInventory(r.resourceType, r.quantity));
       building.requiresConsumed = true;
     }
 
