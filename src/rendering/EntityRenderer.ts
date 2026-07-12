@@ -1,7 +1,7 @@
 import Phaser from 'phaser';
 import {
   TILE_SIZE, COLORS,
-  FIELD_X, FIELD_Y, VIEWPORT_TILES,
+  FIELD_X, FIELD_Y, FIELD_W, FIELD_H, VIEWPORT_TILES,
 } from '../config';
 import { Simulation } from '../core/Simulation';
 import { Settler } from '../entities/Settler';
@@ -25,6 +25,15 @@ export class EntityRenderer {
     this.scene = scene;
     this.simulation = simulation;
     this.pathGraphics = scene.add.graphics().setDepth(4);
+    this.setViewportClip();
+  }
+
+  private setViewportClip(): void {
+    const mask = this.scene.add.graphics();
+    mask.fillStyle(0xffffff);
+    mask.fillRect(FIELD_X, FIELD_Y, FIELD_W, FIELD_H);
+    mask.setVisible(false);
+    this.pathGraphics.setMask(new Phaser.Display.Masks.GeometryMask(this.scene, mask));
   }
 
   updateScroll(sx: number, sy: number): void {

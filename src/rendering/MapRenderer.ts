@@ -17,6 +17,15 @@ export class MapRenderer {
     this.scene = scene;
     this.simulation = simulation;
     this.transitionGraphics = scene.add.graphics().setDepth(1);
+    this.setViewportClip();
+  }
+
+  private setViewportClip(): void {
+    const mask = this.scene.add.graphics();
+    mask.fillStyle(0xffffff);
+    mask.fillRect(FIELD_X, FIELD_Y, FIELD_W, FIELD_H);
+    mask.setVisible(false);
+    this.transitionGraphics.setMask(new Phaser.Display.Masks.GeometryMask(this.scene, mask));
   }
 
   drawMap(): void {
