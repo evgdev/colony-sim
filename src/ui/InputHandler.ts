@@ -1,6 +1,6 @@
 import Phaser from 'phaser';
 import {
-  TILE_SIZE, FIELD_X, FIELD_Y, FIELD_W, FIELD_H,
+  TILE_SIZE, FIELD_X, FIELD_Y, FIELD_W, FIELD_H, MAP_WIDTH, MAP_HEIGHT,
 } from '../config';
 import { Simulation } from '../core/Simulation';
 import { Settler } from '../entities/Settler';
@@ -21,6 +21,8 @@ export class InputHandler {
   private uiManager: UIManager;
   private workSystem: WorkSystem;
   hoverRect!: Phaser.GameObjects.Rectangle;
+  private scrollX: number = 0;
+  private scrollY: number = 0;
 
   constructor(
     scene: Phaser.Scene,
@@ -40,6 +42,27 @@ export class InputHandler {
 
   setWorkSystem(workSystem: WorkSystem): void {
     this.workSystem = workSystem;
+  }
+
+  updateScroll(sx: number, sy: number): void {
+    this.scrollX = sx;
+    this.scrollY = sy;
+  }
+
+  private screenToTile(px: number, py: number): { tileX: number; tileY: number } | null {
+    if (px < FIELD_X || px >= FIELD_X + FIELD_W) return null;
+    if (py < FIELD_Y || py >= FIELD_Y + FIELD_H) return null;
+    const tileX = Math.floor((px - FIELD_X) / TILE_SIZE) + this.scrollX;
+    const tileY = Math.floor((py - FIELD_Y) / TILE_SIZE) + 1 + this.scrollY;
+    if (tileX < 0 || tileX >= MAP_WIDTH || tileY < 0 || tileY >= MAP_HEIGHT) return null;
+    return { tileX, tileY };
+  }
+
+  private tileToScreen(tileX: number, tileY: number): { sx: number; sy: number } {
+    return {
+      sx: FIELD_X + (tileX - this.scrollX) * TILE_SIZE,
+      sy: FIELD_Y + (tileY - 1 - this.scrollY) * TILE_SIZE,
+    };
   }
 
   createHoverRect(): void {
@@ -62,11 +85,10 @@ export class InputHandler {
 
   setupInputHandlers(): void {
     this.scene.input.on('pointermove', (pointer: Phaser.Input.Pointer) => {
-      const tileX = Math.floor((pointer.x - FIELD_X) / TILE_SIZE);
-      const tileY = Math.floor((pointer.y - FIELD_Y) / TILE_SIZE) + 1;
-      const tile = this.simulation.tileGrid.get(tileX, tileY);
-      if (tile && pointer.x >= FIELD_X && pointer.x < FIELD_X + FIELD_W && pointer.y >= FIELD_Y && pointer.y < FIELD_Y + FIELD_H) {
-        this.hoverRect.setPosition(FIELD_X + tileX * TILE_SIZE, FIELD_Y + (tileY - 1) * TILE_SIZE);
+      const coords = this.screenToTile(pointer.x, pointer.y);
+      if (coords) {
+        const { sx, sy } = this.tileToScreen(coords.tileX, coords.tileY);
+        this.hoverRect.setPosition(sx, sy);
         this.hoverRect.setVisible(true);
       } else {
         this.hoverRect.setVisible(false);
@@ -74,11 +96,9 @@ export class InputHandler {
     });
 
     this.scene.input.on('pointerdown', (pointer: Phaser.Input.Pointer) => {
-      if (pointer.x < FIELD_X || pointer.x >= FIELD_X + FIELD_W) return;
-      if (pointer.y < FIELD_Y || pointer.y >= FIELD_Y + FIELD_H) return;
-      const tileX = Math.floor((pointer.x - FIELD_X) / TILE_SIZE);
-      const tileY = Math.floor((pointer.y - FIELD_Y) / TILE_SIZE) + 1;
-      this.handleTileClick(tileX, tileY);
+      const coords = this.screenToTile(pointer.x, pointer.y);
+      if (!coords) return;
+      this.handleTileClick(coords.tileX, coords.tileY);
     });
   }
 

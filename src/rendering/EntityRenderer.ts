@@ -1,7 +1,7 @@
 import Phaser from 'phaser';
 import {
   TILE_SIZE, COLORS,
-  FIELD_X, FIELD_Y,
+  FIELD_X, FIELD_Y, VIEWPORT_TILES,
 } from '../config';
 import { Simulation } from '../core/Simulation';
 import { Settler } from '../entities/Settler';
@@ -18,11 +18,30 @@ export class EntityRenderer {
   entityGraphics: Phaser.GameObjects.Graphics[] = [];
   entityTexts: Phaser.GameObjects.Text[] = [];
   pathGraphics: Phaser.GameObjects.Graphics;
+  private scrollX: number = 0;
+  private scrollY: number = 0;
 
   constructor(scene: Phaser.Scene, simulation: Simulation) {
     this.scene = scene;
     this.simulation = simulation;
     this.pathGraphics = scene.add.graphics().setDepth(4);
+  }
+
+  updateScroll(sx: number, sy: number): void {
+    this.scrollX = sx;
+    this.scrollY = sy;
+  }
+
+  private isInViewport(x: number, y: number): boolean {
+    return x >= this.scrollX && x < this.scrollX + VIEWPORT_TILES
+        && y >= this.scrollY + 1 && y < this.scrollY + VIEWPORT_TILES + 1;
+  }
+
+  private worldToScreen(wx: number, wy: number): { sx: number; sy: number } {
+    return {
+      sx: FIELD_X + (wx - this.scrollX) * TILE_SIZE + TILE_SIZE / 2,
+      sy: FIELD_Y + (wy - 1 - this.scrollY) * TILE_SIZE + TILE_SIZE / 2,
+    };
   }
 
   drawEntities(): void {
@@ -33,9 +52,10 @@ export class EntityRenderer {
 
     for (const entity of this.simulation.entityManager.getAll()) {
       if (entity.y === 0) continue;
+      if (!this.isInViewport(entity.x, entity.y)) continue;
+
       const g = this.scene.add.graphics().setDepth(10);
-      const cx = FIELD_X + entity.x * TILE_SIZE + TILE_SIZE / 2;
-      const cy = FIELD_Y + (entity.y - 1) * TILE_SIZE + TILE_SIZE / 2;
+      const { sx: cx, sy: cy } = this.worldToScreen(entity.x, entity.y);
 
       if (entity.entityType === 'settler') {
         this.drawSettler(g, entity as Settler, cx, cy, entity.x, entity.y);
@@ -67,8 +87,8 @@ export class EntityRenderer {
 
     const barWidth = TILE_SIZE - 4;
     const barHeight = 5;
-    const barX = FIELD_X + ex * TILE_SIZE + 2;
-    const barY = FIELD_Y + (ey - 1) * TILE_SIZE - 8;
+    const barX = FIELD_X + (ex - this.scrollX) * TILE_SIZE + 2;
+    const barY = FIELD_Y + (ey - 1 - this.scrollY) * TILE_SIZE - 8;
 
     g.fillStyle(0x333333, 0.8);
     g.fillRect(barX, barY, barWidth, barHeight);
@@ -189,16 +209,13 @@ export class EntityRenderer {
       if (settler.path.length > 1) {
         this.pathGraphics.lineStyle(2, COLORS.pathHighlight, 0.6);
         this.pathGraphics.beginPath();
-        this.pathGraphics.moveTo(
-          FIELD_X + settler.x * TILE_SIZE + TILE_SIZE / 2,
-          FIELD_Y + (settler.y - 1) * TILE_SIZE + TILE_SIZE / 2
-        );
+        const { sx: startX, sy: startY } = this.worldToScreen(settler.x, settler.y);
+        this.pathGraphics.moveTo(startX, startY);
         for (let i = settler.pathIndex; i < settler.path.length; i++) {
           const p = settler.path[i];
-          this.pathGraphics.lineTo(
-            FIELD_X + p.x * TILE_SIZE + TILE_SIZE / 2,
-            FIELD_Y + (p.y - 1) * TILE_SIZE + TILE_SIZE / 2
-          );
+          if (!this.isInViewport(p.x, p.y)) continue;
+          const { sx: px, sy: py } = this.worldToScreen(p.x, p.y);
+          this.pathGraphics.lineTo(px, py);
         }
         this.pathGraphics.strokePath();
       }

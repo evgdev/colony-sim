@@ -1,6 +1,6 @@
 import Phaser from 'phaser';
 import {
-  TILE_SIZE, MAP_WIDTH, MAP_HEIGHT, COLORS,
+  TILE_SIZE, MAP_WIDTH, MAP_HEIGHT, VIEWPORT_TILES, COLORS,
   CANVAS_WIDTH, CANVAS_HEIGHT,
   FIELD_X, FIELD_Y, FIELD_W, FIELD_H,
 } from '../config';
@@ -46,6 +46,20 @@ export class GameScene extends Phaser.Scene {
   private gameOver: boolean = false;
   private gameOverContainer!: Phaser.GameObjects.Container;
 
+  private scrollX: number = 0;
+  private scrollY: number = 0;
+  private scrollSpeed: number = 5;
+  private keys!: {
+    W: Phaser.Input.Keyboard.Key;
+    A: Phaser.Input.Keyboard.Key;
+    S: Phaser.Input.Keyboard.Key;
+    D: Phaser.Input.Keyboard.Key;
+    UP: Phaser.Input.Keyboard.Key;
+    DOWN: Phaser.Input.Keyboard.Key;
+    LEFT: Phaser.Input.Keyboard.Key;
+    RIGHT: Phaser.Input.Keyboard.Key;
+  };
+
   constructor() {
     super({ key: 'GameScene' });
   }
@@ -56,6 +70,19 @@ export class GameScene extends Phaser.Scene {
   create(): void {
     this.children.removeAll(true);
     this.gameOver = false;
+    this.scrollX = 0;
+    this.scrollY = 0;
+
+    this.keys = this.input.keyboard!.addKeys({
+      W: Phaser.Input.Keyboard.KeyCodes.W,
+      A: Phaser.Input.Keyboard.KeyCodes.A,
+      S: Phaser.Input.Keyboard.KeyCodes.S,
+      D: Phaser.Input.Keyboard.KeyCodes.D,
+      UP: Phaser.Input.Keyboard.KeyCodes.UP,
+      DOWN: Phaser.Input.Keyboard.KeyCodes.DOWN,
+      LEFT: Phaser.Input.Keyboard.KeyCodes.LEFT,
+      RIGHT: Phaser.Input.Keyboard.KeyCodes.RIGHT,
+    }) as any;
 
     this.simulation = new Simulation(MAP_WIDTH, MAP_HEIGHT);
     this.movementSystem = new MovementSystem(this.simulation.tileGrid);
@@ -98,11 +125,17 @@ export class GameScene extends Phaser.Scene {
     this.simulation.entityManager.add(settler);
     this.simulation.tileGrid.setOccupied(centerX, centerY, true);
 
+    this.scrollX = Math.max(0, centerX - Math.floor(VIEWPORT_TILES / 2));
+    this.scrollY = Math.max(0, centerY - 1 - Math.floor(VIEWPORT_TILES / 2));
+    this.clampScroll();
+
     const resources = [
       { x: 2, y: 2, type: 'wood', qty: 20 },
-      { x: 11, y: 3, type: 'stone', qty: 15 },
-      { x: 4, y: 10, type: 'wood', qty: 10 },
-      { x: 9, y: 8, type: 'stone', qty: 8 },
+      { x: 27, y: 3, type: 'stone', qty: 15 },
+      { x: 4, y: 25, type: 'wood', qty: 10 },
+      { x: 20, y: 8, type: 'stone', qty: 8 },
+      { x: 15, y: 15, type: 'wood', qty: 12 },
+      { x: 10, y: 20, type: 'stone', qty: 10 },
     ];
 
     for (const r of resources) {
@@ -118,6 +151,7 @@ export class GameScene extends Phaser.Scene {
 
     this.mapRenderer = new MapRenderer(this, this.simulation);
     this.mapRenderer.drawMap();
+    this.mapRenderer.updateScroll(this.scrollX, this.scrollY);
 
     this.uiManager = new UIManager(this, this.simulation);
     this.uiManager.createEventArea();
@@ -125,14 +159,17 @@ export class GameScene extends Phaser.Scene {
     this.uiManager.createActionLog();
     this.uiManager.createInfoPanel();
     this.uiManager.onCollectCallback = (entity) => this.handleCollect(entity);
+    this.uiManager.updateScroll(this.scrollX, this.scrollY);
 
     this.entityRenderer = new EntityRenderer(this, this.simulation);
+    this.entityRenderer.updateScroll(this.scrollX, this.scrollY);
     this.entityRenderer.drawEntities();
 
     this.inputHandler = new InputHandler(this, this.simulation, this.uiManager, this.workSystem);
     this.inputHandler.createHoverRect();
     this.inputHandler.createSelectionRect();
     this.inputHandler.setupInputHandlers();
+    this.inputHandler.updateScroll(this.scrollX, this.scrollY);
 
     this.uiManager.createBottomHUD(
       () => {
@@ -167,10 +204,22 @@ export class GameScene extends Phaser.Scene {
             s.path = [];
             s.pathIndex = 0;
           }
+          this.scrollX = 0;
+          this.scrollY = 0;
+          if (settlers.length > 0) {
+            const s = settlers[0];
+            this.scrollX = Math.max(0, s.x - Math.floor(VIEWPORT_TILES / 2));
+            this.scrollY = Math.max(0, s.y - 1 - Math.floor(VIEWPORT_TILES / 2));
+            this.clampScroll();
+          }
           this.uiManager.selectedBuilding = null;
           this.uiManager.selectionRect.setVisible(false);
           this.uiManager.infoPanel.setVisible(false);
           this.mapRenderer.redrawMap();
+          this.mapRenderer.updateScroll(this.scrollX, this.scrollY);
+          this.entityRenderer.updateScroll(this.scrollX, this.scrollY);
+          this.inputHandler.updateScroll(this.scrollX, this.scrollY);
+          this.uiManager.updateScroll(this.scrollX, this.scrollY);
           this.uiManager.addLog(languageManager.ui.logLoaded);
         } else {
           this.uiManager.addLog(languageManager.ui.logNoSave);
@@ -195,6 +244,9 @@ export class GameScene extends Phaser.Scene {
 
   update(time: number, delta: number): void {
     if (this.gameOver) return;
+
+    this.handleScrollInput();
+
     if (!this.debugPanel.paused) {
       const adjustedDelta = delta * this.debugPanel.speed;
       const ticked = this.simulation.update(adjustedDelta);
@@ -255,6 +307,36 @@ export class GameScene extends Phaser.Scene {
     this.uiManager.updateSelection();
     this.uiManager.updateInfoPanel();
     this.debugPanel.update(this.simulation);
+  }
+
+  private handleScrollInput(): void {
+    let dx = 0;
+    let dy = 0;
+
+    if (this.keys.A.isDown || this.keys.LEFT.isDown) dx -= 1;
+    if (this.keys.D.isDown || this.keys.RIGHT.isDown) dx += 1;
+    if (this.keys.W.isDown || this.keys.UP.isDown) dy -= 1;
+    if (this.keys.S.isDown || this.keys.DOWN.isDown) dy += 1;
+
+    if (dx !== 0 || dy !== 0) {
+      const newScrollX = this.scrollX + dx;
+      const newScrollY = this.scrollY + dy;
+      if (newScrollX >= 0 && newScrollX <= MAP_WIDTH - VIEWPORT_TILES) {
+        this.scrollX = newScrollX;
+      }
+      if (newScrollY >= 0 && newScrollY <= MAP_HEIGHT - VIEWPORT_TILES - 1) {
+        this.scrollY = newScrollY;
+      }
+      this.mapRenderer.updateScroll(this.scrollX, this.scrollY);
+      this.entityRenderer.updateScroll(this.scrollX, this.scrollY);
+      this.inputHandler.updateScroll(this.scrollX, this.scrollY);
+      this.uiManager.updateScroll(this.scrollX, this.scrollY);
+    }
+  }
+
+  private clampScroll(): void {
+    this.scrollX = Math.max(0, Math.min(this.scrollX, MAP_WIDTH - VIEWPORT_TILES));
+    this.scrollY = Math.max(0, Math.min(this.scrollY, MAP_HEIGHT - VIEWPORT_TILES - 1));
   }
 
   private formatDays(ticks: number): string {

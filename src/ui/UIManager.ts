@@ -28,6 +28,8 @@ export class UIManager {
   private scene: Phaser.Scene;
   private simulation: Simulation;
   workSystem!: WorkSystem;
+  private scrollX: number = 0;
+  private scrollY: number = 0;
 
   taskLog: string[] = [];
   taskLogText!: Phaser.GameObjects.Text;
@@ -63,6 +65,18 @@ export class UIManager {
 
   setSimulation(simulation: Simulation): void {
     this.simulation = simulation;
+  }
+
+  updateScroll(sx: number, sy: number): void {
+    this.scrollX = sx;
+    this.scrollY = sy;
+  }
+
+  private tileToScreen(tileX: number, tileY: number): { sx: number; sy: number } {
+    return {
+      sx: FIELD_X + (tileX - this.scrollX) * TILE_SIZE + TILE_SIZE / 2,
+      sy: FIELD_Y + (tileY - 1 - this.scrollY) * TILE_SIZE + TILE_SIZE / 2,
+    };
   }
 
   createEventArea(): void {
@@ -418,16 +432,12 @@ export class UIManager {
 
   updateSelection(): void {
     if (this.selectedBuilding) {
-      this.selectionRect.setPosition(
-        FIELD_X + this.selectedBuilding.x * TILE_SIZE + TILE_SIZE / 2,
-        FIELD_Y + (this.selectedBuilding.y - 1) * TILE_SIZE + TILE_SIZE / 2
-      );
+      const { sx, sy } = this.tileToScreen(this.selectedBuilding.x, this.selectedBuilding.y);
+      this.selectionRect.setPosition(sx, sy);
       this.selectionRect.setVisible(true);
     } else if (this.selectedEntity) {
-      this.selectionRect.setPosition(
-        FIELD_X + this.selectedEntity.x * TILE_SIZE + TILE_SIZE / 2,
-        FIELD_Y + (this.selectedEntity.y - 1) * TILE_SIZE + TILE_SIZE / 2
-      );
+      const { sx, sy } = this.tileToScreen(this.selectedEntity.x, this.selectedEntity.y);
+      this.selectionRect.setPosition(sx, sy);
       this.selectionRect.setVisible(true);
     } else {
       this.selectionRect.setVisible(false);

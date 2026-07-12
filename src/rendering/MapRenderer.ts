@@ -1,6 +1,6 @@
 import Phaser from 'phaser';
 import {
-  TILE_SIZE, MAP_WIDTH, MAP_HEIGHT, COLORS,
+  TILE_SIZE, MAP_WIDTH, MAP_HEIGHT, VIEWPORT_TILES, COLORS,
   FIELD_X, FIELD_Y, FIELD_W, FIELD_H,
 } from '../config';
 import { Simulation } from '../core/Simulation';
@@ -9,49 +9,87 @@ export class MapRenderer {
   private scene: Phaser.Scene;
   private simulation: Simulation;
   tileSprites: (Phaser.GameObjects.Rectangle | Phaser.GameObjects.Image)[][] = [];
+  private transitionGraphics: Phaser.GameObjects.Graphics;
+  private scrollX: number = 0;
+  private scrollY: number = 0;
 
   constructor(scene: Phaser.Scene, simulation: Simulation) {
     this.scene = scene;
     this.simulation = simulation;
+    this.transitionGraphics = scene.add.graphics().setDepth(1);
   }
 
   drawMap(): void {
-    for (let y = 1; y < MAP_HEIGHT; y++) {
+    for (const row of this.tileSprites) {
+      for (const rect of row) {
+        rect.destroy();
+      }
+    }
+    this.tileSprites = [];
+
+    for (let y = 0; y < MAP_HEIGHT; y++) {
       this.tileSprites[y] = [];
       for (let x = 0; x < MAP_WIDTH; x++) {
         const tile = this.simulation.tileGrid.get(x, y)!;
         const texKey = `tile_${tile.type}`;
         const hasTexture = this.scene.textures.exists(texKey);
 
+        let sprite: Phaser.GameObjects.Rectangle | Phaser.GameObjects.Image;
         if (hasTexture) {
-          const img = this.scene.add.image(
-            FIELD_X + x * TILE_SIZE, FIELD_Y + (y - 1) * TILE_SIZE,
-            texKey
-          ).setOrigin(0).setDisplaySize(TILE_SIZE, TILE_SIZE);
-          this.tileSprites[y][x] = img;
+          sprite = this.scene.add.image(0, 0, texKey)
+            .setOrigin(0).setDisplaySize(TILE_SIZE, TILE_SIZE);
         } else {
           const color = COLORS[tile.type as keyof typeof COLORS] || 0x333333;
-          const rect = this.scene.add.rectangle(
-            FIELD_X + x * TILE_SIZE, FIELD_Y + (y - 1) * TILE_SIZE,
-            TILE_SIZE, TILE_SIZE, color
-          ).setOrigin(0).setStrokeStyle(1, 0x222222);
-          this.tileSprites[y][x] = rect;
+          sprite = this.scene.add.rectangle(0, 0, TILE_SIZE, TILE_SIZE, color)
+            .setOrigin(0).setStrokeStyle(1, 0x222222);
+        }
+        this.tileSprites[y][x] = sprite;
+      }
+    }
+    this.updateScroll(this.scrollX, this.scrollY);
+  }
+
+  updateScroll(sx: number, sy: number): void {
+    this.scrollX = sx;
+    this.scrollY = sy;
+
+    const minX = sx;
+    const maxX = sx + VIEWPORT_TILES;
+    const minY = sy + 1;
+    const maxY = sy + VIEWPORT_TILES + 1;
+
+    for (let y = 0; y < MAP_HEIGHT; y++) {
+      for (let x = 0; x < MAP_WIDTH; x++) {
+        const sprite = this.tileSprites[y]?.[x];
+        if (!sprite) continue;
+
+        if (x >= minX && x < maxX && y >= minY && y < maxY) {
+          sprite.setPosition(
+            FIELD_X + (x - sx) * TILE_SIZE,
+            FIELD_Y + (y - 1 - sy) * TILE_SIZE
+          );
+          sprite.setVisible(true);
+        } else {
+          sprite.setVisible(false);
         }
       }
     }
+
     this.drawTileTransitions();
   }
 
   private drawTileTransitions(): void {
-    const g = this.scene.add.graphics().setDepth(1);
+    this.transitionGraphics.clear();
     const tileSize = TILE_SIZE;
+    const sx = this.scrollX;
+    const sy = this.scrollY;
 
     const getColor = (type: string): number => {
       if (type === 'water') return 0x3b7dd8;
       if (type === 'stone') return 0x808080;
       if (type === 'sand') return 0xc2b280;
       if (type === 'dirt') return 0x8b7355;
-      if (type === 'grass') return 0x4a7c3f;
+      if (type === 'grass') return 0x3a5a2a;
       return 0x333333;
     };
 
@@ -68,14 +106,19 @@ export class MapRenderer {
       return n - Math.floor(n);
     };
 
-    for (let y = 1; y < MAP_HEIGHT; y++) {
-      for (let x = 0; x < MAP_WIDTH; x++) {
+    const minX = Math.max(0, sx - 1);
+    const maxX = Math.min(MAP_WIDTH, sx + VIEWPORT_TILES + 1);
+    const minY = Math.max(1, sy);
+    const maxY = Math.min(MAP_HEIGHT, sy + VIEWPORT_TILES + 2);
+
+    for (let y = minY; y < maxY; y++) {
+      for (let x = minX; x < maxX; x++) {
         const tile = this.simulation.tileGrid.get(x, y)!;
         const myPriority = priority[tile.type] ?? 0;
         if (myPriority === 0) continue;
 
-        const px = FIELD_X + x * tileSize;
-        const py = FIELD_Y + (y - 1) * tileSize;
+        const px = FIELD_X + (x - sx) * tileSize;
+        const py = FIELD_Y + (y - 1 - sy) * tileSize;
         const seed = x * 100 + y;
         const c = getColor(tile.type);
 
@@ -94,7 +137,7 @@ export class MapRenderer {
           const neighborPriority = priority[neighbor.type] ?? 0;
           if (myPriority <= neighborPriority) continue;
 
-          g.fillStyle(c, 1);
+          this.transitionGraphics.fillStyle(c, 1);
           const seed2 = seed + n.seedOff;
 
           if (n.dx === 1) {
@@ -104,10 +147,10 @@ export class MapRenderer {
               const depth = Math.floor(seededRandom(x, dy, seed2) * maxDepth) + 1;
               const w = seededRandom(x + 200, dy, seed2) > 0.5 ? 1 : 2;
               const solidLen = Math.floor(depth * 0.7);
-              g.fillRect(px + tileSize, py + dy, solidLen, w);
+              this.transitionGraphics.fillRect(px + tileSize, py + dy, solidLen, w);
               for (let px2 = solidLen; px2 < depth; px2++) {
                 if (seededRandom(x + 300, dy + px2, seed2) > 0.4) {
-                  g.fillRect(px + tileSize + px2, py + dy, 1, w);
+                  this.transitionGraphics.fillRect(px + tileSize + px2, py + dy, 1, w);
                 }
               }
             }
@@ -118,10 +161,10 @@ export class MapRenderer {
               const depth = Math.floor(seededRandom(dx, y, seed2) * maxDepth) + 1;
               const w = seededRandom(dx, y + 200, seed2) > 0.5 ? 1 : 2;
               const solidLen = Math.floor(depth * 0.7);
-              g.fillRect(px + dx, py + tileSize, w, solidLen);
+              this.transitionGraphics.fillRect(px + dx, py + tileSize, w, solidLen);
               for (let py2 = solidLen; py2 < depth; py2++) {
                 if (seededRandom(dx + 300, y + py2, seed2) > 0.4) {
-                  g.fillRect(px + dx, py + tileSize + py2, w, 1);
+                  this.transitionGraphics.fillRect(px + dx, py + tileSize + py2, w, 1);
                 }
               }
             }
@@ -132,10 +175,10 @@ export class MapRenderer {
               const depth = Math.floor(seededRandom(x, dy, seed2) * maxDepth) + 1;
               const w = seededRandom(x + 200, dy, seed2) > 0.5 ? 1 : 2;
               const solidLen = Math.floor(depth * 0.7);
-              g.fillRect(px - solidLen, py + dy, solidLen, w);
+              this.transitionGraphics.fillRect(px - solidLen, py + dy, solidLen, w);
               for (let px2 = solidLen; px2 < depth; px2++) {
                 if (seededRandom(x + 300, dy + px2, seed2) > 0.4) {
-                  g.fillRect(px - px2 - 1, py + dy, 1, w);
+                  this.transitionGraphics.fillRect(px - px2 - 1, py + dy, 1, w);
                 }
               }
             }
@@ -146,10 +189,10 @@ export class MapRenderer {
               const depth = Math.floor(seededRandom(dx, y, seed2) * maxDepth) + 1;
               const w = seededRandom(dx, y + 200, seed2) > 0.5 ? 1 : 2;
               const solidLen = Math.floor(depth * 0.7);
-              g.fillRect(px + dx, py - solidLen, w, solidLen);
+              this.transitionGraphics.fillRect(px + dx, py - solidLen, w, solidLen);
               for (let py2 = solidLen; py2 < depth; py2++) {
                 if (seededRandom(dx + 300, y + py2, seed2) > 0.4) {
-                  g.fillRect(px + dx, py - py2 - 1, w, 1);
+                  this.transitionGraphics.fillRect(px + dx, py - py2 - 1, w, 1);
                 }
               }
             }
@@ -160,12 +203,6 @@ export class MapRenderer {
   }
 
   redrawMap(): void {
-    for (const row of this.tileSprites) {
-      for (const rect of row) {
-        rect.destroy();
-      }
-    }
-    this.tileSprites = [];
     this.drawMap();
   }
 }
