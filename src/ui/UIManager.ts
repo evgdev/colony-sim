@@ -67,6 +67,9 @@ export class UIManager {
   thoughtTimer: number = 0;
   milestonesShown: Set<string> = new Set();
 
+  private inventoryIcons: Phaser.GameObjects.Container[] = [];
+  private inventoryIconContainer!: Phaser.GameObjects.Container;
+
   private artifactIcons: Phaser.GameObjects.Container[] = [];
   private artifactTooltip!: Phaser.GameObjects.Container;
   private artifactSystem: import('../systems/ArtifactSystem').ArtifactSystem | null = null;
@@ -149,6 +152,9 @@ export class UIManager {
     });
     this.leftPanelContainer.add(this.colonistInvText);
 
+    this.inventoryIconContainer = this.scene.add.container(0, 0);
+    this.leftPanelContainer.add(this.inventoryIconContainer);
+
     const thoughtTitle = this.scene.add.text(14, 480, `\u2500\u2500 ${languageManager.ui.thoughts} \u2500\u2500`, {
       fontSize: '14px', color: '#58a6ff', fontFamily: 'monospace',
       fontStyle: 'bold',
@@ -197,13 +203,6 @@ export class UIManager {
     this.scrollRightBtn = this.scene.add.text(14 + 90 + btnSize + 4, btnY + btnSize / 2 + 2, '\u25B6', btnStyle)
       .setOrigin(0.5).setInteractive({ useHandCursor: true }).on('pointerdown', () => this.scene.input.keyboard?.emit('scroll-right'));
     this.leftPanelContainer.add(this.scrollRightBtn);
-
-    const artifactY = btnY + btnSize + 16;
-    const artifactTitle = this.scene.add.text(14, artifactY, `\u2500\u2500 ${languageManager.ui.artifacts ?? 'Artifacts'} \u2500\u2500`, {
-      fontSize: '14px', color: '#58a6ff', fontFamily: 'monospace',
-      fontStyle: 'bold',
-    });
-    this.leftPanelContainer.add(artifactTitle);
 
     this.artifactTooltip = this.scene.add.container(0, 0).setDepth(25).setVisible(false);
     const tooltipBg = this.scene.add.rectangle(0, 0, 220, 60, 0x0d1117, 0.95)
@@ -544,6 +543,8 @@ export class UIManager {
         `\u2500\u2500 ${languageManager.ui.inventorySection} \u2500\u2500\n` +
         invItems
       );
+
+      this.updateInventoryIcons(s);
     }
   }
 
@@ -660,6 +661,69 @@ export class UIManager {
     this.scene.time.delayedCall(3000, () => {
       this.artifactTooltip.setVisible(false);
     });
+  }
+
+  updateInventoryIcons(settler: Settler): void {
+    for (const icon of this.inventoryIcons) {
+      icon.destroy();
+    }
+    this.inventoryIcons = [];
+
+    const resourceColors: Record<string, number> = {
+      wood: 0x8B4513,
+      stone: 0x808080,
+      food: 0x228B22,
+      artifact: 0xFFD700,
+    };
+
+    const resourceIcons: Record<string, string> = {
+      wood: 'W',
+      stone: 'S',
+      food: 'F',
+      artifact: 'A',
+    };
+
+    const startX = 14;
+    const startY = 380;
+    const iconSize = 24;
+    const gap = 4;
+
+    let x = startX;
+    for (const item of settler.inventory) {
+      if (item.quantity <= 0) continue;
+
+      const color = resourceColors[item.resourceType] ?? 0x666666;
+      const icon = resourceIcons[item.resourceType] ?? '?';
+
+      const bg = this.scene.add.rectangle(x, startY, iconSize, iconSize, color, 0.8)
+        .setOrigin(0).setStrokeStyle(1, COLORS.panelBorder);
+
+      const iconText = this.scene.add.text(x + iconSize / 2, startY + iconSize / 2, icon, {
+        fontSize: '12px', color: '#ffffff', fontFamily: 'monospace', fontStyle: 'bold',
+      }).setOrigin(0.5);
+
+      const countText = this.scene.add.text(x + iconSize - 2, startY + 2, `${item.quantity}`, {
+        fontSize: '9px', color: '#ffff00', fontFamily: 'monospace',
+      }).setOrigin(1, 0);
+
+      const container = this.scene.add.container(0, 0, [bg, iconText, countText]);
+      container.setSize(iconSize, iconSize);
+
+      if (item.resourceType === 'artifact') {
+        container.setInteractive({ useHandCursor: true });
+        container.on('pointerdown', () => {
+          const effect = this.artifactSystem?.getArtifactEffect(item.name);
+          if (effect) {
+            this.showArtifactTooltip(item.name, effect.description, x, startY - 60);
+          }
+        });
+      }
+
+      this.leftPanelContainer.add(container);
+      this.inventoryIcons.push(container);
+
+      x += iconSize + gap;
+    }
   }
 
   checkMilestone(key: string): void {

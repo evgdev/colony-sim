@@ -322,7 +322,6 @@ export class GameScene extends Phaser.Scene {
     this.uiManager.updateSelection();
     this.uiManager.updateInfoPanel();
     this.uiManager.updateMinimap();
-    this.uiManager.updateArtifacts();
     this.debugPanel.update(this.simulation);
   }
 
