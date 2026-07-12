@@ -4,6 +4,8 @@ import {
   CANVAS_WIDTH, CANVAS_HEIGHT, HUD_HEIGHT,
   LEFT_PANEL_WIDTH, FIELD_X, FIELD_Y, FIELD_W, FIELD_H,
   PANEL_X, BOTTOM_HUD_Y, PANEL_WIDTH, EVENT_HEIGHT,
+  NEEDS_ENABLED,
+  DAY_TICKS, NIGHT_TICKS, CYCLE_TICKS, NIGHT_MAX_ALPHA, nightAlpha,
 } from '../config';
 import { Simulation } from '../core/Simulation';
 import { Settler } from '../entities/Settler';
@@ -53,6 +55,15 @@ export class UIManager {
   buildMode: BuildingType | null = null;
   buildButtons: (Phaser.GameObjects.Text | Phaser.GameObjects.Container)[] = [];
   buildTypeMap: Map<Phaser.GameObjects.Text | Phaser.GameObjects.Container, BuildingType> = new Map();
+  private bottomHudBg!: Phaser.GameObjects.Rectangle;
+  private bottomHudAccent!: Phaser.GameObjects.Rectangle;
+
+  private dnSky!: Phaser.GameObjects.Rectangle;
+  private dnSun!: Phaser.GameObjects.Arc;
+  private dnMoon!: Phaser.GameObjects.Arc;
+  private dnStars: Phaser.GameObjects.Arc[] = [];
+  private dnLabel!: Phaser.GameObjects.Text;
+  private dnBand = { x: 14, y: 44, w: LEFT_PANEL_WIDTH - 28, h: 44 };
 
   selectedBuilding: Building | null = null;
   selectedEntity: Entity | null = null;
@@ -74,7 +85,6 @@ export class UIManager {
   private globalInventoryIcons: Phaser.GameObjects.GameObject[] = [];
   private lastGlobalInventoryHash: string = '';
 
-  private artifactIcons: Phaser.GameObjects.Container[] = [];
   private artifactTooltip!: Phaser.GameObjects.Container;
   private artifactSystem: import('../systems/ArtifactSystem').ArtifactSystem | null = null;
 
@@ -139,7 +149,9 @@ export class UIManager {
       .setOrigin(0);
     this.leftPanelContainer.add(line1);
 
-    this.colonistStatusText = this.scene.add.text(14, 48, '', {
+    this.createDayNightWidget();
+
+    this.colonistStatusText = this.scene.add.text(14, 96, '', {
       fontSize: '14px', color: '#c9d1d9', fontFamily: 'monospace',
       wordWrap: { width: LEFT_PANEL_WIDTH - 28 },
       lineSpacing: 4,
@@ -289,9 +301,9 @@ export class UIManager {
     onBuildIconCreated: () => void,
     debugPanel?: import('./DebugPanel').DebugPanel
   ): void {
-    this.scene.add.rectangle(FIELD_X, BOTTOM_HUD_Y, FIELD_W, HUD_HEIGHT, COLORS.uiPanel, 0.95)
+    this.bottomHudBg = this.scene.add.rectangle(FIELD_X, BOTTOM_HUD_Y, FIELD_W, HUD_HEIGHT, COLORS.uiPanel, 0.95)
       .setOrigin(0).setDepth(20);
-    this.scene.add.rectangle(FIELD_X, BOTTOM_HUD_Y, FIELD_W, 2, COLORS.settler, 0.5)
+    this.bottomHudAccent = this.scene.add.rectangle(FIELD_X, BOTTOM_HUD_Y, FIELD_W, 2, COLORS.settler, 0.5)
       .setOrigin(0).setDepth(21);
 
     const btnStyle: Phaser.Types.GameObjects.Text.TextStyle = {
@@ -419,18 +431,97 @@ export class UIManager {
     }
   }
 
+  private createDayNightWidget(): void {
+    const { x, y, w, h } = this.dnBand;
+
+    this.dnSky = this.scene.add.rectangle(x, y, w, h, 0x0a1430, 1)
+      .setOrigin(0).setStrokeStyle(1, COLORS.panelBorder);
+    this.leftPanelContainer.add(this.dnSky);
+
+    for (let i = 0; i < 10; i++) {
+      const sx = x + 8 + Math.random() * (w - 16);
+      const sy = y + 6 + Math.random() * (h - 12);
+      const star = this.scene.add.circle(sx, sy, 1, 0xffffff, 1).setAlpha(0);
+      this.leftPanelContainer.add(star);
+      this.dnStars.push(star);
+    }
+
+    const cx = x + w / 2;
+    const cy = y + h / 2;
+    this.dnSun = this.scene.add.circle(cx, cy, 8, 0xffd24a, 1)
+      .setStrokeStyle(2, 0xffe9a0);
+    this.leftPanelContainer.add(this.dnSun);
+
+    this.dnMoon = this.scene.add.circle(cx, cy, 7, 0xcdd6f4, 1)
+      .setStrokeStyle(1, 0x9aa6d4);
+    this.leftPanelContainer.add(this.dnMoon);
+
+    this.dnLabel = this.scene.add.text(x + w - 4, y + 3, '', {
+      fontSize: '11px', color: '#ffffff', fontFamily: 'monospace',
+    }).setOrigin(1, 0);
+    this.leftPanelContainer.add(this.dnLabel);
+
+    this.updateDayNight(0);
+  }
+
+  private updateDayNight(tickCount: number): void {
+    const { x, y, w, h } = this.dnBand;
+    const innerLeft = x + 12;
+    const innerRight = x + w - 12;
+    const centerY = y + h / 2;
+    const arc = h / 2 - 8;
+
+    const phase = ((tickCount % CYCLE_TICKS) + CYCLE_TICKS) % CYCLE_TICKS;
+    const night = phase >= DAY_TICKS;
+
+    const nightA = nightAlpha(tickCount);
+    const b = Math.max(0, Math.min(1, 1 - nightA / NIGHT_MAX_ALPHA));
+    this.dnSky.setFillStyle(this.lerpColor(0x0a1430, 0x7ec0ee, b));
+
+    const starA = Math.max(0, 1 - b * 2.2);
+    for (const st of this.dnStars) st.setAlpha(starA);
+
+    const f = night ? (phase - DAY_TICKS) / NIGHT_TICKS : phase / DAY_TICKS;
+    const clamped = Math.max(0, Math.min(1, f));
+    const bx = innerLeft + (innerRight - innerLeft) * f;
+    const by = centerY + arc * (1 - Math.sin(Math.PI * clamped));
+
+    this.dnSun.setVisible(!night).setPosition(bx, by);
+    this.dnMoon.setVisible(night).setPosition(bx, by);
+
+    this.dnLabel.setText(night ? 'Night' : 'Day');
+    this.dnLabel.setColor(night ? '#9fb3ff' : '#173a5e');
+  }
+
+  private lerpColor(a: number, b: number, t: number): number {
+    const ar = (a >> 16) & 0xff, ag = (a >> 8) & 0xff, ab = a & 0xff;
+    const br = (b >> 16) & 0xff, bg = (b >> 8) & 0xff, bb = b & 0xff;
+    const r = Math.round(ar + (br - ar) * t);
+    const g = Math.round(ag + (bg - ag) * t);
+    const bl = Math.round(ab + (bb - ab) * t);
+    return (r << 16) | (g << 8) | bl;
+  }
+
   canAfford(type: BuildingType): boolean {
     const def = (buildingsData as any)[type];
-    const settler = (this.scene as any).getSelectedSettler() as Settler;
-    if (!settler) return false;
     return Object.entries(def.requires).every(([res, qty]) =>
-      settler.hasResource(res, qty as number)
+      this.simulation.hasResource(res, qty as number)
     );
   }
 
   updateBuildButtonStates(): void {
     const types = Object.keys(buildingsData) as BuildingType[];
     const settler = (this.scene as any).getSelectedSettler() as Settler;
+
+    if (this.buildMode) {
+      this.bottomHudBg.setFillStyle(0x3a2a0a, 0.98);
+      this.bottomHudBg.setStrokeStyle(3, 0xffae00);
+      this.bottomHudAccent.setFillStyle(0xffae00, 1);
+    } else {
+      this.bottomHudBg.setFillStyle(COLORS.uiPanel, 0.95);
+      this.bottomHudBg.setStrokeStyle();
+      this.bottomHudAccent.setFillStyle(COLORS.settler, 0.5);
+    }
 
     for (let i = 0; i < types.length; i++) {
       const type = types[i];
@@ -442,8 +533,8 @@ export class UIManager {
       const bg = btn.list[0] as Phaser.GameObjects.Rectangle;
       const icon = btn.list[1] as Phaser.GameObjects.Image;
 
-      const affordable = settler && Object.entries(def.requires).every(([res, qty]) =>
-        (settler.inventory.find(item => item.resourceType === res)?.quantity ?? 0) >= (qty as number)
+      const affordable = Object.entries(def.requires).every(([res, qty]) =>
+        this.simulation.hasResource(res, qty as number)
       );
 
       if (!settler) {
@@ -561,6 +652,7 @@ export class UIManager {
 
   updateLeftPanel(gameOver: boolean, tickCount: number): void {
     if (gameOver) return;
+    this.updateDayNight(tickCount);
     const s = (this.scene as any).getSelectedSettler() as Settler;
     if (!s) return;
 
@@ -572,8 +664,10 @@ export class UIManager {
       `${s.name} (${s.settlerClass})\n` +
       `${languageManager.ui.position}: ${s.x},${s.y}\n` +
       `${languageManager.ui.hp}: ${Math.round(s.hp)}/${s.maxHp}\n` +
-      `${languageManager.ui.hunger}: ${Math.round(s.hunger)}%\n` +
-      `${languageManager.ui.energy}: ${Math.round(s.energy)}%\n` +
+      (NEEDS_ENABLED
+        ? `${languageManager.ui.hunger}: ${Math.round(s.hunger)}%\n` +
+          `${languageManager.ui.energy}: ${Math.round(s.energy)}%\n`
+        : '') +
       `${languageManager.ui.food}: ${s.food}\n` +
       `${languageManager.ui.tick}: ${tickCount}` +
       buildStr
@@ -590,6 +684,10 @@ export class UIManager {
     this.colonistInvText.setText(
       `\u2500\u2500 ${languageManager.ui.inventorySection} \u2500\u2500`
     );
+
+    if (s) {
+      this.updateInventoryIcons(s);
+    }
 
     this.updateGlobalInventory();
 
@@ -666,52 +764,6 @@ export class UIManager {
     this.minimapGraphics.strokeRect(vx, vy, vw, vh);
   }
 
-  updateArtifacts(): void {
-    if (!this.artifactSystem) return;
-
-    for (const icon of this.artifactIcons) {
-      icon.destroy();
-    }
-    this.artifactIcons = [];
-
-    const collected = this.artifactSystem.getCollectedArtifacts();
-    if (collected.size === 0) return;
-
-    const startX = 14;
-    const startY = 830;
-    const iconSize = 28;
-    const gap = 4;
-
-    let x = startX;
-    collected.forEach((count, name) => {
-      const effect = this.artifactSystem!.getArtifactEffect(name);
-      if (!effect) return;
-
-      const bg = this.scene.add.rectangle(x, startY, iconSize, iconSize, Phaser.Display.Color.HexStringToColor(effect.color).color, 0.8)
-        .setOrigin(0).setStrokeStyle(1, COLORS.panelBorder);
-
-      const icon = this.scene.add.text(x + iconSize / 2, startY + iconSize / 2, effect.icon, {
-        fontSize: '16px', color: '#ffffff', fontFamily: 'monospace', fontStyle: 'bold',
-      }).setOrigin(0.5);
-
-      const countText = this.scene.add.text(x + iconSize - 4, startY + 2, `${count}`, {
-        fontSize: '10px', color: '#ffff00', fontFamily: 'monospace',
-      }).setOrigin(1, 0);
-
-      const container = this.scene.add.container(0, 0, [bg, icon, countText]);
-      container.setSize(iconSize, iconSize);
-      container.setInteractive({ useHandCursor: true });
-      container.on('pointerdown', () => {
-        this.showArtifactTooltip(name, effect.description, x, startY - 60);
-      });
-
-      this.leftPanelContainer.add(container);
-      this.artifactIcons.push(container);
-
-      x += iconSize + gap;
-    });
-  }
-
   private showArtifactTooltip(name: string, description: string, x: number, y: number): void {
     const tooltipText = (this.artifactTooltip as any).tooltipText as Phaser.GameObjects.Text;
     tooltipText.setText(`${name}\n${description}`);
@@ -723,7 +775,7 @@ export class UIManager {
 
   updateInventoryIcons(settler: Settler): void {
     const hash = `${settler.id}|` + settler.inventory.map(i => `${i.resourceType}:${i.quantity}:${i.name}`).join(',');
-    const artifactHash = this.artifactSystem ? Array.from(this.artifactSystem.getCollectedArtifacts().entries()).map(([n,c]) => `${n}:${c}`).join(',') : '';
+    const artifactHash = Array.from(settler.collectedArtifacts.entries()).map(([n,c]) => `${n}:${c}`).join(',');
     const fullHash = hash + '|' + artifactHash;
 
     if (fullHash === this.lastInventoryHash) return;
@@ -780,8 +832,7 @@ export class UIManager {
     }
 
     if (this.artifactSystem) {
-      const collected = this.artifactSystem.getCollectedArtifacts();
-      collected.forEach((count, name) => {
+      settler.collectedArtifacts.forEach((count, name) => {
         if (count <= 0) return;
         const effect = this.artifactSystem!.getArtifactEffect(name);
         if (!effect) return;
@@ -875,44 +926,6 @@ export class UIManager {
       this.globalInventoryIcons.push(iconContainer);
 
       x += iconSize + gap;
-    }
-
-    if (this.artifactSystem) {
-      const collected = this.artifactSystem.getCollectedArtifacts();
-      collected.forEach((count, name) => {
-        if (count <= 0) return;
-        const effect = this.artifactSystem!.getArtifactEffect(name);
-        if (!effect) return;
-
-        const color = Phaser.Display.Color.HexStringToColor(effect.color).color;
-
-        const bg = this.scene.add.rectangle(0, 0, iconSize, iconSize, color, 0.8)
-          .setOrigin(0).setStrokeStyle(1, COLORS.panelBorder)
-          .setInteractive({ useHandCursor: true });
-
-        const iconText = this.scene.add.text(iconSize / 2, iconSize / 2, effect.icon, {
-          fontSize: '24px', color: '#ffffff', fontFamily: 'monospace', fontStyle: 'bold',
-        }).setOrigin(0.5);
-
-        const artifactContainer = this.scene.add.container(x, startY, [bg, iconText]);
-        artifactContainer.setSize(iconSize, iconSize);
-
-        bg.on('pointerover', () => {
-          bg.setStrokeStyle(2, 0xffffff);
-          bg.setFillStyle(color, 1);
-          this.showArtifactTooltip(name, effect.description, x, startY - 60);
-        });
-        bg.on('pointerout', () => {
-          bg.setStrokeStyle(1, COLORS.panelBorder);
-          bg.setFillStyle(color, 0.8);
-          this.artifactTooltip.setVisible(false);
-        });
-
-        this.globalInventoryContainer.add(artifactContainer);
-        this.globalInventoryIcons.push(artifactContainer);
-
-        x += iconSize + gap;
-      });
     }
   }
 

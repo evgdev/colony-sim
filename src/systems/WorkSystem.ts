@@ -60,10 +60,15 @@ export class WorkSystem {
   }
 
   private assignNextTask(settler: Settler): void {
-    const task = this.taskQueue.peek();
-    if (!task) return;
-    if (task.assignedSettlerId && task.assignedSettlerId !== settler.id) return;
-    settler.currentTaskId = task.id;
+    let best: Task | null = null;
+    for (const task of this.taskQueue.getAll()) {
+      if (task.assignedSettlerId !== undefined && task.assignedSettlerId !== settler.id) continue;
+      if (!best || task.priority > best.priority) best = task;
+    }
+    if (best) {
+      if (best.assignedSettlerId === undefined) best.assignedSettlerId = settler.id;
+      settler.currentTaskId = best.id;
+    }
   }
 
   interruptSettler(settler: Settler): void {
@@ -273,11 +278,11 @@ export class WorkSystem {
       }
 
       if (settler.x === task.targetX && settler.y === task.targetY) {
+        settler.addArtifact(artifact.name);
         if (this.artifactSystem) {
-          this.artifactSystem.addArtifact(artifact.name);
           this.artifactSystem.applyEffects(settler);
         }
-        this.simulation.addToInventory(artifact.name, 1, artifact.name);
+        settler.addToInventory({ name: artifact.name, quantity: 1, resourceType: 'artifact' });
         this.entityManager.remove(artifact.id);
         this.tileGrid.setOccupied(task.targetX, task.targetY, false);
         task.completed = true;
@@ -298,11 +303,11 @@ export class WorkSystem {
     if (settler.pathIndex >= settler.path.length) {
       const artifact = this.findArtifactAt(task.targetX, task.targetY);
       if (artifact) {
+        settler.addArtifact(artifact.name);
         if (this.artifactSystem) {
-          this.artifactSystem.addArtifact(artifact.name);
           this.artifactSystem.applyEffects(settler);
         }
-        this.simulation.addToInventory(artifact.name, 1, artifact.name);
+        settler.addToInventory({ name: artifact.name, quantity: 1, resourceType: 'artifact' });
         this.entityManager.remove(artifact.id);
         this.tileGrid.setOccupied(task.targetX, task.targetY, false);
       }
@@ -350,12 +355,6 @@ export class WorkSystem {
   }
 
   createBuildTask(building: Building, priority: TaskPriority = TaskPriority.Normal, settler?: Settler): Task {
-    if (settler) {
-      this.interruptSettler(settler);
-    } else {
-      const settlers = this.entityManager.getByType('settler') as Settler[];
-      for (const s of settlers) this.interruptSettler(s);
-    }
     const task = new Task({
       type: TaskType.Build,
       priority,
@@ -363,8 +362,6 @@ export class WorkSystem {
       targetY: building.y,
       buildingId: `${building.id}`,
       assignedSettlerId: settler?.id,
-      returnX: settler?.x,
-      returnY: settler?.y,
     });
     this.taskQueue.add(task);
     return task;

@@ -4,7 +4,10 @@
     "color": 8947848,
     "maxHp": 100,
     "buildTime": 10,
-    "requires": { "wood": 8, "stone": 3 },
+    "requires": {
+      "wood": 8,
+      "stone": 3
+    },
     "hungerReduction": 0.5,
     "description": "Reduces hunger drain when settler is nearby"
   },
@@ -13,7 +16,10 @@
     "color": 7829367,
     "maxHp": 120,
     "buildTime": 12,
-    "requires": { "wood": 10, "stone": 5 },
+    "requires": {
+      "wood": 10,
+      "stone": 5
+    },
     "storageCapacity": 50,
     "description": "Stores resources. Settler auto-delivers here."
   },
@@ -22,19 +28,25 @@
     "color": 5025616,
     "maxHp": 60,
     "buildTime": 8,
-    "requires": { "wood": 6 },
+    "requires": {
+      "wood": 6
+    },
     "produceType": "food",
     "produceRate": 2,
     "produceInterval": 5,
     "storageCapacity": 20,
-    "description": "Produces food every 5 ticks. Settler collects food when nearby."
+    "healRate": 1,
+    "description": "Produces food every 5 ticks. Heals nearby settlers. Settler collects food when nearby."
   },
   "workshop": {
     "name": "Workshop",
     "color": 5592405,
     "maxHp": 150,
     "buildTime": 15,
-    "requires": { "wood": 12, "stone": 8 },
+    "requires": {
+      "wood": 12,
+      "stone": 8
+    },
     "description": "Enables advanced crafting (coming soon)"
   },
   "radio": {
@@ -42,8 +54,49 @@
     "color": 16777215,
     "maxHp": 200,
     "buildTime": 20,
-    "requires": { "wood": 15, "stone": 10 },
+    "requires": {
+      "wood": 15,
+      "stone": 10
+    },
     "isRadio": true,
     "description": "Build radio to call for rescue. Requires fragments and components."
+  },
+  "wall": {
+    "name": "Wall",
+    "color": 8421504,
+    "maxHp": 250,
+    "buildTime": 3,
+    "requires": {
+      "wood": 2,
+      "stone": 2
+    },
+    "blocksMovement": true,
+    "description": "Cheap barrier. Blocks dinosaur movement, enclose your base."
+  },
+  "turret": {
+    "name": "Turret",
+    "color": 16744192,
+    "maxHp": 120,
+    "buildTime": 6,
+    "requires": {
+      "wood": 4,
+      "stone": 4
+    },
+    "attackDamage": 15,
+    "attackRange": 4,
+    "attackInterval": 1,
+    "description": "Auto-attacks nearest dinosaur within range every tick."
+  },
+  "gate": {
+    "name": "Gate",
+    "color": 10181046,
+    "maxHp": 150,
+    "buildTime": 4,
+    "requires": {
+      "wood": 2,
+      "stone": 2
+    },
+    "isGate": true,
+    "description": "Passable for settlers, but blocks dinosaurs. Use in your walls."
   }
 }

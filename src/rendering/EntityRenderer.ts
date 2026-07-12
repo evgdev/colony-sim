@@ -2,6 +2,7 @@ import Phaser from 'phaser';
 import {
   TILE_SIZE, COLORS,
   FIELD_X, FIELD_Y, FIELD_W, FIELD_H, VIEWPORT_TILES,
+  NEEDS_ENABLED,
 } from '../config';
 import { Simulation } from '../core/Simulation';
 import { Settler } from '../entities/Settler';
@@ -107,20 +108,27 @@ export class EntityRenderer {
       const barX = FIELD_X + (ex - this.scrollX) * TILE_SIZE + 2;
       const barY = FIELD_Y + (ey - this.scrollY) * TILE_SIZE - 8;
 
-      g.fillStyle(0x333333, 0.8);
-      g.fillRect(barX, barY, barWidth, barHeight);
-      g.fillStyle(0x22cc22, 1);
-      g.fillRect(barX, barY, barWidth * (settler.hunger / 100), barHeight);
+      if (NEEDS_ENABLED) {
+        g.fillStyle(0x333333, 0.8);
+        g.fillRect(barX, barY, barWidth, barHeight);
+        g.fillStyle(0x22cc22, 1);
+        g.fillRect(barX, barY, barWidth * (settler.hunger / 100), barHeight);
 
-      g.fillStyle(0x333333, 0.8);
-      g.fillRect(barX, barY - barHeight - 2, barWidth, barHeight);
-      g.fillStyle(0xff3333, 1);
-      g.fillRect(barX, barY - barHeight - 2, barWidth * (settler.hp / settler.maxHp), barHeight);
+        g.fillStyle(0x333333, 0.8);
+        g.fillRect(barX, barY - barHeight - 2, barWidth, barHeight);
+        g.fillStyle(0xff3333, 1);
+        g.fillRect(barX, barY - barHeight - 2, barWidth * (settler.hp / settler.maxHp), barHeight);
 
-      g.fillStyle(0x333333, 0.8);
-      g.fillRect(barX, barY + barHeight + 2, barWidth, barHeight);
-      g.fillStyle(0x2299ff, 1);
-      g.fillRect(barX, barY + barHeight + 2, barWidth * (settler.energy / 100), barHeight);
+        g.fillStyle(0x333333, 0.8);
+        g.fillRect(barX, barY + barHeight + 2, barWidth, barHeight);
+        g.fillStyle(0x2299ff, 1);
+        g.fillRect(barX, barY + barHeight + 2, barWidth * (settler.energy / 100), barHeight);
+      } else {
+        g.fillStyle(0x333333, 0.8);
+        g.fillRect(barX, barY, barWidth, barHeight);
+        g.fillStyle(0xff3333, 1);
+        g.fillRect(barX, barY, barWidth * (settler.hp / settler.maxHp), barHeight);
+      }
     }
 
     if (settler.inventory.length > 0) {
@@ -143,11 +151,29 @@ export class EntityRenderer {
   }
 
   private drawBuilding(g: Phaser.GameObjects.Graphics, bld: Building, cx: number, cy: number): void {
-    const color = (buildingsData as any)[bld.buildingType]?.color ?? COLORS.building;
+    const baseColor = (buildingsData as any)[bld.buildingType]?.color ?? COLORS.building;
+    const flash = bld.fireFlash;
+    if (flash > 0) bld.fireFlash = Math.max(0, flash - 0.12);
+
+    let color = baseColor;
+    if (flash > 0) {
+      const r = (baseColor >> 16) & 0xff;
+      const gg = (baseColor >> 8) & 0xff;
+      const b = baseColor & 0xff;
+      const lr = Math.min(255, Math.round(r + (255 - r) * flash));
+      const lg = Math.min(255, Math.round(gg + (255 - gg) * flash));
+      const lb = Math.min(255, Math.round(b + (255 - b) * flash));
+      color = (lr << 16) | (lg << 8) | lb;
+    }
+
     const alpha = bld.built ? 1.0 : 0.5 + bld.progressPercent * 0.5;
     g.fillStyle(color, alpha);
     g.fillRect(cx - TILE_SIZE / 3, cy - TILE_SIZE / 3, TILE_SIZE / 1.5, TILE_SIZE / 1.5);
-    g.lineStyle(2, 0x000000);
+    if (flash > 0) {
+      g.fillStyle(0xffffff, flash * 0.5);
+      g.fillRect(cx - TILE_SIZE / 3, cy - TILE_SIZE / 3, TILE_SIZE / 1.5, TILE_SIZE / 1.5);
+    }
+    g.lineStyle(2, flash > 0 ? 0xffff66 : 0x000000);
     g.strokeRect(cx - TILE_SIZE / 3, cy - TILE_SIZE / 3, TILE_SIZE / 1.5, TILE_SIZE / 1.5);
 
     const name = (buildingsData as any)[bld.buildingType]?.name ?? bld.buildingType;

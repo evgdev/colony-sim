@@ -27,6 +27,12 @@ export class Building extends Entity {
   produceInterval: number = 0;
   produceTimer: number = 0;
 
+  attackDamage: number = 0;
+  attackRange: number = 0;
+  attackInterval: number = 0;
+  attackCooldown: number = 0;
+  fireFlash: number = 0;
+
   constructor(
     x: number, y: number, buildingType: string,
     maxHp: number = 100, buildTime: number = 10,
@@ -122,6 +128,10 @@ export class Building extends Entity {
       produceRate: this.produceRate,
       produceInterval: this.produceInterval,
       produceTimer: this.produceTimer,
+      attackDamage: this.attackDamage,
+      attackRange: this.attackRange,
+      attackInterval: this.attackInterval,
+      attackCooldown: this.attackCooldown,
     };
   }
 
@@ -141,6 +151,11 @@ export class Building extends Entity {
     b.produceRate = data.produceRate ?? 0;
     b.produceInterval = data.produceInterval ?? 0;
     b.produceTimer = data.produceTimer ?? 0;
+    b.attackDamage = data.attackDamage ?? 0;
+    b.attackRange = data.attackRange ?? 0;
+    b.attackInterval = data.attackInterval ?? 0;
+    b.attackCooldown = data.attackCooldown ?? 0;
+    b.fireFlash = data.fireFlash ?? 0;
     return b;
   }
 }

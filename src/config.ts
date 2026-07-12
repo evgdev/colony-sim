@@ -17,12 +17,42 @@ export const FIELD_H = VIEWPORT_TILES * TILE_SIZE;
 export const PANEL_X = CANVAS_WIDTH - PANEL_WIDTH;
 export const BOTTOM_HUD_Y = FIELD_Y + FIELD_H;
 
+// Day/Night cycle (measured in simulation ticks)
+export const DAY_TICKS = 20;
+export const NIGHT_TICKS = 12;
+export const CYCLE_TICKS = DAY_TICKS + NIGHT_TICKS;
+export const DUSK_TICKS = 2;
+// Night color correction: hue + strength applied as a field overlay
+export const NIGHT_TINT = 0x10204a;
+export const NIGHT_MAX_ALPHA = 0.6;
+
+export function isNight(tickCount: number): boolean {
+  const phase = ((tickCount % CYCLE_TICKS) + CYCLE_TICKS) % CYCLE_TICKS;
+  return phase >= DAY_TICKS;
+}
+
+export function nightAlpha(tickCount: number): number {
+  const phase = ((tickCount % CYCLE_TICKS) + CYCLE_TICKS) % CYCLE_TICKS;
+  if (phase < DAY_TICKS) {
+    const duskStart = DAY_TICKS - DUSK_TICKS;
+    if (phase < duskStart) return 0;
+    return ((phase - duskStart) / DUSK_TICKS) * NIGHT_MAX_ALPHA;
+  }
+  const nightPhase = phase - DAY_TICKS;
+  const up = Math.min(nightPhase / DUSK_TICKS, 1);
+  const down = Math.min((NIGHT_TICKS - nightPhase) / DUSK_TICKS, 1);
+  return Math.min(up, down) * NIGHT_MAX_ALPHA;
+}
+
 export const FOOD_EAT_INTERVAL = 20;
 export const FOOD_HUNGER_RESTORE = 25;
 export const FOOD_START_AMOUNT = 5;
 export const STARVATION_DAMAGE = 5;
 export const HUNGER_STARVATION_THRESHOLD = 0;
 export const HUNGER_STARVATION_MULTIPLIER = 2;
+
+// Временно отключает голод и энергию (true = потребности работают, false = отключены)
+export const NEEDS_ENABLED = false;
 
 export const COLORS = {
   grass: 0x3a5a2a,

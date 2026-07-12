@@ -15,7 +15,7 @@ export class BootScene extends Phaser.Scene {
   }
 
   preload(): void {
-    // no assets needed here — GameScene loads its own
+    this.load.image('startMenuBg', 'bg/start_menu_bg.jpg');
   }
 
   create(): void {

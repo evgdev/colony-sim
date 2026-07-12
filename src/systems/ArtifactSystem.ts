@@ -1,4 +1,5 @@
 import { Settler } from '../entities/Settler';
+import { EntityManager } from '../core/EntityManager';
 import artifactsData from '../data/artifacts.json';
 
 export interface ArtifactEffect {
@@ -10,7 +11,11 @@ export interface ArtifactEffect {
 }
 
 export class ArtifactSystem {
-  private collectedArtifacts: Map<string, number> = new Map();
+  private entityManager: EntityManager;
+
+  constructor(entityManager: EntityManager) {
+    this.entityManager = entityManager;
+  }
 
   getArtifactEffect(name: string): ArtifactEffect | null {
     const key = name.toLowerCase();
@@ -19,17 +24,8 @@ export class ArtifactSystem {
     return def as ArtifactEffect;
   }
 
-  addArtifact(name: string): void {
-    const count = this.collectedArtifacts.get(name) || 0;
-    this.collectedArtifacts.set(name, count + 1);
-  }
-
-  getCollectedArtifacts(): Map<string, number> {
-    return this.collectedArtifacts;
-  }
-
   applyEffects(settler: Settler): void {
-    for (const [name, count] of this.collectedArtifacts) {
+    for (const [name, count] of settler.collectedArtifacts) {
       const effect = this.getArtifactEffect(name);
       if (!effect) continue;
 
@@ -40,35 +36,24 @@ export class ArtifactSystem {
         case 'fogRadius':
           settler.artifactFogBonus = effect.value * count;
           break;
+        case 'attackSpeed':
+          settler.artifactAttackSpeedBonus = effect.value * count;
+          break;
       }
     }
   }
 
-  getBonusValue(effectType: string): number {
+  getStorageBonus(): number {
     let total = 0;
-    for (const [name, count] of this.collectedArtifacts) {
-      const effect = this.getArtifactEffect(name);
-      if (effect && effect.effect === effectType) {
-        total += effect.value * count;
+    const settlers = this.entityManager.getByType('settler') as Settler[];
+    for (const settler of settlers) {
+      for (const [name, count] of settler.collectedArtifacts) {
+        const effect = this.getArtifactEffect(name);
+        if (effect && effect.effect === 'storage') {
+          total += effect.value * count;
+        }
       }
     }
     return total;
-  }
-
-  serialize(): object {
-    const artifacts: Record<string, number> = {};
-    this.collectedArtifacts.forEach((count, name) => {
-      artifacts[name] = count;
-    });
-    return { artifacts };
-  }
-
-  deserialize(data: any): void {
-    this.collectedArtifacts.clear();
-    if (data.artifacts) {
-      for (const [name, count] of Object.entries(data.artifacts)) {
-        this.collectedArtifacts.set(name, count as number);
-      }
-    }
   }
 }

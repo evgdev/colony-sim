@@ -82,5 +82,11 @@
   "yes": "YES",
   "no": "no",
   "food": "Food",
-  "artifacts": "ARTIFACTS"
+  "artifacts": "ARTIFACTS",
+
+  "difficulty": "SELECT DIFFICULTY",
+  "easy": "EASY",
+  "hard": "HARD",
+  "easyDesc": "Wall and gate",
+  "hardDesc": "No protection"
 }

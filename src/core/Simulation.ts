@@ -83,13 +83,15 @@ export class Simulation {
   }
 
   update(deltaTime: number): boolean {
-    this.tickAccumulator += deltaTime;
-    if (this.tickAccumulator >= this.tickRate) {
+    const dt = Math.min(deltaTime, 100);
+    this.tickAccumulator += dt;
+    let ticked = false;
+    while (this.tickAccumulator >= this.tickRate) {
       this.tickAccumulator -= this.tickRate;
       this.tick();
-      return true;
+      ticked = true;
     }
-    return false;
+    return ticked;
   }
 
   tick(): void {

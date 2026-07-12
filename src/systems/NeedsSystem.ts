@@ -5,6 +5,7 @@ import {
   STARVATION_DAMAGE,
   HUNGER_STARVATION_THRESHOLD,
   HUNGER_STARVATION_MULTIPLIER,
+  NEEDS_ENABLED,
 } from '../config';
 
 const TICKS_PER_DAY = 24;
@@ -19,6 +20,7 @@ export class NeedsSystem {
   }
 
   update(settlers: Settler[], tickDelta: number, tickCount: number = 0): void {
+    if (!NEEDS_ENABLED) return;
     const isNight = this.isNight(tickCount);
     const energyMultiplier = isNight ? NIGHT_ENERGY_MULTIPLIER : 1;
 

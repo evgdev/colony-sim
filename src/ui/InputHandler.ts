@@ -8,6 +8,7 @@ import { Resource } from '../entities/Resource';
 import { Building } from '../entities/Building';
 import { Artifact } from '../entities/Artifact';
 import { WorkSystem } from '../systems/WorkSystem';
+import { ArtifactSystem } from '../systems/ArtifactSystem';
 import { TaskPriority } from '../core/Task';
 import { UIManager } from './UIManager';
 import { languageManager } from '../data/LanguageManager';
@@ -25,21 +26,27 @@ export class InputHandler {
   private simulation: Simulation;
   private uiManager: UIManager;
   private workSystem: WorkSystem;
+  private artifactSystem: ArtifactSystem;
   hoverRect!: Phaser.GameObjects.Rectangle;
   private scrollX: number = 0;
   private scrollY: number = 0;
+  private isPainting: boolean = false;
+  private lastPaintX: number = -1;
+  private lastPaintY: number = -1;
   scrollTo: ((tileX: number, tileY: number) => void) | null = null;
 
   constructor(
     scene: Phaser.Scene,
     simulation: Simulation,
     uiManager: UIManager,
-    workSystem: WorkSystem
+    workSystem: WorkSystem,
+    artifactSystem: ArtifactSystem
   ) {
     this.scene = scene;
     this.simulation = simulation;
     this.uiManager = uiManager;
     this.workSystem = workSystem;
+    this.artifactSystem = artifactSystem;
   }
 
   setSimulation(simulation: Simulation): void {
@@ -105,12 +112,20 @@ export class InputHandler {
         const { sx, sy } = this.tileToScreen(coords.tileX, coords.tileY);
         this.hoverRect.setPosition(sx, sy);
         this.hoverRect.setVisible(true);
+        if (this.isPainting && this.uiManager.buildMode && !pointer.rightButtonDown()) {
+          this.paintAt(coords.tileX, coords.tileY);
+        }
       } else {
         this.hoverRect.setVisible(false);
       }
     });
 
     this.scene.input.on('pointerdown', (pointer: Phaser.Input.Pointer) => {
+      if (pointer.rightButtonDown()) {
+        this.cancelBuildMode();
+        return;
+      }
+
       const minimapCoords = this.screenToMinimapTile(pointer.x, pointer.y);
       if (minimapCoords) {
         this.handleMinimapClick(minimapCoords.tileX, minimapCoords.tileY);
@@ -119,8 +134,40 @@ export class InputHandler {
 
       const coords = this.screenToTile(pointer.x, pointer.y);
       if (!coords) return;
-      this.handleTileClick(coords.tileX, coords.tileY);
+      if (this.uiManager.buildMode) {
+        this.isPainting = true;
+        this.paintAt(coords.tileX, coords.tileY);
+      } else {
+        this.handleTileClick(coords.tileX, coords.tileY);
+      }
     });
+
+    this.scene.input.on('pointerup', (pointer: Phaser.Input.Pointer) => {
+      if (pointer.rightButtonDown()) return;
+      this.isPainting = false;
+      this.lastPaintX = -1;
+      this.lastPaintY = -1;
+    });
+
+    this.scene.input.keyboard?.on('keydown-ESC', () => this.cancelBuildMode());
+  }
+
+  private cancelBuildMode(): void {
+    this.isPainting = false;
+    this.lastPaintX = -1;
+    this.lastPaintY = -1;
+    if (this.uiManager.buildMode) {
+      this.uiManager.buildMode = null;
+      this.uiManager.updateBuildButtonStates();
+      this.uiManager.addLog('Build mode off (right-click / Esc)');
+    }
+  }
+
+  private paintAt(tileX: number, tileY: number): void {
+    if (tileX === this.lastPaintX && tileY === this.lastPaintY) return;
+    this.lastPaintX = tileX;
+    this.lastPaintY = tileY;
+    this.handleBuildClick(tileX, tileY, this.simulation.tileGrid.get(tileX, tileY)!);
   }
 
   handleTileClick(tileX: number, tileY: number): void {
@@ -164,25 +211,21 @@ export class InputHandler {
     );
 
     if (entityAtTile) {
-      if (this.uiManager.selectedEntity === entityAtTile &&
-          (entityAtTile.entityType === 'resource' || entityAtTile.entityType === 'artifact')) {
+      if (entityAtTile.entityType === 'resource' || entityAtTile.entityType === 'artifact') {
+        this.uiManager.selectedBuilding = null;
+        this.uiManager.selectedEntity = entityAtTile;
+        this.uiManager.buildMode = null;
+        this.uiManager.updateBuildButtonStates();
         this.uiManager.onCollectCallback?.(entityAtTile);
-        this.uiManager.deselectAll();
         return;
       }
       this.uiManager.selectedBuilding = null;
       this.uiManager.selectedEntity = entityAtTile;
       this.uiManager.buildMode = null;
       this.uiManager.updateBuildButtonStates();
-      if (entityAtTile.entityType === 'resource') {
-        const res = entityAtTile as Resource;
-        this.uiManager.addLog(`${languageManager.ui.selected}: ${res.resourceType} (${res.quantity})`);
-      } else if (entityAtTile.entityType === 'dinosaur') {
+      if (entityAtTile.entityType === 'dinosaur') {
         const dino = entityAtTile as import('../entities/Dinosaur').Dinosaur;
         this.uiManager.addLog(`${languageManager.ui.selected}: ${dino.species} (${dino.state})`);
-      } else if (entityAtTile.entityType === 'artifact') {
-        const artifact = entityAtTile as Artifact;
-        this.uiManager.addLog(`${languageManager.ui.selected}: ${artifact.name}`);
       }
       return;
     }
@@ -201,21 +244,27 @@ export class InputHandler {
   }
 
   private handleBuildClick(tileX: number, tileY: number, tile: any): void {
+    if (!this.simulation.tileGrid.isRevealed(tileX, tileY)) return;
     if (!tile.walkable) {
       this.uiManager.addLog(languageManager.ui.logCannotBuildHere);
       return;
     }
 
-    const existing = this.simulation.entityManager.getAll().find(
+    const entityAt = this.simulation.entityManager.getAll().find(
       e => e.x === tileX && e.y === tileY
     );
-    if (existing) {
+    if (entityAt && entityAt.entityType === 'settler') {
+      const s = entityAt as Settler;
+      (this.scene as any).selectSettler(s);
+      this.uiManager.addLog(`${languageManager.ui.selected}: ${s.name} (${s.settlerClass})`);
+      return;
+    }
+    if (entityAt) {
       this.uiManager.addLog(languageManager.ui.logTileOccupied);
       return;
     }
 
     const def = (buildingsData as any)[this.uiManager.buildMode!];
-    const settler = (this.scene as any).getSelectedSettler() as Settler;
     const hasAll = Object.entries(def.requires).every(([res, qty]) =>
       this.simulation.hasResource(res, qty as number)
     );
@@ -228,18 +277,27 @@ export class InputHandler {
     const building = new Building(tileX, tileY, this.uiManager.buildMode!, def.maxHp, def.buildTime,
       Object.entries(def.requires).map(([r, q]) => ({ resourceType: r, quantity: q as number }))
     );
-    building.storageCapacity = def.storageCapacity ?? 0;
+    building.storageCapacity = (def.storageCapacity ?? 0) + this.artifactSystem.getStorageBonus();
     building.produceType = def.produceType ?? '';
     building.produceRate = def.produceRate ?? 0;
     building.produceInterval = def.produceInterval ?? 0;
+    building.attackDamage = def.attackDamage ?? 0;
+    building.attackRange = def.attackRange ?? 0;
+    building.attackInterval = def.attackInterval ?? 0;
     this.simulation.entityManager.add(building);
-    this.simulation.tileGrid.setOccupied(tileX, tileY, true);
+    this.simulation.tileGrid.setBuilding(tileX, tileY, true);
+    if (def.isGate) {
+      this.simulation.tileGrid.setGate(tileX, tileY, true);
+      this.simulation.tileGrid.setDinoBlocked(tileX, tileY, true);
+    } else {
+      this.simulation.tileGrid.setOccupied(tileX, tileY, true);
+    }
 
-    this.workSystem.createBuildTask(building, TaskPriority.High, settler);
+    const selected = (this.scene as any).getSelectedSettler() as Settler;
+    this.workSystem.createBuildTask(building, TaskPriority.High, selected);
     this.uiManager.addLog(`${languageManager.ui.logBuildingAt} ${def.name} ${tileX},${tileY}`);
     this.uiManager.checkMilestone('firstBuilding');
 
-    this.uiManager.buildMode = null;
     this.uiManager.updateBuildButtonStates();
   }
 

@@ -2,6 +2,7 @@ import Phaser from 'phaser';
 import {
   TILE_SIZE, MAP_WIDTH, MAP_HEIGHT, PANEL_WIDTH, COLORS,
   CANVAS_WIDTH, CANVAS_HEIGHT, HUD_HEIGHT, PANEL_X, BOTTOM_HUD_Y,
+  NEEDS_ENABLED,
 } from '../config';
 import { Simulation } from '../core/Simulation';
 import { Settler } from '../entities/Settler';
@@ -58,10 +59,23 @@ export class DebugPanel {
         this.pauseBtn.setColor(this.paused ? '#ff6666' : '#c9d1d9');
       });
     this.container.add(this.pauseBtn);
+
+    const speeds = [0.5, 1, 2, 4];
+    for (let i = 0; i < speeds.length; i++) {
+      const sb = this.scene.add.text(PANEL_X + PAD + 90 + i * 46, btnY, `×${speeds[i]}`, btnStyle)
+        .setInteractive({ useHandCursor: true }).setDepth(31)
+        .on('pointerdown', () => {
+          this.speed = speeds[i];
+          this.updateSpeedButtons();
+        });
+      this.speedBtns.push(sb);
+      this.container.add(sb);
+    }
+    this.updateSpeedButtons();
   }
 
   private updateSpeedButtons(): void {
-    const speeds = [1, 2, 4];
+    const speeds = [0.5, 1, 2, 4];
     for (let i = 0; i < this.speedBtns.length; i++) {
       this.speedBtns[i].setColor(speeds[i] === this.speed ? '#58a6ff' : '#8b949e');
     }
@@ -81,7 +95,9 @@ export class DebugPanel {
     y = this.addLine(`${u.size}: ${sim.tileGrid.width}x${sim.tileGrid.height}`, y);
 
     y = this.addSection(u.simulationSection, y);
-    y = this.addLine(`${u.tick}: ${sim.tickCount}  Rate: ${sim.tickRate}ms  ${u.speed}: \u00d7${this.speed}`, y);
+    y = this.addLine(`${u.tick}: ${sim.tickCount}`, y);
+    y = this.addLine(`Rate: ${sim.tickRate}ms`, y);
+    y = this.addLine(`${u.speed}: \u00d7${this.speed}`, y);
     y = this.addLine(`${u.paused}: ${this.paused ? u.yes : u.no}`, y);
 
     const settlers = sim.entityManager.getByType('settler') as Settler[];
@@ -90,7 +106,9 @@ export class DebugPanel {
       const inv = s.inventory.map(i => `${i.resourceType}:${i.quantity}`).join(' ') || u.empty;
       const task = s.currentTaskId ? s.currentTaskId.slice(0, 8) : u.idle;
       y = this.addLine(`${s.name} [${s.x},${s.y}]`, y);
-      y = this.addLine(`  ${u.hunger}:${Math.round(s.hunger)} ${u.energy}:${Math.round(s.energy)}`, y);
+      if (NEEDS_ENABLED) {
+        y = this.addLine(`  ${u.hunger}:${Math.round(s.hunger)} ${u.energy}:${Math.round(s.energy)}`, y);
+      }
       y = this.addLine(`  inv: [${inv}]`, y);
       y = this.addLine(`  task: ${task}  path:${s.path.length}`, y);
     }

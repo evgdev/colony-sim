@@ -52,6 +52,49 @@ export function createBuildingIcons(scene: Phaser.Scene): void {
   wG.strokeCircle(20, 24, 4);
   wG.generateTexture('icon_workshop', s, s);
   wG.destroy();
+
+  const wallG = scene.add.graphics().setVisible(false);
+  wallG.fillStyle(0x808080);
+  wallG.fillRect(4, 6, 32, 28);
+  wallG.fillStyle(0x999999);
+  wallG.fillRect(4, 6, 32, 6);
+  wallG.lineStyle(1, 0x555555);
+  wallG.strokeRect(4, 6, 32, 28);
+  wallG.lineBetween(20, 6, 20, 34);
+  wallG.lineBetween(4, 20, 36, 20);
+  wallG.generateTexture('icon_wall', s, s);
+  wallG.destroy();
+
+  const turretG = scene.add.graphics().setVisible(false);
+  turretG.fillStyle(0x884400);
+  turretG.fillRect(14, 22, 12, 14);
+  turretG.fillStyle(0x555555);
+  turretG.fillCircle(20, 18, 8);
+  turretG.fillStyle(0x333333);
+  turretG.fillRect(18, 4, 4, 14);
+  turretG.generateTexture('icon_turret', s, s);
+  turretG.destroy();
+
+  const gateG = scene.add.graphics().setVisible(false);
+  gateG.fillStyle(0x9b7653);
+  gateG.fillRect(6, 8, 28, 26);
+  gateG.fillStyle(0x7a5c3c);
+  gateG.fillRect(6, 8, 28, 6);
+  gateG.lineStyle(1, 0x4a3826);
+  gateG.strokeRect(6, 8, 28, 26);
+  gateG.lineBetween(20, 8, 20, 34);
+  gateG.generateTexture('icon_gate', s, s);
+  gateG.destroy();
+
+  const radioG = scene.add.graphics().setVisible(false);
+  radioG.fillStyle(0x888888);
+  radioG.fillRect(10, 28, 20, 8);
+  radioG.lineStyle(2, 0xffffff);
+  radioG.strokeCircle(20, 18, 8);
+  radioG.lineBetween(20, 10, 20, 2);
+  radioG.lineBetween(20, 2, 26, 2);
+  radioG.generateTexture('icon_radio', s, s);
+  radioG.destroy();
 }
 
 function seededRandom(x: number, y: number, seed: number): number {

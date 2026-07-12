@@ -10,6 +10,9 @@ export interface TileState extends TileData {
   x: number;
   y: number;
   occupied: boolean;
+  dinoBlocked: boolean;
+  gate: boolean;
+  building: boolean;
 }
 
 export class TileGrid {
@@ -27,7 +30,7 @@ export class TileGrid {
       const row: TileState[] = [];
       const revRow: boolean[] = [];
       for (let x = 0; x < width; x++) {
-        row.push({ type: 'grass', walkCost: 1, walkable: true, x, y, occupied: false });
+        row.push({ type: 'grass', walkCost: 1, walkable: true, x, y, occupied: false, dinoBlocked: false, gate: false, building: false });
         revRow.push(false);
       }
       this.tiles.push(row);
@@ -53,9 +56,29 @@ export class TileGrid {
     if (tile) tile.occupied = occupied;
   }
 
+  setDinoBlocked(x: number, y: number, blocked: boolean): void {
+    const tile = this.get(x, y);
+    if (tile) tile.dinoBlocked = blocked;
+  }
+
+  setGate(x: number, y: number, gate: boolean): void {
+    const tile = this.get(x, y);
+    if (tile) tile.gate = gate;
+  }
+
+  setBuilding(x: number, y: number, building: boolean): void {
+    const tile = this.get(x, y);
+    if (tile) tile.building = building;
+  }
+
   isWalkable(x: number, y: number): boolean {
     const tile = this.get(x, y);
     return tile !== null && tile.walkable && !tile.occupied;
+  }
+
+  isWalkableForDino(x: number, y: number): boolean {
+    const tile = this.get(x, y);
+    return tile !== null && tile.walkable && !tile.occupied && !tile.dinoBlocked;
   }
 
   isRevealed(x: number, y: number): boolean {
@@ -85,6 +108,9 @@ export class TileGrid {
         walkCost: t.walkCost,
         walkable: t.walkable,
         occupied: t.occupied,
+        dinoBlocked: t.dinoBlocked,
+        gate: t.gate,
+        building: t.building,
       }))),
       revealed: this.revealed,
     };
@@ -100,6 +126,9 @@ export class TileGrid {
           walkCost: saved.walkCost,
           walkable: saved.walkable,
           occupied: saved.occupied,
+          dinoBlocked: saved.dinoBlocked ?? false,
+          gate: saved.gate ?? false,
+          building: saved.building ?? false,
           x,
           y,
         };

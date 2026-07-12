@@ -25,6 +25,8 @@ export class Settler extends Entity {
   path: { x: number; y: number }[] = [];
   pathIndex: number = 0;
   artifactFogBonus: number = 0;
+  artifactAttackSpeedBonus: number = 0;
+  collectedArtifacts: Map<string, number> = new Map();
 
   constructor(x: number, y: number, name: string = 'Settler', color: number = 0xffd700, settlerClass: SettlerClass = 'engineer') {
     super('settler', x, y);
@@ -79,6 +81,19 @@ export class Settler extends Entity {
     return this.settlerClass === 'pilot' ? 1.2 : 1.0;
   }
 
+  getAttackCooldown(): number {
+    return 1.0 / (1.0 + this.artifactAttackSpeedBonus);
+  }
+
+  addArtifact(name: string): void {
+    const count = this.collectedArtifacts.get(name) || 0;
+    this.collectedArtifacts.set(name, count + 1);
+  }
+
+  getArtifactCount(name: string): number {
+    return this.collectedArtifacts.get(name) || 0;
+  }
+
   serialize(): object {
     return {
       ...super.serialize(),
@@ -96,6 +111,8 @@ export class Settler extends Entity {
       path: this.path,
       pathIndex: this.pathIndex,
       artifactFogBonus: this.artifactFogBonus,
+      artifactAttackSpeedBonus: this.artifactAttackSpeedBonus,
+      collectedArtifacts: Object.fromEntries(this.collectedArtifacts),
     };
   }
 
@@ -113,6 +130,8 @@ export class Settler extends Entity {
     s.path = data.path || [];
     s.pathIndex = data.pathIndex ?? 0;
     s.artifactFogBonus = data.artifactFogBonus ?? 0;
+    s.artifactAttackSpeedBonus = data.artifactAttackSpeedBonus ?? 0;
+    s.collectedArtifacts = new Map(Object.entries(data.collectedArtifacts || {}));
     return s;
   }
 }

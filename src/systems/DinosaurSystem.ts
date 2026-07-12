@@ -4,10 +4,11 @@ import { Dinosaur } from '../entities/Dinosaur';
 import { Settler } from '../entities/Settler';
 import { Building } from '../entities/Building';
 import dinosaursData from '../data/dinosaurs.json';
+import { isNight } from '../config';
 
-const TICKS_PER_DAY = 24;
-const NIGHT_START = 18;
-const NIGHT_END = 6;
+const PREDATOR_SPECIES = ['trex', 'raptor'];
+const HERBIVORE_SPECIES = ['brontosaur'];
+const MIN_SPAWN_DISTANCE = 12;
 
 export class DinosaurSystem {
   private entityManager: EntityManager;
@@ -26,19 +27,18 @@ export class DinosaurSystem {
     this.onSpawn = onSpawn;
   }
 
-  private isNight(tickCount: number): boolean {
-    const hour = tickCount % TICKS_PER_DAY;
-    return hour >= NIGHT_START || hour < NIGHT_END;
+  private isNightPhase(tickCount: number): boolean {
+    return isNight(tickCount);
   }
 
   update(tickDelta: number, tickCount: number = 0): void {
-    const isNight = this.isNight(tickCount);
-    const effectiveSpawnInterval = isNight ? this.spawnInterval / this.nightSpawnMultiplier : this.spawnInterval;
+    const night = this.isNightPhase(tickCount);
+    const effectiveSpawnInterval = night ? this.spawnInterval / this.nightSpawnMultiplier : this.spawnInterval;
 
     this.spawnTimer += tickDelta;
     if (this.spawnTimer >= effectiveSpawnInterval) {
       this.spawnTimer -= effectiveSpawnInterval;
-      this.trySpawn();
+      this.trySpawn(night);
     }
 
     const dinos = this.entityManager.getByType('dinosaur') as Dinosaur[];
@@ -49,7 +49,12 @@ export class DinosaurSystem {
     const dead = dinos.filter(d => !d.isAlive);
     for (const d of dead) {
       this.entityManager.remove(d.id);
-      this.tileGrid.setOccupied(d.x, d.y, false);
+      const artifactHere = this.entityManager.getAll().some(
+        e => e.entityType === 'artifact' && e.x === d.x && e.y === d.y
+      );
+      if (!artifactHere) {
+        this.tileGrid.setOccupied(d.x, d.y, false);
+      }
     }
 
     const settlers = this.entityManager.getByType('settler') as Settler[];
@@ -78,6 +83,17 @@ export class DinosaurSystem {
 
     switch (dino.state) {
       case 'idle':
+        if (HERBIVORE_SPECIES.includes(dino.species)) {
+          const predator = this.findNearestPredator(dino);
+          if (predator) {
+            const predDist = Math.abs(dino.x - predator.x) + Math.abs(dino.y - predator.y);
+            if (predDist <= dino.aggroRange) {
+              dino.state = 'flee';
+              dino.stateTimer = 0;
+              break;
+            }
+          }
+        }
         if (inAttackRange) {
           dino.state = 'attack';
           dino.stateTimer = 0;
@@ -93,6 +109,18 @@ export class DinosaurSystem {
         break;
 
       case 'wander':
+        if (HERBIVORE_SPECIES.includes(dino.species)) {
+          const predator = this.findNearestPredator(dino);
+          if (predator) {
+            const predDist = Math.abs(dino.x - predator.x) + Math.abs(dino.y - predator.y);
+            if (predDist <= dino.aggroRange) {
+              dino.state = 'flee';
+              dino.stateTimer = 0;
+              dino.wanderTarget = null;
+              break;
+            }
+          }
+        }
         if (inAttackRange) {
           dino.state = 'attack';
           dino.stateTimer = 0;
@@ -158,28 +186,67 @@ export class DinosaurSystem {
           }
         }
         break;
+
+      case 'flee':
+        const nearestPredator = this.findNearestPredator(dino);
+        if (nearestPredator) {
+          const predDist = Math.abs(dino.x - nearestPredator.x) + Math.abs(dino.y - nearestPredator.y);
+          if (predDist > dino.aggroRange * 2) {
+            dino.state = 'idle';
+            dino.stateTimer = 0;
+            break;
+          }
+          this.moveAwayFrom(dino, nearestPredator, dino.speed * tickDelta);
+        } else {
+          dino.state = 'idle';
+          dino.stateTimer = 0;
+        }
+        if (dino.stateTimer > 20) {
+          dino.state = 'idle';
+          dino.stateTimer = 0;
+        }
+        break;
     }
   }
 
   private moveToward(dino: Dinosaur, target: { x: number; y: number }, stepSize: number): void {
-    const dx = target.x - dino.x;
-    const dy = target.y - dino.y;
-    const dist = Math.sqrt(dx * dx + dy * dy);
-    if (dist < 0.1) return;
-
-    const step = Math.min(stepSize, dist);
-    const nx = dx / dist;
-    const ny = dy / dist;
-
-    const newX = Math.round(dino.x + nx * step);
-    const newY = Math.round(dino.y + ny * step);
-
-    if (this.tileGrid.isWalkable(newX, newY)) {
-      this.tileGrid.setOccupied(dino.x, dino.y, false);
-      dino.x = newX;
-      dino.y = newY;
-      this.tileGrid.setOccupied(newX, newY, true);
+    const steps = Math.max(1, Math.ceil(stepSize));
+    for (let i = 0; i < steps; i++) {
+      if (!this.stepOrthogonal(dino, target.x - dino.x, target.y - dino.y)) break;
     }
+  }
+
+  private moveAwayFrom(dino: Dinosaur, threat: { x: number; y: number }, stepSize: number): void {
+    const steps = Math.max(1, Math.ceil(stepSize));
+    for (let i = 0; i < steps; i++) {
+      if (!this.stepOrthogonal(dino, dino.x - threat.x, dino.y - threat.y)) break;
+    }
+  }
+
+  private stepOrthogonal(dino: Dinosaur, dx: number, dy: number): boolean {
+    if (dx === 0 && dy === 0) return false;
+    const sx = Math.sign(dx);
+    const sy = Math.sign(dy);
+
+    // Move strictly orthogonally, never cut diagonal corners through walls.
+    const tryOrder: [number, number][] =
+      Math.abs(dx) >= Math.abs(dy)
+        ? [[sx, 0], [0, sy]]
+        : [[0, sy], [sx, 0]];
+
+    for (const [mx, my] of tryOrder) {
+      if (mx === 0 && my === 0) continue;
+      const nx = dino.x + mx;
+      const ny = dino.y + my;
+      if (this.tileGrid.isWalkableForDino(nx, ny)) {
+        this.tileGrid.setOccupied(dino.x, dino.y, false);
+        dino.x = nx;
+        dino.y = ny;
+        this.tileGrid.setOccupied(nx, ny, true);
+        return true;
+      }
+    }
+    return false;
   }
 
   private findNearestSettler(dino: Dinosaur): Settler | null {
@@ -197,25 +264,41 @@ export class DinosaurSystem {
     return nearest;
   }
 
+  private findNearestPredator(dino: Dinosaur): Dinosaur | null {
+    const dinos = this.entityManager.getByType('dinosaur') as Dinosaur[];
+    let nearest: Dinosaur | null = null;
+    let minDist = Infinity;
+    for (const d of dinos) {
+      if (!d.isAlive || d.id === dino.id) continue;
+      if (!PREDATOR_SPECIES.includes(d.species)) continue;
+      const dist = Math.abs(dino.x - d.x) + Math.abs(dino.y - d.y);
+      if (dist < minDist) {
+        minDist = dist;
+        nearest = d;
+      }
+    }
+    return nearest;
+  }
+
   private getRandomWalkableTile(): { x: number; y: number } | null {
     for (let i = 0; i < 20; i++) {
       const x = Math.floor(Math.random() * this.tileGrid.width);
       const y = Math.floor(Math.random() * this.tileGrid.height);
-      if (this.tileGrid.isWalkable(x, y)) {
+      if (this.tileGrid.isWalkableForDino(x, y)) {
         return { x, y };
       }
     }
     return null;
   }
 
-  private trySpawn(): void {
+  private trySpawn(night: boolean): void {
     const dinoCount = this.entityManager.getByType('dinosaur').length;
     if (dinoCount >= this.maxDinosaurs) return;
 
-    const spawnPoint = this.getRandomWalkableTile();
+    const spawnPoint = this.getSpawnTile(MIN_SPAWN_DISTANCE) ?? this.getRandomWalkableTile();
     if (!spawnPoint) return;
 
-    const species = this.getRandomSpecies();
+    const species = this.getRandomSpecies(night);
     const def = (dinosaursData as any)[species];
     if (!def) return;
 
@@ -228,8 +311,22 @@ export class DinosaurSystem {
     this.onSpawn?.(species);
   }
 
-  private getRandomSpecies(): string {
-    const species = Object.keys(dinosaursData);
-    return species[Math.floor(Math.random() * species.length)];
+  private getSpawnTile(minDist: number): { x: number; y: number } | null {
+    const settlers = this.entityManager.getByType('settler') as Settler[];
+    for (let i = 0; i < 40; i++) {
+      const x = Math.floor(Math.random() * this.tileGrid.width);
+      const y = Math.floor(Math.random() * this.tileGrid.height);
+      if (!this.tileGrid.isWalkableForDino(x, y)) continue;
+      const farEnough = settlers.every(s =>
+        Math.abs(s.x - x) + Math.abs(s.y - y) >= minDist
+      );
+      if (farEnough) return { x, y };
+    }
+    return null;
+  }
+
+  private getRandomSpecies(night: boolean): string {
+    const pool = night ? PREDATOR_SPECIES : HERBIVORE_SPECIES;
+    return pool[Math.floor(Math.random() * pool.length)];
   }
 }
