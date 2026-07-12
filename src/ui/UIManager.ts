@@ -741,7 +741,14 @@ export class UIManager {
         iconText.setPosition(x + iconSize/2, startY + iconSize/2);
         countText.setPosition(x + iconSize - 2, startY + 2);
 
+        hitZone.on('pointerover', () => {
+          bg.setStrokeStyle(2, 0xffffff);
+        });
+        hitZone.on('pointerout', () => {
+          bg.setStrokeStyle(1, COLORS.panelBorder);
+        });
         hitZone.on('pointerdown', () => {
+          this.addLog(`Clicked: ${name}`);
           this.showArtifactTooltip(name, effect.description, x, startY - 60);
         });
 
