@@ -1,7 +1,14 @@
 import { Simulation } from '../core/Simulation';
 import { ReplayAction, ReplayActionType, ReplayFile, ReplaySnapshot } from './ReplayTypes';
 
-const replayIndex: Map<string, ReplayFile> = new Map();
+const STORAGE_KEY = 'colony-sim-replays';
+const MAX_REPLAYS = 10;
+
+interface StoredReplay {
+  id: string;
+  name: string;
+  data: ReplayFile;
+}
 
 export class ReplayRecorder {
   private actions: ReplayAction[] = [];
@@ -52,58 +59,88 @@ export class ReplayRecorder {
     };
   }
 
-  autoSave(): void {
-    if (!this.hasRecordedData()) return;
+  autoSave(): string | null {
+    if (!this.hasRecordedData()) return null;
 
     const days = Math.floor(this.simulation.tickCount / 100);
     const hours = Math.floor((this.simulation.tickCount % 100) / (100 / 24));
     const id = `replay_${Date.now()}`;
+    const name = `Day ${days} ${hours}h`;
 
-    const data = this.export();
-    replayIndex.set(id, data);
+    const stored: StoredReplay = {
+      id,
+      name,
+      data: this.export(),
+    };
 
-    const json = JSON.stringify(data);
-    this.downloadFile(json, `replay_${days}d${hours}h_${Date.now()}.json`);
+    try {
+      const replays = ReplayRecorder.loadStored();
+      replays.unshift(stored);
+      if (replays.length > MAX_REPLAYS) replays.length = MAX_REPLAYS;
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(replays));
+      return id;
+    } catch (e) {
+      console.warn('Failed to save replay to localStorage:', e);
+      return null;
+    }
   }
 
-  private downloadFile(content: string, filename: string): void {
-    const blob = new Blob([content], { type: 'application/json' });
+  exportToFile(id?: string): void {
+    const data = id ? ReplayRecorder.loadById(id) : this.export();
+    if (!data) return;
+
+    const days = Math.floor(data.totalTicks / 100);
+    const hours = Math.floor((data.totalTicks % 100) / (100 / 24));
+    const json = JSON.stringify(data);
+    const blob = new Blob([json], { type: 'application/json' });
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url;
-    a.download = filename;
+    a.download = `replay_${days}d${hours}h_${Date.now()}.json`;
     a.click();
     URL.revokeObjectURL(url);
   }
 
-  static loadAll(): Array<{ id: string; name: string; totalTicks: number }> {
-    const result: Array<{ id: string; name: string; totalTicks: number }> = [];
-    for (const [id, data] of replayIndex) {
-      const days = Math.floor(data.totalTicks / 100);
-      const hours = Math.floor((data.totalTicks % 100) / (100 / 24));
-      result.push({
-        id,
-        name: `Day ${days} ${hours}h`,
-        totalTicks: data.totalTicks,
-      });
+  private static loadStored(): StoredReplay[] {
+    try {
+      const raw = localStorage.getItem(STORAGE_KEY);
+      return raw ? JSON.parse(raw) : [];
+    } catch {
+      return [];
     }
-    return result;
+  }
+
+  static loadAll(): Array<{ id: string; name: string; totalTicks: number }> {
+    return ReplayRecorder.loadStored().map(r => ({
+      id: r.id,
+      name: r.name,
+      totalTicks: r.data.totalTicks,
+    }));
   }
 
   static loadById(id: string): ReplayFile | null {
-    return replayIndex.get(id) ?? null;
+    const stored = ReplayRecorder.loadStored().find(r => r.id === id);
+    return stored?.data ?? null;
   }
 
   static deleteById(id: string): void {
-    replayIndex.delete(id);
+    const replays = ReplayRecorder.loadStored().filter(r => r.id !== id);
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(replays));
   }
 
   static loadFromJson(json: string): ReplayFile | null {
     try {
       const data = JSON.parse(json) as ReplayFile;
       if (data.version === 1 && data.actions) {
-        const id = `import_${Date.now()}`;
-        replayIndex.set(id, data);
+        const stored: StoredReplay = {
+          id: `import_${Date.now()}`,
+          name: `Import ${new Date().toLocaleDateString('ru-RU')}`,
+          data,
+        };
+        const replays = ReplayRecorder.loadStored();
+        replays.unshift(stored);
+        if (replays.length > MAX_REPLAYS) replays.length = MAX_REPLAYS;
+        localStorage.setItem(STORAGE_KEY, JSON.stringify(replays));
         return data;
       }
       return null;

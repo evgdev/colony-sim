@@ -115,6 +115,21 @@ export class ReplayPlayer {
     return e && e.entityType === 'settler' ? e as Settler : null;
   }
 
+  exportToFile(): void {
+    const { current, total } = this.getProgress();
+    const days = Math.floor(total / 100);
+    const hours = Math.floor((total % 100) / (100 / 24));
+    const data = this.replay;
+    const json = JSON.stringify(data);
+    const blob = new Blob([json], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `replay_${days}d${hours}h_${Date.now()}.json`;
+    a.click();
+    URL.revokeObjectURL(url);
+  }
+
   setOnAction(callback: (action: ReplayAction) => void): void {
     this.onAction = callback;
   }
@@ -249,11 +264,12 @@ export class ReplayPlayer {
       case ReplayActionType.MoveSettler: {
         const x = action.data.x as number;
         const y = action.data.y as number;
-        const selected = this.getSelectedSettler();
-        if (selected && selected.isAlive) {
+        const settlerId = action.data.settlerId as number;
+        const settler = settlerId ? this.simulation.entityManager.get(settlerId) as Settler : this.getSelectedSettler();
+        if (settler && settler.isAlive) {
           const tile = this.simulation.tileGrid.get(x, y);
           if (tile && tile.walkable) {
-            this.workSystem.createMoveTask(x, y, undefined, selected);
+            this.workSystem.createMoveTask(x, y, undefined, settler);
           }
         }
         break;
@@ -262,8 +278,9 @@ export class ReplayPlayer {
         const x = action.data.x as number;
         const y = action.data.y as number;
         const buildingType = action.data.buildingType as string;
-        const selected = this.getSelectedSettler();
-        if (selected && selected.isAlive) {
+        const settlerId = action.data.settlerId as number;
+        const settler = settlerId ? this.simulation.entityManager.get(settlerId) as Settler : this.getSelectedSettler();
+        if (settler && settler.isAlive) {
           const tile = this.simulation.tileGrid.get(x, y);
           if (tile && tile.walkable) {
             const def = (buildingsData as any)[buildingType];
@@ -271,7 +288,7 @@ export class ReplayPlayer {
               const building = new Building(x, y, buildingType, def.maxHp, def.buildTime,
                 Object.entries(def.requires).map(([r, q]) => ({ resourceType: r, quantity: q as number }))
               );
-              building.storageCapacity = def.storageCapacity ?? 0;
+              building.storageCapacity = def.storageCapacity || 0;
               building.produceType = def.produceType ?? '';
               building.produceRate = def.produceRate ?? 0;
               building.produceInterval = def.produceInterval ?? 0;
@@ -286,7 +303,7 @@ export class ReplayPlayer {
               } else {
                 this.simulation.tileGrid.setOccupied(x, y, true);
               }
-              this.workSystem.createBuildTask(building, TaskPriority.High, selected);
+              this.workSystem.createBuildTask(building, TaskPriority.High, settler);
             }
           }
         }
@@ -294,12 +311,13 @@ export class ReplayPlayer {
       }
       case ReplayActionType.Collect: {
         const entityId = action.data.entityId as number;
+        const settlerId = action.data.settlerId as number;
         const entity = this.simulation.entityManager.get(entityId);
         if (entity && (entity.entityType === 'resource' || entity.entityType === 'artifact')) {
-          const selected = this.getSelectedSettler();
-          if (selected && selected.isAlive) {
+          const settler = settlerId ? this.simulation.entityManager.get(settlerId) as Settler : this.getSelectedSettler();
+          if (settler && settler.isAlive) {
             if (entity.entityType === 'resource') {
-              this.workSystem.createPickUpTask(entity as Resource, TaskPriority.High, selected);
+              this.workSystem.createPickUpTask(entity as Resource, TaskPriority.High, settler);
             }
           }
         }

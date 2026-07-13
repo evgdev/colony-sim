@@ -36,17 +36,15 @@ export class DinosaurSystem {
 
   update(tickDelta: number, tickCount: number = 0): void {
     const night = this.isNightPhase(tickCount);
-    const effectiveSpawnInterval = night ? this.spawnInterval / this.nightSpawnMultiplier : this.spawnInterval;
+    const spawnInterval = night ? Math.floor(this.spawnInterval / this.nightSpawnMultiplier) : this.spawnInterval;
 
-    this.spawnTimer += tickDelta;
-    if (this.spawnTimer >= effectiveSpawnInterval) {
-      this.spawnTimer -= effectiveSpawnInterval;
+    if (tickCount > 0 && tickCount % spawnInterval === 0) {
       this.trySpawn(night);
     }
 
     const dinos = this.entityManager.getByType('dinosaur') as Dinosaur[];
     for (const dino of dinos) {
-      this.updateDino(dino, tickDelta);
+      this.updateDino(dino, tickCount);
     }
 
     const dead = dinos.filter(d => !d.isAlive);
@@ -69,12 +67,12 @@ export class DinosaurSystem {
     }
   }
 
-  private updateDino(dino: Dinosaur, tickDelta: number): void {
-    dino.stateTimer += tickDelta;
-    dino.idleTime += tickDelta;
+  private updateDino(dino: Dinosaur, _tickCount: number): void {
+    dino.stateTimer++;
+    dino.idleTime++;
 
     if (dino.attackCooldown > 0) {
-      dino.attackCooldown -= tickDelta;
+      dino.attackCooldown--;
     }
 
     const nearestSettler = this.findNearestSettler(dino);
@@ -137,7 +135,7 @@ export class DinosaurSystem {
           break;
         }
         if (dino.wanderTarget) {
-          this.moveToward(dino, dino.wanderTarget, dino.speed * tickDelta);
+          this.moveToward(dino, dino.wanderTarget, dino.speed);
           if (dino.x === dino.wanderTarget.x && dino.y === dino.wanderTarget.y) {
             dino.state = 'idle';
             dino.wanderTarget = null;
@@ -160,7 +158,7 @@ export class DinosaurSystem {
           break;
         }
         if (nearestSettler && distToSettler <= dino.aggroRange) {
-          this.moveToward(dino, nearestSettler, dino.speed * tickDelta);
+          this.moveToward(dino, nearestSettler, dino.speed);
           dino.stateTimer = 0;
         } else {
           dino.state = 'wander';
@@ -182,7 +180,7 @@ export class DinosaurSystem {
         }
         if (dino.attackCooldown <= 0) {
           const died = nearestSettler.takeDamage(dino.attackDamage);
-          dino.attackCooldown = 1.0;
+          dino.attackCooldown = 2;
           if (died) {
             dino.state = 'idle';
             dino.stateTimer = 0;
@@ -199,7 +197,7 @@ export class DinosaurSystem {
             dino.stateTimer = 0;
             break;
           }
-          this.moveAwayFrom(dino, nearestPredator, dino.speed * tickDelta);
+          this.moveAwayFrom(dino, nearestPredator, dino.speed);
         } else {
           dino.state = 'idle';
           dino.stateTimer = 0;

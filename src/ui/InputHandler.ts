@@ -143,11 +143,12 @@ export class InputHandler {
 
       const coords = this.screenToTile(pointer.x, pointer.y);
       if (!coords) return;
+      const shiftHeld = (pointer.event as MouseEvent).shiftKey;
       if (this.uiManager.buildMode) {
         this.isPainting = true;
         this.paintAt(coords.tileX, coords.tileY);
       } else {
-        this.handleTileClick(coords.tileX, coords.tileY);
+        this.handleTileClick(coords.tileX, coords.tileY, shiftHeld);
       }
     });
 
@@ -180,7 +181,7 @@ export class InputHandler {
     this.handleBuildClick(tileX, tileY, this.simulation.tileGrid.get(tileX, tileY)!);
   }
 
-  handleTileClick(tileX: number, tileY: number): void {
+  handleTileClick(tileX: number, tileY: number, queue: boolean = false): void {
     const tile = this.simulation.tileGrid.get(tileX, tileY);
     if (!tile) return;
     if (!this.simulation.tileGrid.isRevealed(tileX, tileY)) return;
@@ -223,12 +224,13 @@ export class InputHandler {
 
     if (entityAtTile) {
       if (entityAtTile.entityType === 'resource' || entityAtTile.entityType === 'artifact') {
-        this.recorder?.record(ReplayActionType.Collect, { entityId: entityAtTile.id });
+        const settler = (this.scene as any).getSelectedSettler() as Settler;
+        this.recorder?.record(ReplayActionType.Collect, { entityId: entityAtTile.id, settlerId: settler?.id ?? 0 });
         this.uiManager.selectedBuilding = null;
         this.uiManager.selectedEntity = entityAtTile;
         this.uiManager.buildMode = null;
         this.uiManager.updateBuildButtonStates();
-        this.uiManager.onCollectCallback?.(entityAtTile);
+        this.uiManager.onCollectCallback?.(entityAtTile, queue);
         return;
       }
       this.uiManager.selectedBuilding = null;
@@ -249,8 +251,8 @@ export class InputHandler {
     if (tile.walkable) {
       const settler = (this.scene as any).getSelectedSettler() as Settler;
       if (settler) {
-        this.recorder?.record(ReplayActionType.MoveSettler, { x: tileX, y: tileY });
-        this.workSystem.createMoveTask(tileX, tileY, undefined, settler);
+        this.recorder?.record(ReplayActionType.MoveSettler, { x: tileX, y: tileY, settlerId: settler.id });
+        this.workSystem.createMoveTask(tileX, tileY, undefined, settler, queue);
       }
     }
   }
@@ -289,7 +291,7 @@ export class InputHandler {
     const building = new Building(tileX, tileY, this.uiManager.buildMode!, def.maxHp, def.buildTime,
       Object.entries(def.requires).map(([r, q]) => ({ resourceType: r, quantity: q as number }))
     );
-    building.storageCapacity = (def.storageCapacity ?? 0) + this.artifactSystem.getStorageBonus();
+    building.storageCapacity = def.storageCapacity ? def.storageCapacity + this.artifactSystem.getStorageBonus() : 0;
     building.produceType = def.produceType ?? '';
     building.produceRate = def.produceRate ?? 0;
     building.produceInterval = def.produceInterval ?? 0;
@@ -306,11 +308,15 @@ export class InputHandler {
     }
 
     const selected = (this.scene as any).getSelectedSettler() as Settler;
-    this.recorder?.record(ReplayActionType.Build, { x: tileX, y: tileY, buildingType: this.uiManager.buildMode! });
+    const buildingType = this.uiManager.buildMode!;
+    this.recorder?.record(ReplayActionType.Build, { x: tileX, y: tileY, buildingType, settlerId: selected?.id ?? 0 });
     this.workSystem.createBuildTask(building, TaskPriority.High, selected);
     this.uiManager.addLog(`${languageManager.ui.logBuildingAt} ${def.name} ${tileX},${tileY}`);
     this.uiManager.checkMilestone('firstBuilding');
 
+    if (buildingType !== 'wall') {
+      this.uiManager.buildMode = null;
+    }
     this.uiManager.updateBuildButtonStates();
   }
 

@@ -93,6 +93,13 @@ export class ReplayController {
       });
     this.container.add(exitBtn);
 
+    const exportBtn = this.scene.add.text(FIELD_X + FIELD_W - 160, barY + 10, '[Export]', btnStyle)
+      .setInteractive({ useHandCursor: true })
+      .on('pointerdown', () => {
+        this.player.exportToFile();
+      });
+    this.container.add(exportBtn);
+
     this.timelineFill = this.scene.add.rectangle(timelineX, timelineY, 0, 8, 0xffd700)
       .setOrigin(0);
     this.container.add(this.timelineFill);

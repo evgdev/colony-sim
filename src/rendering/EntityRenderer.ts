@@ -145,14 +145,27 @@ export class EntityRenderer {
   }
 
   private drawResource(g: Phaser.GameObjects.Graphics, res: Resource, cx: number, cy: number): void {
-    g.fillStyle(COLORS.resource, 0.9);
-    g.fillRect(cx - TILE_SIZE / 4, cy - TILE_SIZE / 4, TILE_SIZE / 2, TILE_SIZE / 2);
-    g.lineStyle(2, 0x000000);
-    g.strokeRect(cx - TILE_SIZE / 4, cy - TILE_SIZE / 4, TILE_SIZE / 2, TILE_SIZE / 2);
+    const size = TILE_SIZE / 2;
+    const half = size / 2;
+
+    if (res.resourceType === 'wood') {
+      g.fillStyle(0x228B22, 0.9);
+      g.fillCircle(cx, cy - 4, half * 0.8);
+      g.fillCircle(cx - 4, cy + 2, half * 0.6);
+      g.fillCircle(cx + 4, cy + 2, half * 0.6);
+      g.fillStyle(0x8B4513, 0.9);
+      g.fillRect(cx - 2, cy + half * 0.4, 4, 8);
+    } else {
+      g.fillStyle(0x808080, 0.9);
+      g.fillCircle(cx, cy, half * 0.7);
+      g.fillStyle(0x696969, 0.9);
+      g.fillCircle(cx - 3, cy - 2, half * 0.4);
+      g.fillCircle(cx + 4, cy + 1, half * 0.35);
+    }
 
     this.entityTexts.push(
-      this.scene.add.text(cx, cy + TILE_SIZE / 4 + 6, `${res.resourceType} ${res.quantity}`, {
-        fontSize: '13px', color: '#ff6347', fontFamily: 'monospace',
+      this.scene.add.text(cx, cy + size / 2 + 2, `${res.quantity}`, {
+        fontSize: '10px', color: '#ffffff', fontFamily: 'monospace',
       }).setOrigin(0.5, 0).setDepth(10)
     );
   }

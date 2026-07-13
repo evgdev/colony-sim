@@ -355,12 +355,14 @@ export class WorkSystem {
     }
   }
 
-  createMoveTask(targetX: number, targetY: number, priority: TaskPriority = TaskPriority.Normal, settler?: Settler): Task {
-    if (settler) {
-      this.interruptSettler(settler);
-    } else {
-      const settlers = this.entityManager.getByType('settler') as Settler[];
-      for (const s of settlers) this.interruptSettler(s);
+  createMoveTask(targetX: number, targetY: number, priority: TaskPriority = TaskPriority.Normal, settler?: Settler, queue: boolean = false): Task {
+    if (!queue) {
+      if (settler) {
+        this.interruptSettler(settler);
+      } else {
+        const settlers = this.entityManager.getByType('settler') as Settler[];
+        for (const s of settlers) this.interruptSettler(s);
+      }
     }
     const task = new Task({
       type: TaskType.MoveTo,
@@ -370,15 +372,21 @@ export class WorkSystem {
       assignedSettlerId: settler?.id,
     });
     this.taskQueue.add(task);
+    if (settler && settler.isAlive && !settler.currentTaskId) {
+      settler.currentTaskId = task.id;
+      this.executeMoveTo(settler, task, 0);
+    }
     return task;
   }
 
-  createPickUpTask(resource: Resource, priority: TaskPriority = TaskPriority.Normal, settler?: Settler): Task {
-    if (settler) {
-      this.interruptSettler(settler);
-    } else {
-      const settlers = this.entityManager.getByType('settler') as Settler[];
-      for (const s of settlers) this.interruptSettler(s);
+  createPickUpTask(resource: Resource, priority: TaskPriority = TaskPriority.Normal, settler?: Settler, queue: boolean = false): Task {
+    if (!queue) {
+      if (settler) {
+        this.interruptSettler(settler);
+      } else {
+        const settlers = this.entityManager.getByType('settler') as Settler[];
+        for (const s of settlers) this.interruptSettler(s);
+      }
     }
     const task = new Task({
       type: TaskType.PickUp,
@@ -389,6 +397,10 @@ export class WorkSystem {
       assignedSettlerId: settler?.id,
     });
     this.taskQueue.add(task);
+    if (settler && settler.isAlive && !settler.currentTaskId) {
+      settler.currentTaskId = task.id;
+      this.executePickUp(settler, task, 0);
+    }
     return task;
   }
 
@@ -402,6 +414,10 @@ export class WorkSystem {
       assignedSettlerId: settler?.id,
     });
     this.taskQueue.add(task);
+    if (settler && settler.isAlive && !settler.currentTaskId) {
+      settler.currentTaskId = task.id;
+      this.executeBuild(settler, task, 0);
+    }
     return task;
   }
 

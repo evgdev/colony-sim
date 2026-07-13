@@ -67,6 +67,10 @@ export class UIManager {
   private dnLabel!: Phaser.GameObjects.Text;
   private dnDim!: Phaser.GameObjects.Rectangle;
   private dnBand = { x: 14, y: 44, w: LEFT_PANEL_WIDTH - 28, h: 44 };
+
+  private settlerIcons: Phaser.GameObjects.Container[] = [];
+  private settlerIconsBg: Phaser.GameObjects.Rectangle[] = [];
+  private onSettlerIconClick?: (index: number) => void;
   private buildButtonsEnabled: boolean = true;
   startMenuOpen: boolean = false;
   private hudButtons: Phaser.GameObjects.Text[] = [];
@@ -78,6 +82,10 @@ export class UIManager {
   infoPanel!: Phaser.GameObjects.Container;
   infoText!: Phaser.GameObjects.Text;
   collectBtn!: Phaser.GameObjects.Text;
+  demolishBtn!: Phaser.GameObjects.Text;
+  continueBtn!: Phaser.GameObjects.Text;
+  onDemolishCallback: ((entity: Entity) => void) | null = null;
+  onContinueCallback: ((entity: Entity) => void) | null = null;
 
   eventText!: Phaser.GameObjects.Text;
 
@@ -158,28 +166,28 @@ export class UIManager {
 
     this.createDayNightWidget();
 
-    this.colonistStatusText = this.scene.add.text(14, 96, '', {
+    this.colonistStatusText = this.scene.add.text(14, 146, '', {
       fontSize: '14px', color: '#c9d1d9', fontFamily: 'monospace',
       wordWrap: { width: LEFT_PANEL_WIDTH - 28 },
       lineSpacing: 4,
     });
     this.leftPanelContainer.add(this.colonistStatusText);
 
-    this.colonistTaskText = this.scene.add.text(14, 200, '', {
+    this.colonistTaskText = this.scene.add.text(14, 250, '', {
       fontSize: '14px', color: '#c9d1d9', fontFamily: 'monospace',
       wordWrap: { width: LEFT_PANEL_WIDTH - 28 },
       lineSpacing: 4,
     });
     this.leftPanelContainer.add(this.colonistTaskText);
 
-    this.colonistInvText = this.scene.add.text(14, 350, '', {
+    this.colonistInvText = this.scene.add.text(14, 400, '', {
       fontSize: '14px', color: '#c9d1d9', fontFamily: 'monospace',
       wordWrap: { width: LEFT_PANEL_WIDTH - 28 },
       lineSpacing: 4,
     });
     this.leftPanelContainer.add(this.colonistInvText);
 
-    this.questText = this.scene.add.text(14, 400, '', {
+    this.questText = this.scene.add.text(14, 450, '', {
       fontSize: '14px', color: '#ffaa00', fontFamily: 'monospace',
       wordWrap: { width: LEFT_PANEL_WIDTH - 28 },
       lineSpacing: 4,
@@ -189,13 +197,13 @@ export class UIManager {
     this.inventoryIconContainer = this.scene.add.container(0, 0);
     this.leftPanelContainer.add(this.inventoryIconContainer);
 
-    const thoughtTitle = this.scene.add.text(14, 480, `\u2500\u2500 ${languageManager.ui.thoughts} \u2500\u2500`, {
+    const thoughtTitle = this.scene.add.text(14, 530, `\u2500\u2500 ${languageManager.ui.thoughts} \u2500\u2500`, {
       fontSize: '14px', color: '#58a6ff', fontFamily: 'monospace',
       fontStyle: 'bold',
     });
     this.leftPanelContainer.add(thoughtTitle);
 
-    this.thoughtText = this.scene.add.text(14, 505, '', {
+    this.thoughtText = this.scene.add.text(14, 555, '', {
       fontSize: '13px', color: '#8b949e', fontFamily: 'monospace',
       wordWrap: { width: LEFT_PANEL_WIDTH - 28 },
       lineSpacing: 3,
@@ -203,7 +211,7 @@ export class UIManager {
     });
     this.leftPanelContainer.add(this.thoughtText);
 
-    const minimapY = 560;
+    const minimapY = 610;
     const minimapTitle = this.scene.add.text(14, minimapY, `\u2500\u2500 Map \u2500\u2500`, {
       fontSize: '14px', color: '#58a6ff', fontFamily: 'monospace',
       fontStyle: 'bold',
@@ -253,6 +261,47 @@ export class UIManager {
     (this.artifactTooltip as any).tooltipText = tooltipText;
   }
 
+  createSettlerIcons(onClick: (index: number) => void): void {
+    this.onSettlerIconClick = onClick;
+    const iconSize = 40;
+    const startX = 14;
+    const startY = this.dnBand.y + this.dnBand.h + 4;
+
+    for (let i = 0; i < 3; i++) {
+      const container = this.scene.add.container(startX + i * (iconSize + 8), startY).setDepth(21);
+
+      const bg = this.scene.add.rectangle(0, 0, iconSize, iconSize, 0x21262d, 0.9)
+        .setOrigin(0).setStrokeStyle(2, COLORS.panelBorder);
+      container.add(bg);
+
+      const num = this.scene.add.text(iconSize / 2, iconSize / 2, `${i + 1}`, {
+        fontSize: '14px', color: '#ffd700', fontFamily: 'monospace',
+      }).setOrigin(0.5);
+      container.add(num);
+
+      container.setSize(iconSize, iconSize);
+      container.setInteractive({ useHandCursor: true })
+        .on('pointerdown', () => this.onSettlerIconClick?.(i));
+
+      this.leftPanelContainer.add(container);
+      this.settlerIcons.push(container);
+      this.settlerIconsBg.push(bg);
+    }
+  }
+
+  updateSettlerIcons(selectedIndex: number): void {
+    for (let i = 0; i < this.settlerIconsBg.length; i++) {
+      const bg = this.settlerIconsBg[i];
+      if (i === selectedIndex) {
+        bg.setStrokeStyle(2, 0xffd700);
+        bg.setFillStyle(0x3a3a4a, 0.9);
+      } else {
+        bg.setStrokeStyle(2, COLORS.panelBorder);
+        bg.setFillStyle(0x21262d, 0.9);
+      }
+    }
+  }
+
   createActionLog(): void {
     const logX = FIELD_X + FIELD_W + 10;
     const logY = 220;
@@ -294,16 +343,44 @@ export class UIManager {
     }).setInteractive({ useHandCursor: true })
       .on('pointerdown', () => this.onCollect());
     this.infoPanel.add(this.collectBtn);
+
+    this.demolishBtn = this.scene.add.text(120, 160, '[Demolish]', {
+      fontSize: '14px', color: '#ff4444', fontFamily: 'monospace',
+      backgroundColor: '#16213e', padding: { x: 12, y: 4 },
+    }).setInteractive({ useHandCursor: true })
+      .on('pointerdown', () => this.onDemolish());
+    this.infoPanel.add(this.demolishBtn);
+
+    this.continueBtn = this.scene.add.text(10, 190, '[Continue]', {
+      fontSize: '14px', color: '#44ff44', fontFamily: 'monospace',
+      backgroundColor: '#16213e', padding: { x: 12, y: 4 },
+    }).setInteractive({ useHandCursor: true })
+      .on('pointerdown', () => this.onContinue());
+    this.infoPanel.add(this.continueBtn);
+  }
+
+  private onDemolish(): void {
+    if (!this.selectedBuilding) return;
+    if (this.onDemolishCallback) {
+      this.onDemolishCallback(this.selectedBuilding);
+    }
+  }
+
+  private onContinue(): void {
+    if (!this.selectedBuilding) return;
+    if (this.onContinueCallback) {
+      this.onContinueCallback(this.selectedBuilding);
+    }
   }
 
   private onCollect(): void {
     if (!this.selectedEntity) return;
     if (this.onCollectCallback) {
-      this.onCollectCallback(this.selectedEntity);
+      this.onCollectCallback(this.selectedEntity, false);
     }
   }
 
-  onCollectCallback: ((entity: Entity) => void) | null = null;
+  onCollectCallback: ((entity: Entity, queue: boolean) => void) | null = null;
 
   createBottomHUD(
     onSave: () => void,
@@ -408,7 +485,7 @@ export class UIManager {
 
   createBuildButtons(): void {
     const types = Object.keys(buildingsData) as BuildingType[];
-    const btnY = BOTTOM_HUD_Y + 45;
+    const btnY = BOTTOM_HUD_Y + 15;
     const ICON_SIZE = 50;
     const ICON_GAP = 10;
 
@@ -431,29 +508,9 @@ export class UIManager {
 
       const container = this.scene.add.container(xOff, btnY).setDepth(22);
 
-      const bg = this.scene.add.rectangle(ICON_SIZE / 2, ICON_SIZE / 2, ICON_SIZE + 8, ICON_SIZE + 8, 0x21262d, 0.9)
-        .setStrokeStyle(1, COLORS.panelBorder);
-      container.add(bg);
-
-      const icon = this.scene.add.image(ICON_SIZE / 2, ICON_SIZE / 2, `icon_${type}`)
-        .setDisplaySize(ICON_SIZE - 8, ICON_SIZE - 8);
-      container.add(icon);
-
-      const costTooltip = this.scene.add.text(ICON_SIZE / 2, ICON_SIZE + 6, reqStr, {
-        fontSize: '10px', color: '#8b949e', fontFamily: 'monospace',
-      }).setOrigin(0.5, 0);
-      container.add(costTooltip);
-
-      const affordable = this.canAfford(type);
-      if (!affordable) {
-        icon.setAlpha(0.35);
-        bg.setFillStyle(0x161b22, 0.9);
-      } else {
-        bg.setFillStyle(0x21262d, 0.9);
-      }
-
-      container.setSize(ICON_SIZE + 8, ICON_SIZE + 20);
-      container.setInteractive({ useHandCursor: true })
+      const bg = this.scene.add.rectangle(0, 0, ICON_SIZE + 8, ICON_SIZE + 8, 0x21262d, 0.9)
+        .setOrigin(0).setStrokeStyle(1, COLORS.panelBorder);
+      bg.setInteractive({ useHandCursor: true })
         .on('pointerover', () => {
           if (!this.buildButtonsEnabled) return;
           bg.setStrokeStyle(2, 0x58a6ff);
@@ -475,6 +532,27 @@ export class UIManager {
           this.updateBuildButtonStates();
           this.addLog(`${languageManager.ui.logBuild}: ${def.name} \u2014 ${languageManager.ui.logClickTile}`);
         });
+      container.add(bg);
+
+      const icon = this.scene.add.image(ICON_SIZE / 2, ICON_SIZE / 2, `icon_${type}`)
+        .setDisplaySize(ICON_SIZE - 8, ICON_SIZE - 8);
+      container.add(icon);
+
+      const costTooltip = this.scene.add.text(ICON_SIZE / 2, ICON_SIZE + 6, reqStr, {
+        fontSize: '10px', color: '#8b949e', fontFamily: 'monospace',
+      }).setOrigin(0.5, 0);
+      container.add(costTooltip);
+
+      const affordable = this.canAfford(type);
+      if (!affordable) {
+        icon.setAlpha(0.35);
+        bg.setFillStyle(0x161b22, 0.9);
+      } else {
+        bg.setFillStyle(0x21262d, 0.9);
+      }
+
+      container.setSize(ICON_SIZE + 8, ICON_SIZE + 20);
+
 
       this.buildTypeMap.set(container, type);
       this.buildButtons.push(container);
@@ -692,6 +770,8 @@ export class UIManager {
 
       this.infoText.setText(lines.join('\n'));
       this.collectBtn.setVisible(false);
+      this.demolishBtn.setVisible(true);
+      this.continueBtn.setVisible(!bld.built);
     } else if (this.selectedEntity) {
       const e = this.selectedEntity;
       let lines: string[] = [];
@@ -722,6 +802,8 @@ export class UIManager {
         this.collectBtn.setVisible(true);
       }
       this.infoText.setText(lines.join('\n'));
+      this.demolishBtn.setVisible(false);
+      this.continueBtn.setVisible(false);
     }
   }
 
@@ -755,7 +837,7 @@ export class UIManager {
       `${languageManager.ui.hp}: ${Math.round(s.hp)}/${s.maxHp}\n` +
       (NEEDS_ENABLED
         ? `${languageManager.ui.hunger}: ${Math.round(s.hunger)}%\n` +
-          `${languageManager.ui.energy}: ${Math.round(s.energy)}%\n`
+        `${languageManager.ui.energy}: ${Math.round(s.energy)}%\n`
         : '') +
       `${languageManager.ui.food}: ${s.food}\n` +
       `${languageManager.ui.tick}: ${tickCount}` +
@@ -864,7 +946,7 @@ export class UIManager {
 
   updateInventoryIcons(settler: Settler): void {
     const hash = `${settler.id}|` + settler.inventory.map(i => `${i.resourceType}:${i.quantity}:${i.name}`).join(',');
-    const artifactHash = Array.from(settler.collectedArtifacts.entries()).map(([n,c]) => `${n}:${c}`).join(',');
+    const artifactHash = Array.from(settler.collectedArtifacts.entries()).map(([n, c]) => `${n}:${c}`).join(',');
     const fullHash = hash + '|' + artifactHash;
 
     if (fullHash === this.lastInventoryHash) return;
@@ -961,10 +1043,10 @@ export class UIManager {
   updateGlobalInventory(): void {
     const sim = this.simulation as any;
     if (!sim) return;
-    
+
     const inventory = sim.inventory || [];
     const hash = inventory.map((i: any) => `${i.resourceType}:${i.quantity}:${i.name || ''}`).join(',');
-    
+
     if (hash === this.lastGlobalInventoryHash) return;
     this.lastGlobalInventoryHash = hash;
 
