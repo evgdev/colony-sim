@@ -192,7 +192,29 @@ export class WorkSystem {
     const building = this.findBuildingAt(task.targetX, task.targetY);
 
     if (!building || building.built) {
-      if (task.returnX !== undefined && task.returnY !== undefined) {
+      if (building && building.built) {
+        const neighbors = this.getAdjacentFreeTiles(settler.x, settler.y);
+        if (neighbors.length > 0) {
+          const target = neighbors[0];
+          if (settler.x !== target.x || settler.y !== target.y) {
+            if (settler.path.length === 0 || settler.pathIndex === 0) {
+              const path = this.movementSystem.findPath(settler.x, settler.y, target.x, target.y);
+              if (path.length <= 1) {
+                task.completed = true;
+                return;
+              }
+              settler.path = path;
+              settler.pathIndex = 1;
+            }
+
+            settler.pathIndex = this.movementSystem.stepAlongPath(settler, settler.path, settler.pathIndex);
+
+            if (settler.pathIndex < settler.path.length) return;
+            settler.path = [];
+            settler.pathIndex = 0;
+          }
+        }
+      } else if (task.returnX !== undefined && task.returnY !== undefined) {
         if (settler.x !== task.returnX || settler.y !== task.returnY) {
           if (settler.path.length === 0 || settler.pathIndex === 0) {
             const path = this.movementSystem.findPath(settler.x, settler.y, task.returnX, task.returnY);
@@ -245,6 +267,22 @@ export class WorkSystem {
 
     const buildBonus = settler.getBuildSpeedBonus();
     building.work(buildBonus);
+  }
+
+  private getAdjacentFreeTiles(x: number, y: number): { x: number; y: number }[] {
+    const neighbors = [
+      { dx: 1, dy: 0 }, { dx: -1, dy: 0 },
+      { dx: 0, dy: 1 }, { dx: 0, dy: -1 },
+    ];
+    const free: { x: number; y: number }[] = [];
+    for (const n of neighbors) {
+      const nx = x + n.dx;
+      const ny = y + n.dy;
+      if (this.tileGrid.isWalkable(nx, ny)) {
+        free.push({ x: nx, y: ny });
+      }
+    }
+    return free;
   }
 
   private findTaskById(id: string): Task | undefined {

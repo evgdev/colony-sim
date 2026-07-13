@@ -10,6 +10,7 @@ export interface InventoryItem {
 export type SettlerClass = 'engineer' | 'biologist' | 'pilot';
 
 export class Settler extends Entity {
+  private static nextItemId = 1;
   name: string;
   color: number;
   settlerClass: SettlerClass;
@@ -49,8 +50,12 @@ export class Settler extends Entity {
     if (existing) {
       existing.quantity += item.quantity;
     } else {
-      this.inventory.push({ ...item, id: `item-${Date.now()}-${Math.random().toString(36).slice(2, 6)}` });
+      this.inventory.push({ ...item, id: `item_${Settler.nextItemId++}` });
     }
+  }
+
+  static resetItemIdCounter(start: number = 1): void {
+    Settler.nextItemId = start;
   }
 
   removeFromInventory(resourceType: string, quantity: number): boolean {
@@ -95,43 +100,53 @@ export class Settler extends Entity {
   }
 
   serialize(): object {
+    const base = super.serialize() as any;
     return {
-      ...super.serialize(),
-      name: this.name,
-      color: this.color,
-      settlerClass: this.settlerClass,
-      inventory: this.inventory,
-      hunger: this.hunger,
-      energy: this.energy,
+      i: base.id,
+      t: base.entityType,
+      x: base.x,
+      y: base.y,
+      n: this.name,
+      c: this.color,
+      s: this.settlerClass,
+      inv: this.inventory.length > 0 ? this.inventory : undefined,
+      h: Math.round(this.hunger),
+      e: Math.round(this.energy),
       hp: this.hp,
-      maxHp: this.maxHp,
-      food: this.food,
-      foodTimer: this.foodTimer,
-      currentTaskId: this.currentTaskId,
-      path: this.path,
-      pathIndex: this.pathIndex,
-      artifactFogBonus: this.artifactFogBonus,
-      artifactAttackSpeedBonus: this.artifactAttackSpeedBonus,
-      collectedArtifacts: Object.fromEntries(this.collectedArtifacts),
+      mhp: this.maxHp,
+      f: this.food,
+      ft: Math.round(this.foodTimer),
+      task: this.currentTaskId,
+      p: this.path.length > 0 ? this.path : undefined,
+      pi: this.pathIndex > 0 ? this.pathIndex : undefined,
+      fb: this.artifactFogBonus || undefined,
+      ab: this.artifactAttackSpeedBonus || undefined,
+      ca: this.collectedArtifacts.size > 0 ? Object.fromEntries(this.collectedArtifacts) : undefined,
     };
   }
 
   static deserialize(data: any): Settler {
-    const s = new Settler(data.x, data.y, data.name, data.color ?? 0xffd700, data.settlerClass ?? 'engineer');
-    s.id = data.id;
-    s.inventory = data.inventory || [];
-    s.hunger = data.hunger ?? 100;
-    s.energy = data.energy ?? 100;
+    const x = data.x;
+    const y = data.y;
+    const name = data.n ?? data.name ?? 'Worker';
+    const color = data.c ?? data.color ?? 0xffd700;
+    const settlerClass = data.s ?? data.settlerClass ?? 'engineer';
+    const s = new Settler(x, y, name, color, settlerClass);
+    s.id = data.i ?? data.id;
+    s.inventory = data.inv ?? data.inventory ?? [];
+    s.hunger = data.h ?? data.hunger ?? 100;
+    s.energy = data.e ?? data.energy ?? 100;
     s.hp = data.hp ?? 100;
-    s.maxHp = data.maxHp ?? 100;
-    s.food = data.food ?? 5;
-    s.foodTimer = data.foodTimer ?? 0;
-    s.currentTaskId = data.currentTaskId ?? null;
-    s.path = data.path || [];
-    s.pathIndex = data.pathIndex ?? 0;
-    s.artifactFogBonus = data.artifactFogBonus ?? 0;
-    s.artifactAttackSpeedBonus = data.artifactAttackSpeedBonus ?? 0;
-    s.collectedArtifacts = new Map(Object.entries(data.collectedArtifacts || {}));
+    s.maxHp = data.mhp ?? data.maxHp ?? 100;
+    s.food = data.f ?? data.food ?? 5;
+    s.foodTimer = data.ft ?? data.foodTimer ?? 0;
+    s.currentTaskId = data.task ?? data.currentTaskId ?? null;
+    s.path = data.p ?? data.path ?? [];
+    s.pathIndex = data.pi ?? data.pathIndex ?? 0;
+    s.artifactFogBonus = data.fb ?? data.artifactFogBonus ?? 0;
+    s.artifactAttackSpeedBonus = data.ab ?? data.artifactAttackSpeedBonus ?? 0;
+    s.collectedArtifacts = new Map(Object.entries(data.ca ?? data.collectedArtifacts ?? {}));
+    s.snapVisual();
     return s;
   }
 }

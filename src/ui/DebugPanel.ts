@@ -6,7 +6,6 @@ import {
 } from '../config';
 import { Simulation } from '../core/Simulation';
 import { Settler } from '../entities/Settler';
-import { Building } from '../entities/Building';
 import { Dinosaur } from '../entities/Dinosaur';
 import { Resource } from '../entities/Resource';
 import { TileGrid } from '../core/TileGrid';
@@ -81,6 +80,17 @@ export class DebugPanel {
     }
   }
 
+  setEnabled(enabled: boolean): void {
+    if (enabled) this.pauseBtn.setInteractive({ useHandCursor: true });
+    else this.pauseBtn.disableInteractive();
+    this.pauseBtn.setAlpha(enabled ? 1 : 0.3);
+    for (const sb of this.speedBtns) {
+      if (enabled) sb.setInteractive({ useHandCursor: true });
+      else sb.disableInteractive();
+      sb.setAlpha(enabled ? 1 : 0.3);
+    }
+  }
+
   update(sim: Simulation): void {
     this.lines.forEach(l => l.destroy());
     this.lines = [];
@@ -111,18 +121,6 @@ export class DebugPanel {
       }
       y = this.addLine(`  inv: [${inv}]`, y);
       y = this.addLine(`  task: ${task}  path:${s.path.length}`, y);
-    }
-
-    const buildings = sim.entityManager.getByType('building') as Building[];
-    y = this.addSection(`${u.buildingsSection} (${buildings.length})`, y);
-    for (const b of buildings) {
-      const status = b.built ? u.done : `${Math.round(b.progressPercent * 100)}%`;
-      const stor = b.storage.length > 0
-        ? b.storage.map(s => `${s.resourceType}:${s.quantity}`).join(' ')
-        : '';
-      y = this.addLine(`${b.buildingType} [${b.x},${b.y}] ${status}`, y);
-      y = this.addLine(`  ${u.hp}:${b.hp}/${b.maxHp}`, y);
-      if (stor) y = this.addLine(`  ${u.storage}: ${stor}`, y);
     }
 
     const dinos = sim.entityManager.getByType('dinosaur') as Dinosaur[];

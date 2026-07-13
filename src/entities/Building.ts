@@ -112,50 +112,57 @@ export class Building extends Entity {
   }
 
   serialize(): object {
+    const base = super.serialize() as any;
     return {
-      ...super.serialize(),
-      buildingType: this.buildingType,
+      i: base.id,
+      t: 'building',
+      x: base.x,
+      y: base.y,
+      bt: this.buildingType,
       hp: this.hp,
-      maxHp: this.maxHp,
-      built: this.built,
-      buildProgress: this.buildProgress,
-      buildTime: this.buildTime,
-      requires: this.requires,
-      requiresConsumed: this.requiresConsumed,
-      storage: this.storage,
-      storageCapacity: this.storageCapacity,
-      produceType: this.produceType,
-      produceRate: this.produceRate,
-      produceInterval: this.produceInterval,
-      produceTimer: this.produceTimer,
-      attackDamage: this.attackDamage,
-      attackRange: this.attackRange,
-      attackInterval: this.attackInterval,
-      attackCooldown: this.attackCooldown,
+      mhp: this.maxHp,
+      b: this.built,
+      bp: this.buildProgress,
+      bt2: this.buildTime,
+      req: this.requires.length > 0 ? this.requires : undefined,
+      rc: this.requiresConsumed || undefined,
+      st: this.storage.length > 0 ? this.storage : undefined,
+      sc: this.storageCapacity || undefined,
+      pt: this.produceType || undefined,
+      pr: this.produceRate || undefined,
+      pi: this.produceInterval || undefined,
+      pt2: this.produceTimer || undefined,
+      ad: this.attackDamage || undefined,
+      ar: this.attackRange || undefined,
+      ai: this.attackInterval || undefined,
+      ac: this.attackCooldown || undefined,
     };
   }
 
   static deserialize(data: any): Building {
     const b = new Building(
-      data.x, data.y, data.buildingType,
-      data.maxHp, data.buildTime, data.requires || []
+      data.x, data.y,
+      data.bt ?? data.buildingType,
+      data.mhp ?? data.maxHp ?? 100,
+      data.bt2 ?? data.buildTime ?? 10,
+      data.req ?? data.requires ?? []
     );
-    b.id = data.id;
-    b.hp = data.hp;
-    b.built = data.built;
-    b.buildProgress = data.buildProgress ?? 0;
-    b.requiresConsumed = data.requiresConsumed ?? false;
-    b.storage = data.storage ?? [];
-    b.storageCapacity = data.storageCapacity ?? 0;
-    b.produceType = data.produceType ?? '';
-    b.produceRate = data.produceRate ?? 0;
-    b.produceInterval = data.produceInterval ?? 0;
-    b.produceTimer = data.produceTimer ?? 0;
-    b.attackDamage = data.attackDamage ?? 0;
-    b.attackRange = data.attackRange ?? 0;
-    b.attackInterval = data.attackInterval ?? 0;
-    b.attackCooldown = data.attackCooldown ?? 0;
-    b.fireFlash = data.fireFlash ?? 0;
+    b.id = data.i ?? data.id;
+    b.hp = data.hp ?? 100;
+    b.built = data.b ?? data.built ?? false;
+    b.buildProgress = data.bp ?? data.buildProgress ?? 0;
+    b.requiresConsumed = data.rc ?? data.requiresConsumed ?? false;
+    b.storage = data.st ?? data.storage ?? [];
+    b.storageCapacity = data.sc ?? data.storageCapacity ?? 0;
+    b.produceType = data.pt ?? data.produceType ?? '';
+    b.produceRate = data.pr ?? data.produceRate ?? 0;
+    b.produceInterval = data.pi ?? data.produceInterval ?? 0;
+    b.produceTimer = data.pt2 ?? data.produceTimer ?? 0;
+    b.attackDamage = data.ad ?? data.attackDamage ?? 0;
+    b.attackRange = data.ar ?? data.attackRange ?? 0;
+    b.attackInterval = data.ai ?? data.attackInterval ?? 0;
+    b.attackCooldown = data.ac ?? data.attackCooldown ?? 0;
+    b.snapVisual();
     return b;
   }
 }

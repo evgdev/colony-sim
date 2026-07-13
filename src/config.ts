@@ -18,10 +18,10 @@ export const PANEL_X = CANVAS_WIDTH - PANEL_WIDTH;
 export const BOTTOM_HUD_Y = FIELD_Y + FIELD_H;
 
 // Day/Night cycle (measured in simulation ticks)
-export const DAY_TICKS = 20;
-export const NIGHT_TICKS = 12;
+export const DAY_TICKS = 100;
+export const NIGHT_TICKS = 50;
 export const CYCLE_TICKS = DAY_TICKS + NIGHT_TICKS;
-export const DUSK_TICKS = 2;
+export const DUSK_TICKS = 10;
 // Night color correction: hue + strength applied as a field overlay
 export const NIGHT_TINT = 0x10204a;
 export const NIGHT_MAX_ALPHA = 0.6;
@@ -39,9 +39,10 @@ export function nightAlpha(tickCount: number): number {
     return ((phase - duskStart) / DUSK_TICKS) * NIGHT_MAX_ALPHA;
   }
   const nightPhase = phase - DAY_TICKS;
-  const up = Math.min(nightPhase / DUSK_TICKS, 1);
-  const down = Math.min((NIGHT_TICKS - nightPhase) / DUSK_TICKS, 1);
-  return Math.min(up, down) * NIGHT_MAX_ALPHA;
+  if (nightPhase < DUSK_TICKS) return NIGHT_MAX_ALPHA;
+  const dawnStart = NIGHT_TICKS - DUSK_TICKS;
+  if (nightPhase < dawnStart) return NIGHT_MAX_ALPHA;
+  return ((NIGHT_TICKS - nightPhase) / DUSK_TICKS) * NIGHT_MAX_ALPHA;
 }
 
 export const FOOD_EAT_INTERVAL = 20;

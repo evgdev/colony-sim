@@ -13,6 +13,8 @@ import { TaskPriority } from '../core/Task';
 import { UIManager } from './UIManager';
 import { languageManager } from '../data/LanguageManager';
 import buildingsData from '../data/buildings.json';
+import { ReplayRecorder } from '../replay/ReplayRecorder';
+import { ReplayActionType } from '../replay/ReplayTypes';
 
 type BuildingType = keyof typeof buildingsData;
 
@@ -27,6 +29,7 @@ export class InputHandler {
   private uiManager: UIManager;
   private workSystem: WorkSystem;
   private artifactSystem: ArtifactSystem;
+  recorder: ReplayRecorder | null = null;
   hoverRect!: Phaser.GameObjects.Rectangle;
   private scrollX: number = 0;
   private scrollY: number = 0;
@@ -107,6 +110,10 @@ export class InputHandler {
 
   setupInputHandlers(): void {
     this.scene.input.on('pointermove', (pointer: Phaser.Input.Pointer) => {
+      if (this.uiManager.startMenuOpen) {
+        this.hoverRect.setVisible(false);
+        return;
+      }
       const coords = this.screenToTile(pointer.x, pointer.y);
       if (coords) {
         const { sx, sy } = this.tileToScreen(coords.tileX, coords.tileY);
@@ -121,6 +128,8 @@ export class InputHandler {
     });
 
     this.scene.input.on('pointerdown', (pointer: Phaser.Input.Pointer) => {
+      if (this.uiManager.startMenuOpen) return;
+
       if (pointer.rightButtonDown()) {
         this.cancelBuildMode();
         return;
@@ -157,6 +166,7 @@ export class InputHandler {
     this.lastPaintX = -1;
     this.lastPaintY = -1;
     if (this.uiManager.buildMode) {
+      this.recorder?.record(ReplayActionType.CancelBuild);
       this.uiManager.buildMode = null;
       this.uiManager.updateBuildButtonStates();
       this.uiManager.addLog('Build mode off (right-click / Esc)');
@@ -199,6 +209,7 @@ export class InputHandler {
     ) as Settler | undefined;
 
     if (settlerAtTile) {
+      this.recorder?.record(ReplayActionType.SelectSettler, { settlerId: settlerAtTile.id });
       (this.scene as any).selectSettler(settlerAtTile);
       this.uiManager.selectedBuilding = null;
       this.uiManager.selectedEntity = null;
@@ -212,6 +223,7 @@ export class InputHandler {
 
     if (entityAtTile) {
       if (entityAtTile.entityType === 'resource' || entityAtTile.entityType === 'artifact') {
+        this.recorder?.record(ReplayActionType.Collect, { entityId: entityAtTile.id });
         this.uiManager.selectedBuilding = null;
         this.uiManager.selectedEntity = entityAtTile;
         this.uiManager.buildMode = null;
@@ -237,8 +249,8 @@ export class InputHandler {
     if (tile.walkable) {
       const settler = (this.scene as any).getSelectedSettler() as Settler;
       if (settler) {
+        this.recorder?.record(ReplayActionType.MoveSettler, { x: tileX, y: tileY });
         this.workSystem.createMoveTask(tileX, tileY, undefined, settler);
-        this.uiManager.addLog(`${settler.name} ${languageManager.ui.logWorkerHeadsTo} (${tileX},${tileY})`);
       }
     }
   }
@@ -294,6 +306,7 @@ export class InputHandler {
     }
 
     const selected = (this.scene as any).getSelectedSettler() as Settler;
+    this.recorder?.record(ReplayActionType.Build, { x: tileX, y: tileY, buildingType: this.uiManager.buildMode! });
     this.workSystem.createBuildTask(building, TaskPriority.High, selected);
     this.uiManager.addLog(`${languageManager.ui.logBuildingAt} ${def.name} ${tileX},${tileY}`);
     this.uiManager.checkMilestone('firstBuilding');
@@ -306,6 +319,7 @@ export class InputHandler {
   }
 
   private handleMinimapClick(tileX: number, tileY: number): void {
+    this.recorder?.record(ReplayActionType.MinimapClick, { x: tileX, y: tileY });
     if (this.scrollTo) {
       this.scrollTo(tileX, tileY);
     }

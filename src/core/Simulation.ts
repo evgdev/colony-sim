@@ -1,6 +1,7 @@
 import { TileGrid } from '../core/TileGrid';
 import { EntityManager } from '../core/EntityManager';
 import { TaskQueue } from '../core/TaskQueue';
+import { SeededRandom } from '../replay/ReplayTypes';
 
 export interface InventoryItem {
   resourceType: string;
@@ -15,6 +16,7 @@ export interface SimulationState {
   tickCount: number;
   nextEntityId: number;
   inventory: InventoryItem[];
+  seed?: number;
 }
 
 export class Simulation {
@@ -25,11 +27,15 @@ export class Simulation {
   tickRate: number = 500;
   private tickAccumulator: number = 0;
   inventory: InventoryItem[] = [];
+  seed: number;
+  rng: SeededRandom;
 
-  constructor(width: number = 20, height: number = 15) {
+  constructor(width: number = 20, height: number = 15, seed?: number) {
     this.tileGrid = new TileGrid(width, height);
     this.entityManager = new EntityManager();
     this.taskQueue = new TaskQueue();
+    this.seed = seed ?? (Date.now() ^ (Math.random() * 0xFFFFFFFF));
+    this.rng = new SeededRandom(this.seed);
     this.generateMap();
   }
 
@@ -66,7 +72,7 @@ export class Simulation {
   private generateMap(): void {
     for (let y = 0; y < this.tileGrid.height; y++) {
       for (let x = 0; x < this.tileGrid.width; x++) {
-        const rand = Math.random();
+        const rand = this.rng.next();
         if (rand < 0.05) {
           this.tileGrid.setTile(x, y, { type: 'water', walkCost: 999, walkable: false });
         } else if (rand < 0.12) {
@@ -108,11 +114,12 @@ export class Simulation {
         ? Math.max(...this.entityManager.getAll().map(e => e.id)) + 1
         : 1),
       inventory: this.inventory,
+      seed: this.seed,
     };
   }
 
   static deserialize(data: SimulationState): Simulation {
-    const sim = new Simulation(0, 0);
+    const sim = new Simulation(0, 0, data.seed);
     sim.tileGrid = TileGrid.deserialize(data.grid);
     sim.entityManager = EntityManager.deserialize(data.entities);
     sim.taskQueue = TaskQueue.deserialize(data.tasks);

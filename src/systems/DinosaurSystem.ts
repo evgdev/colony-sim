@@ -5,6 +5,7 @@ import { Settler } from '../entities/Settler';
 import { Building } from '../entities/Building';
 import dinosaursData from '../data/dinosaurs.json';
 import { isNight } from '../config';
+import { SeededRandom } from '../replay/ReplayTypes';
 
 const PREDATOR_SPECIES = ['trex', 'raptor'];
 const HERBIVORE_SPECIES = ['brontosaur'];
@@ -19,10 +20,12 @@ export class DinosaurSystem {
   private onSettlerDeath?: (name: string) => void;
   private onSpawn?: (species: string) => void;
   private nightSpawnMultiplier: number = 2;
+  rng: SeededRandom;
 
-  constructor(entityManager: EntityManager, tileGrid: TileGrid, onSettlerDeath?: (name: string) => void, onSpawn?: (species: string) => void) {
+  constructor(entityManager: EntityManager, tileGrid: TileGrid, seed: number, onSettlerDeath?: (name: string) => void, onSpawn?: (species: string) => void) {
     this.entityManager = entityManager;
     this.tileGrid = tileGrid;
+    this.rng = new SeededRandom(seed ^ 77777);
     this.onSettlerDeath = onSettlerDeath;
     this.onSpawn = onSpawn;
   }
@@ -100,7 +103,7 @@ export class DinosaurSystem {
         } else if (distToSettler <= dino.aggroRange && nearestSettler) {
           dino.state = 'investigate';
           dino.stateTimer = 0;
-        } else if (dino.idleTime > 3 + Math.random() * 4) {
+        } else if (dino.idleTime > 3 + this.rng.next() * 4) {
           dino.state = 'wander';
           dino.wanderTarget = this.getRandomWalkableTile();
           dino.stateTimer = 0;
@@ -239,9 +242,11 @@ export class DinosaurSystem {
       const nx = dino.x + mx;
       const ny = dino.y + my;
       if (this.tileGrid.isWalkableForDino(nx, ny)) {
-        this.tileGrid.setOccupied(dino.x, dino.y, false);
-        dino.x = nx;
-        dino.y = ny;
+        const oldTile = this.tileGrid.get(dino.x, dino.y);
+        if (oldTile && !oldTile.building) {
+          this.tileGrid.setOccupied(dino.x, dino.y, false);
+        }
+        dino.moveTo(nx, ny);
         this.tileGrid.setOccupied(nx, ny, true);
         return true;
       }
@@ -282,8 +287,8 @@ export class DinosaurSystem {
 
   private getRandomWalkableTile(): { x: number; y: number } | null {
     for (let i = 0; i < 20; i++) {
-      const x = Math.floor(Math.random() * this.tileGrid.width);
-      const y = Math.floor(Math.random() * this.tileGrid.height);
+      const x = this.rng.nextInt(this.tileGrid.width);
+      const y = this.rng.nextInt(this.tileGrid.height);
       if (this.tileGrid.isWalkableForDino(x, y)) {
         return { x, y };
       }
@@ -295,7 +300,7 @@ export class DinosaurSystem {
     const dinoCount = this.entityManager.getByType('dinosaur').length;
     if (dinoCount >= this.maxDinosaurs) return;
 
-    const spawnPoint = this.getSpawnTile(MIN_SPAWN_DISTANCE) ?? this.getRandomWalkableTile();
+    const spawnPoint = this.getSpawnTile(MIN_SPAWN_DISTANCE);
     if (!spawnPoint) return;
 
     const species = this.getRandomSpecies(night);
@@ -314,8 +319,8 @@ export class DinosaurSystem {
   private getSpawnTile(minDist: number): { x: number; y: number } | null {
     const settlers = this.entityManager.getByType('settler') as Settler[];
     for (let i = 0; i < 40; i++) {
-      const x = Math.floor(Math.random() * this.tileGrid.width);
-      const y = Math.floor(Math.random() * this.tileGrid.height);
+      const x = this.rng.nextInt(this.tileGrid.width);
+      const y = this.rng.nextInt(this.tileGrid.height);
       if (!this.tileGrid.isWalkableForDino(x, y)) continue;
       const farEnough = settlers.every(s =>
         Math.abs(s.x - x) + Math.abs(s.y - y) >= minDist
@@ -327,6 +332,6 @@ export class DinosaurSystem {
 
   private getRandomSpecies(night: boolean): string {
     const pool = night ? PREDATOR_SPECIES : HERBIVORE_SPECIES;
-    return pool[Math.floor(Math.random() * pool.length)];
+    return pool[this.rng.nextInt(pool.length)];
   }
 }

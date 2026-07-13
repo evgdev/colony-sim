@@ -5,6 +5,7 @@ import {
   NEEDS_ENABLED,
 } from '../config';
 import { Simulation } from '../core/Simulation';
+import { Entity } from '../core/Entity';
 import { Settler } from '../entities/Settler';
 import { Resource } from '../entities/Resource';
 import { Building } from '../entities/Building';
@@ -44,8 +45,8 @@ export class EntityRenderer {
   }
 
   private isInViewport(x: number, y: number): boolean {
-    return x >= this.scrollX && x < this.scrollX + VIEWPORT_TILES
-        && y >= this.scrollY && y < this.scrollY + VIEWPORT_TILES;
+    return x >= this.scrollX - 1 && x < this.scrollX + VIEWPORT_TILES + 1
+        && y >= this.scrollY - 1 && y < this.scrollY + VIEWPORT_TILES + 1;
   }
 
   private worldToScreen(wx: number, wy: number): { sx: number; sy: number } {
@@ -55,6 +56,12 @@ export class EntityRenderer {
     };
   }
 
+  updateVisuals(deltaMs: number, tilesPerMs: number): void {
+    for (const entity of this.simulation.entityManager.getAll()) {
+      entity.updateVisual(deltaMs, tilesPerMs);
+    }
+  }
+
   drawEntities(): void {
     this.entityGraphics.forEach(g => g.destroy());
     this.entityGraphics = [];
@@ -62,14 +69,14 @@ export class EntityRenderer {
     this.entityTexts = [];
 
     for (const entity of this.simulation.entityManager.getAll()) {
-      if (!this.isInViewport(entity.x, entity.y)) continue;
-      if (entity.entityType !== 'settler' && !this.simulation.tileGrid.isRevealed(entity.x, entity.y)) continue;
+      if (entity.entityType !== 'settler' && !this.isInViewport(entity.visualX, entity.visualY)) continue;
+      if (entity.entityType !== 'settler' && !this.simulation.tileGrid.isRevealed(Math.round(entity.visualX), Math.round(entity.visualY))) continue;
 
       const g = this.scene.add.graphics().setDepth(10);
-      const { sx: cx, sy: cy } = this.worldToScreen(entity.x, entity.y);
+      const { sx: cx, sy: cy } = this.worldToScreen(entity.visualX, entity.visualY);
 
       if (entity.entityType === 'settler') {
-        this.drawSettler(g, entity as Settler, cx, cy, entity.x, entity.y);
+        this.drawSettler(g, entity as Settler, cx, cy);
       } else if (entity.entityType === 'resource') {
         this.drawResource(g, entity as Resource, cx, cy);
       } else if (entity.entityType === 'building') {
@@ -84,7 +91,7 @@ export class EntityRenderer {
     }
   }
 
-  private drawSettler(g: Phaser.GameObjects.Graphics, settler: Settler, cx: number, cy: number, ex: number, ey: number): void {
+  private drawSettler(g: Phaser.GameObjects.Graphics, settler: Settler, cx: number, cy: number): void {
     if (this.selectedSettler === settler) {
       g.lineStyle(2, 0xccaa00, 0.8);
       g.strokeCircle(cx, cy, TILE_SIZE / 2);
@@ -105,8 +112,8 @@ export class EntityRenderer {
     if (this.selectedSettler === settler) {
       const barWidth = TILE_SIZE - 4;
       const barHeight = 5;
-      const barX = FIELD_X + (ex - this.scrollX) * TILE_SIZE + 2;
-      const barY = FIELD_Y + (ey - this.scrollY) * TILE_SIZE - 8;
+      const barX = cx - TILE_SIZE / 2 + 2;
+      const barY = cy - TILE_SIZE / 2 - 8;
 
       if (NEEDS_ENABLED) {
         g.fillStyle(0x333333, 0.8);
@@ -175,13 +182,6 @@ export class EntityRenderer {
     }
     g.lineStyle(2, flash > 0 ? 0xffff66 : 0x000000);
     g.strokeRect(cx - TILE_SIZE / 3, cy - TILE_SIZE / 3, TILE_SIZE / 1.5, TILE_SIZE / 1.5);
-
-    const name = (buildingsData as any)[bld.buildingType]?.name ?? bld.buildingType;
-    this.entityTexts.push(
-      this.scene.add.text(cx, cy + TILE_SIZE / 3 + 4, name, {
-        fontSize: '12px', color: '#ffffff', fontFamily: 'monospace',
-      }).setOrigin(0.5, 0).setDepth(10)
-    );
 
     if (!bld.built) {
       const barX = cx - TILE_SIZE / 3;
@@ -253,7 +253,7 @@ export class EntityRenderer {
       if (settler.path.length > 1) {
         this.pathGraphics.lineStyle(2, COLORS.pathHighlight, 0.6);
         this.pathGraphics.beginPath();
-        const { sx: startX, sy: startY } = this.worldToScreen(settler.x, settler.y);
+        const { sx: startX, sy: startY } = this.worldToScreen(settler.visualX, settler.visualY);
         this.pathGraphics.moveTo(startX, startY);
         for (let i = settler.pathIndex; i < settler.path.length; i++) {
           const p = settler.path[i];

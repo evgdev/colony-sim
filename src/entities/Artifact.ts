@@ -11,16 +11,21 @@ export class Artifact extends Entity {
   }
 
   serialize(): object {
+    const base = super.serialize() as any;
     return {
-      ...super.serialize(),
-      artifactType: this.artifactType,
-      name: this.name,
+      i: base.i,
+      t: 'artifact',
+      x: base.x,
+      y: base.y,
+      at: this.artifactType,
+      n: this.name,
     };
   }
 
   static deserialize(data: any): Artifact {
-    const a = new Artifact(data.x, data.y, data.artifactType, data.name);
-    a.id = data.id;
+    const a = new Artifact(data.x, data.y, data.at ?? data.artifactType, data.n ?? data.name);
+    a.id = data.i ?? data.id;
+    a.snapVisual();
     return a;
   }
 }

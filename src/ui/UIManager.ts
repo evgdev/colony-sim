@@ -23,6 +23,7 @@ import { DinosaurSystem } from '../systems/DinosaurSystem';
 import { TaskPriority } from '../core/Task';
 import { languageManager } from '../data/LanguageManager';
 import buildingsData from '../data/buildings.json';
+import { ReplayRecorder } from '../replay/ReplayRecorder';
 
 type BuildingType = keyof typeof buildingsData;
 
@@ -30,6 +31,7 @@ export class UIManager {
   private scene: Phaser.Scene;
   private simulation: Simulation;
   workSystem!: WorkSystem;
+  replayRecorder: ReplayRecorder | null = null;
   private scrollX: number = 0;
   private scrollY: number = 0;
 
@@ -63,7 +65,12 @@ export class UIManager {
   private dnMoon!: Phaser.GameObjects.Arc;
   private dnStars: Phaser.GameObjects.Arc[] = [];
   private dnLabel!: Phaser.GameObjects.Text;
+  private dnDim!: Phaser.GameObjects.Rectangle;
   private dnBand = { x: 14, y: 44, w: LEFT_PANEL_WIDTH - 28, h: 44 };
+  private buildButtonsEnabled: boolean = true;
+  startMenuOpen: boolean = false;
+  private hudButtons: Phaser.GameObjects.Text[] = [];
+  private scrollButtons: Phaser.GameObjects.Text[] = [];
 
   selectedBuilding: Building | null = null;
   selectedEntity: Entity | null = null;
@@ -218,18 +225,22 @@ export class UIManager {
     this.scrollUpBtn = this.scene.add.text(14 + 90, btnY, '\u25B2', btnStyle)
       .setOrigin(0.5).setInteractive({ useHandCursor: true }).on('pointerdown', () => this.scene.input.keyboard?.emit('scroll-up'));
     this.leftPanelContainer.add(this.scrollUpBtn);
+    this.scrollButtons.push(this.scrollUpBtn);
 
     this.scrollDownBtn = this.scene.add.text(14 + 90, btnY + btnSize + 4, '\u25BC', btnStyle)
       .setOrigin(0.5).setInteractive({ useHandCursor: true }).on('pointerdown', () => this.scene.input.keyboard?.emit('scroll-down'));
     this.leftPanelContainer.add(this.scrollDownBtn);
+    this.scrollButtons.push(this.scrollDownBtn);
 
     this.scrollLeftBtn = this.scene.add.text(14 + 90 - btnSize - 4, btnY + btnSize / 2 + 2, '\u25C0', btnStyle)
       .setOrigin(0.5).setInteractive({ useHandCursor: true }).on('pointerdown', () => this.scene.input.keyboard?.emit('scroll-left'));
     this.leftPanelContainer.add(this.scrollLeftBtn);
+    this.scrollButtons.push(this.scrollLeftBtn);
 
     this.scrollRightBtn = this.scene.add.text(14 + 90 + btnSize + 4, btnY + btnSize / 2 + 2, '\u25B6', btnStyle)
       .setOrigin(0.5).setInteractive({ useHandCursor: true }).on('pointerdown', () => this.scene.input.keyboard?.emit('scroll-right'));
     this.leftPanelContainer.add(this.scrollRightBtn);
+    this.scrollButtons.push(this.scrollRightBtn);
 
     this.artifactTooltip = this.scene.add.container(0, 0).setDepth(25).setVisible(false);
     const tooltipBg = this.scene.add.rectangle(0, 0, 220, 60, 0x0d1117, 0.95)
@@ -299,7 +310,8 @@ export class UIManager {
     onLoad: () => void,
     onClear: () => void,
     onBuildIconCreated: () => void,
-    debugPanel?: import('./DebugPanel').DebugPanel
+    debugPanel?: import('./DebugPanel').DebugPanel,
+    onExit?: () => void
   ): void {
     this.bottomHudBg = this.scene.add.rectangle(FIELD_X, BOTTOM_HUD_Y, FIELD_W, HUD_HEIGHT, COLORS.uiPanel, 0.95)
       .setOrigin(0).setDepth(20);
@@ -307,42 +319,77 @@ export class UIManager {
       .setOrigin(0).setDepth(21);
 
     const btnStyle: Phaser.Types.GameObjects.Text.TextStyle = {
-      fontSize: '16px', color: '#ffd700', fontFamily: 'monospace',
-      backgroundColor: '#16213e', padding: { x: 8, y: 4 },
+      fontSize: '14px', color: '#ffd700', fontFamily: 'monospace',
+      backgroundColor: '#16213e', padding: { x: 6, y: 3 },
     };
 
-    this.scene.add.text(FIELD_X + 10, BOTTOM_HUD_Y + 10, `[${languageManager.ui.save}]`, btnStyle)
-      .setInteractive({ useHandCursor: true }).setDepth(22)
+    const topBtnStyle: Phaser.Types.GameObjects.Text.TextStyle = {
+      fontSize: '13px', color: '#ffd700', fontFamily: 'monospace',
+      backgroundColor: '#16213e', padding: { x: 5, y: 2 },
+    };
+
+    const logX = FIELD_X + FIELD_W + 10;
+    const btnsY = 730;
+    let btnX = logX;
+    const btnDepth = 35;
+
+    const exitBtn = this.scene.add.text(btnX, btnsY, `[Exit]`, topBtnStyle)
+      .setInteractive({ useHandCursor: true }).setDepth(btnDepth)
+      .on('pointerdown', () => onExit?.());
+    this.hudButtons.push(exitBtn);
+    btnX += exitBtn.width + 4;
+
+    const saveBtn = this.scene.add.text(btnX, btnsY, `[${languageManager.ui.save}]`, topBtnStyle)
+      .setInteractive({ useHandCursor: true }).setDepth(btnDepth)
       .on('pointerdown', onSave);
+    this.hudButtons.push(saveBtn);
+    btnX += saveBtn.width + 4;
 
-    this.scene.add.text(FIELD_X + 80, BOTTOM_HUD_Y + 10, `[${languageManager.ui.load}]`, btnStyle)
-      .setInteractive({ useHandCursor: true }).setDepth(22)
+    const loadBtn = this.scene.add.text(btnX, btnsY, `[${languageManager.ui.load}]`, topBtnStyle)
+      .setInteractive({ useHandCursor: true }).setDepth(btnDepth)
       .on('pointerdown', onLoad);
+    this.hudButtons.push(loadBtn);
+    btnX += loadBtn.width + 4;
 
-    this.scene.add.text(FIELD_X + 150, BOTTOM_HUD_Y + 10, `[${languageManager.ui.clear}]`, btnStyle)
-      .setInteractive({ useHandCursor: true }).setDepth(22)
+    const clearBtn = this.scene.add.text(btnX, btnsY, `[${languageManager.ui.clear}]`, topBtnStyle)
+      .setInteractive({ useHandCursor: true }).setDepth(btnDepth)
       .on('pointerdown', onClear);
+    this.hudButtons.push(clearBtn);
+
+    const replayBtn = this.scene.add.text(logX, btnsY + 20, `[Replay]`, topBtnStyle)
+      .setInteractive({ useHandCursor: true }).setDepth(btnDepth)
+      .on('pointerdown', () => {
+        if (this.replayRecorder && this.replayRecorder.hasRecordedData()) {
+          this.replayRecorder.autoSave();
+          this.addLog('Replay saved!');
+        } else {
+          this.addLog('No replay data recorded yet');
+        }
+      });
+    this.hudButtons.push(replayBtn);
 
     if (debugPanel) {
-      const controlX = FIELD_X + FIELD_W - 200;
+      const controlX = logX;
+      const controlY = btnsY + 42;
 
-      const langBtn = this.scene.add.text(controlX, BOTTOM_HUD_Y + 10, `[${languageManager.lang.toUpperCase()}]`, {
+      const langBtn = this.scene.add.text(controlX, controlY, `[${languageManager.lang.toUpperCase()}]`, {
         ...btnStyle,
         color: '#ffd700',
-      }).setInteractive({ useHandCursor: true }).setDepth(22)
+      }).setInteractive({ useHandCursor: true }).setDepth(btnDepth)
         .on('pointerdown', () => {
           languageManager.toggle();
           langBtn.setText(`[${languageManager.lang.toUpperCase()}]`);
         });
+      this.hudButtons.push(langBtn);
 
       const speeds = [1, 2, 4];
-      let xOff = controlX + 50;
+      let xOff = controlX + langBtn.width + 8;
       const speedBtns: Phaser.GameObjects.Text[] = [];
       for (const spd of speeds) {
-        const btn = this.scene.add.text(xOff, BOTTOM_HUD_Y + 10, `\u00d7${spd}`, {
+        const btn = this.scene.add.text(xOff, controlY, `\u00d7${spd}`, {
           ...btnStyle,
           color: spd === 1 ? '#58a6ff' : '#8b949e',
-        }).setInteractive({ useHandCursor: true }).setDepth(22)
+        }).setInteractive({ useHandCursor: true }).setDepth(btnDepth)
           .on('pointerdown', () => {
             debugPanel.speed = spd;
             for (let i = 0; i < speedBtns.length; i++) {
@@ -350,7 +397,8 @@ export class UIManager {
             }
           });
         speedBtns.push(btn);
-        xOff += btn.width + 8;
+        this.hudButtons.push(btn);
+        xOff += btn.width + 4;
       }
     }
 
@@ -369,6 +417,7 @@ export class UIManager {
       backgroundColor: '#16213e', padding: { x: 8, y: 6 },
     }).setInteractive({ useHandCursor: true }).setDepth(22)
       .on('pointerdown', () => {
+        if (!this.buildButtonsEnabled) return;
         this.buildMode = null;
         this.updateBuildButtonStates();
       });
@@ -406,12 +455,15 @@ export class UIManager {
       container.setSize(ICON_SIZE + 8, ICON_SIZE + 20);
       container.setInteractive({ useHandCursor: true })
         .on('pointerover', () => {
+          if (!this.buildButtonsEnabled) return;
           bg.setStrokeStyle(2, 0x58a6ff);
         })
         .on('pointerout', () => {
+          if (!this.buildButtonsEnabled) return;
           bg.setStrokeStyle(1, COLORS.panelBorder);
         })
         .on('pointerdown', () => {
+          if (!this.buildButtonsEnabled) return;
           this.selectedBuilding = null;
           this.selectionRect.setVisible(false);
           this.infoPanel.setVisible(false);
@@ -461,7 +513,40 @@ export class UIManager {
     }).setOrigin(1, 0);
     this.leftPanelContainer.add(this.dnLabel);
 
+    this.dnDim = this.scene.add.rectangle(x, y, w, h, 0x000000, 0)
+      .setOrigin(0);
+    this.leftPanelContainer.add(this.dnDim);
+
     this.updateDayNight(0);
+  }
+
+  setDayNightDimmed(dimmed: boolean): void {
+    this.dnDim.setAlpha(dimmed ? 0.8 : 0);
+  }
+
+  setBuildButtonsEnabled(enabled: boolean): void {
+    this.buildButtonsEnabled = enabled;
+    for (const btn of this.buildButtons) {
+      if (enabled) btn.setInteractive({ useHandCursor: true });
+      else btn.disableInteractive();
+    }
+    this.updateBuildButtonStates();
+  }
+
+  setHudButtonsEnabled(enabled: boolean): void {
+    for (const btn of this.hudButtons) {
+      if (enabled) btn.setInteractive({ useHandCursor: true });
+      else btn.disableInteractive();
+      btn.setAlpha(enabled ? 1 : 0.3);
+    }
+  }
+
+  setScrollButtonsEnabled(enabled: boolean): void {
+    for (const btn of this.scrollButtons) {
+      if (enabled) btn.setInteractive({ useHandCursor: true });
+      else btn.disableInteractive();
+      btn.setAlpha(enabled ? 1 : 0.3);
+    }
   }
 
   private updateDayNight(tickCount: number): void {
@@ -554,6 +639,10 @@ export class UIManager {
 
     for (let i = 0; i < this.buildButtons.length; i++) {
       const btn = this.buildButtons[i];
+      if (!this.buildButtonsEnabled) {
+        btn.setAlpha(0.3);
+        continue;
+      }
       if (i === 0) {
         btn.setAlpha(this.buildMode ? 1.0 : 0.4);
       } else {

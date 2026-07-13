@@ -28,6 +28,7 @@ export interface TaskData {
 }
 
 export class Task {
+  private static nextIdCounter = 1;
   id: string;
   type: TaskType;
   priority: TaskPriority;
@@ -42,7 +43,7 @@ export class Task {
   completed: boolean = false;
 
   constructor(data: TaskData) {
-    this.id = `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+    this.id = `task_${Task.nextIdCounter++}`;
     this.type = data.type;
     this.priority = data.priority;
     this.targetX = data.targetX;
@@ -53,6 +54,10 @@ export class Task {
     this.assignedSettlerId = data.assignedSettlerId;
     this.returnX = data.returnX;
     this.returnY = data.returnY;
+  }
+
+  static resetIdCounter(start: number = 1): void {
+    Task.nextIdCounter = start;
   }
 
   serialize(): object {

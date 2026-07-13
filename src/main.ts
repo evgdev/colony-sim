@@ -1,6 +1,7 @@
 import Phaser from 'phaser';
 import { BootScene } from './scenes/BootScene';
 import { GameScene } from './scenes/GameScene';
+import { ReplayScene } from './replay/ReplayScene';
 import { CANVAS_WIDTH, CANVAS_HEIGHT } from './config';
 
 const DPR = window.devicePixelRatio || 1;
@@ -11,7 +12,7 @@ const config = {
   height: CANVAS_HEIGHT,
   backgroundColor: '#1a1a2e',
   parent: document.body,
-  scene: [BootScene, GameScene],
+  scene: [BootScene, GameScene, ReplayScene],
   resolution: DPR,
   scale: {
     mode: Phaser.Scale.FIT,

@@ -36,30 +36,43 @@ export class Dinosaur extends Entity {
   }
 
   serialize(): object {
+    const base = super.serialize() as any;
     return {
-      ...super.serialize(),
-      species: this.species,
+      i: base.i,
+      t: 'dinosaur',
+      x: base.x,
+      y: base.y,
+      sp: this.species,
       hp: this.hp,
-      maxHp: this.maxHp,
-      speed: this.speed,
-      aggroRange: this.aggroRange,
-      attackDamage: this.attackDamage,
-      size: this.size,
-      state: this.state,
-      wanderTarget: this.wanderTarget,
-      stateTimer: this.stateTimer,
-      idleTime: this.idleTime,
+      mhp: this.maxHp,
+      s: this.speed,
+      ar: this.aggroRange,
+      ad: this.attackDamage,
+      sz: this.size,
+      st: this.state,
+      wt: this.wanderTarget,
+      st2: this.stateTimer,
+      it: this.idleTime,
     };
   }
 
   static deserialize(data: any): Dinosaur {
-    const d = new Dinosaur(data.x, data.y, data.species, data.maxHp, data.speed, data.aggroRange, data.size, data.attackDamage);
-    d.id = data.id;
-    d.hp = data.hp;
-    d.state = data.state ?? 'idle';
-    d.wanderTarget = data.wanderTarget ?? null;
-    d.stateTimer = data.stateTimer ?? 0;
-    d.idleTime = data.idleTime ?? 0;
+    const d = new Dinosaur(
+      data.x, data.y,
+      data.sp ?? data.species,
+      data.mhp ?? data.maxHp,
+      data.s ?? data.speed,
+      data.ar ?? data.aggroRange,
+      data.sz ?? data.size,
+      data.ad ?? data.attackDamage
+    );
+    d.id = data.i ?? data.id;
+    d.hp = data.hp ?? d.maxHp;
+    d.state = data.st ?? data.state ?? 'idle';
+    d.wanderTarget = data.wt ?? data.wanderTarget ?? null;
+    d.stateTimer = data.st2 ?? data.stateTimer ?? 0;
+    d.idleTime = data.it ?? data.idleTime ?? 0;
+    d.snapVisual();
     return d;
   }
 }

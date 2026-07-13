@@ -21,16 +21,21 @@ export class Resource extends Entity {
   }
 
   serialize(): object {
+    const base = super.serialize() as any;
     return {
-      ...super.serialize(),
-      resourceType: this.resourceType,
-      quantity: this.quantity,
+      i: base.i,
+      t: 'resource',
+      x: base.x,
+      y: base.y,
+      rt: this.resourceType,
+      q: this.quantity,
     };
   }
 
   static deserialize(data: any): Resource {
-    const r = new Resource(data.x, data.y, data.resourceType, data.quantity);
-    r.id = data.id;
+    const r = new Resource(data.x, data.y, data.rt ?? data.resourceType, data.q ?? data.quantity);
+    r.id = data.i ?? data.id;
+    r.snapVisual();
     return r;
   }
 }

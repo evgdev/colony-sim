@@ -29,6 +29,8 @@ import { MapRenderer } from '../rendering/MapRenderer';
 import { EntityRenderer } from '../rendering/EntityRenderer';
 import { UIManager } from '../ui/UIManager';
 import { InputHandler } from '../ui/InputHandler';
+import { ReplayRecorder } from '../replay/ReplayRecorder';
+import { ReplayActionType } from '../replay/ReplayTypes';
 
 const TICKS_PER_DAY = 24;
 
@@ -43,6 +45,7 @@ export class GameScene extends Phaser.Scene {
   artifactSystem!: ArtifactSystem;
   questSystem!: QuestSystem;
   debugPanel!: DebugPanel;
+  replayRecorder!: ReplayRecorder;
 
   selectedSettler!: Settler;
 
@@ -102,49 +105,7 @@ export class GameScene extends Phaser.Scene {
     this.input.keyboard!.on('scroll-right', () => this.scrollBy(1, 0));
 
     this.simulation = new Simulation(MAP_WIDTH, MAP_HEIGHT);
-    this.movementSystem = new MovementSystem(this.simulation.tileGrid);
-    this.needsSystem = new NeedsSystem();
-    this.workSystem = new WorkSystem(
-      this.movementSystem,
-      this.simulation.tileGrid,
-      this.simulation.entityManager,
-      this.simulation.taskQueue,
-      this.simulation
-    );
-    this.artifactSystem = new ArtifactSystem(this.simulation.entityManager);
-    this.workSystem.artifactSystem = this.artifactSystem;
-    this.questSystem = new QuestSystem();
-    this.questSystem.onEvent((event) => {
-      this.uiManager.addLog(event.message);
-      this.uiManager.addEvent(event.message);
-    });
-    this.workSystem.questSystem = this.questSystem;
-    this.buildingSystem = new BuildingSystem(
-      this.simulation.entityManager,
-      this.simulation.tileGrid
-    );
-    this.buildingSystem.onDinoKilled = (dino) => this.dropArtifact(dino);
-    this.dinosaurSystem = new DinosaurSystem(
-      this.simulation.entityManager,
-      this.simulation.tileGrid,
-      (name) => {
-        const lines = languageManager.narrative.combat.settlerDeath;
-        const msg = lines[Math.floor(Math.random() * lines.length)].replace('{name}', name);
-        this.uiManager.addLog(msg);
-      },
-      (species) => {
-        const spawns = languageManager.narrative.dinosaurSpawns[species as keyof typeof languageManager.narrative.dinosaurSpawns];
-        if (spawns && spawns.length > 0) {
-          const msg = spawns[Math.floor(Math.random() * spawns.length)];
-          this.uiManager.addLog(msg);
-          this.uiManager.addEvent(msg);
-        }
-      }
-    );
-    this.combatSystem = new CombatSystem(
-      this.simulation.entityManager,
-      this.simulation.tileGrid
-    );
+    this.rebindSystems();
 
     createTileTextures(this);
     createBuildingIcons(this);
@@ -155,6 +116,8 @@ export class GameScene extends Phaser.Scene {
 
     this.uiManager = new UIManager(this, this.simulation);
     this.uiManager.setArtifactSystem(this.artifactSystem);
+    this.replayRecorder = new ReplayRecorder(this.simulation);
+    this.uiManager.replayRecorder = this.replayRecorder;
     this.uiManager.createEventArea();
     this.uiManager.createLeftPanel();
     this.uiManager.createActionLog();
@@ -173,6 +136,8 @@ export class GameScene extends Phaser.Scene {
     this.inputHandler.setupInputHandlers();
     this.inputHandler.updateScroll(this.scrollX, this.scrollY);
 
+    this.inputHandler.recorder = this.replayRecorder;
+
     this.debugPanel = new DebugPanel(this);
 
     this.uiManager.createBottomHUD(
@@ -184,31 +149,21 @@ export class GameScene extends Phaser.Scene {
         const loaded = SaveManager.load();
         if (loaded) {
           this.simulation = loaded;
+          this.rebindSystems();
           this.uiManager.setSimulation(loaded);
           this.inputHandler.setSimulation(loaded);
-          this.entityRenderer = new EntityRenderer(this, this.simulation);
-          this.movementSystem = new MovementSystem(this.simulation.tileGrid);
-          this.needsSystem = new NeedsSystem();
-          this.workSystem = new WorkSystem(
-            this.movementSystem, this.simulation.tileGrid,
-            this.simulation.entityManager, this.simulation.taskQueue,
-            this.simulation
-          );
           this.inputHandler.setWorkSystem(this.workSystem);
-          this.buildingSystem = new BuildingSystem(
-            this.simulation.entityManager, this.simulation.tileGrid
-          );
-          this.dinosaurSystem = new DinosaurSystem(
-            this.simulation.entityManager, this.simulation.tileGrid,
-            (name) => this.uiManager.addLog(`${name} was killed!`),
-            (species) => {}
-          );
+          this.entityRenderer = new EntityRenderer(this, this.simulation);
           const settlers = this.simulation.entityManager.getByType('settler') as Settler[];
           for (const s of settlers) {
             s.currentTaskId = null;
             s.path = [];
             s.pathIndex = 0;
+            s.snapVisual();
             this.artifactSystem.applyEffects(s);
+          }
+          for (const e of this.simulation.entityManager.getAll()) {
+            e.snapVisual();
           }
           this.scrollX = 0;
           this.scrollY = 0;
@@ -229,6 +184,12 @@ export class GameScene extends Phaser.Scene {
           this.uiManager.addLog(languageManager.ui.logLoaded);
           this.destroyStartMenu();
           this.worldReady = true;
+          this.uiManager.setBuildButtonsEnabled(true);
+          this.uiManager.setDayNightDimmed(false);
+          this.uiManager.setHudButtonsEnabled(true);
+          this.uiManager.setScrollButtonsEnabled(true);
+          this.uiManager.startMenuOpen = false;
+          this.debugPanel.setEnabled(true);
         } else {
           this.uiManager.addLog(languageManager.ui.logNoSave);
         }
@@ -240,7 +201,11 @@ export class GameScene extends Phaser.Scene {
       () => {
         createBuildingIcons(this);
       },
-      this.debugPanel
+      this.debugPanel,
+      () => {
+        this.replayRecorder.stop();
+        this.scene.start('BootScene');
+      }
     );
 
     this.uiManager.addLog(languageManager.narrative.intro[0] + ` [${languageManager.ui.day} 1]`);
@@ -248,6 +213,49 @@ export class GameScene extends Phaser.Scene {
 
     this.uiManager.updateBuildButtonStates();
     this.showStartMenu();
+  }
+
+  private rebindSystems(): void {
+    this.movementSystem = new MovementSystem(this.simulation.tileGrid);
+    this.needsSystem = new NeedsSystem();
+    this.workSystem = new WorkSystem(
+      this.movementSystem,
+      this.simulation.tileGrid,
+      this.simulation.entityManager,
+      this.simulation.taskQueue,
+      this.simulation
+    );
+    this.artifactSystem = new ArtifactSystem(this.simulation.entityManager);
+    this.workSystem.artifactSystem = this.artifactSystem;
+    this.questSystem = new QuestSystem();
+    this.questSystem.onEvent((event) => {
+      this.uiManager?.addLog(event.message);
+      this.uiManager?.addEvent(event.message);
+    });
+    this.workSystem.questSystem = this.questSystem;
+    this.buildingSystem = new BuildingSystem(
+      this.simulation.entityManager,
+      this.simulation.tileGrid
+    );
+    this.buildingSystem.onDinoKilled = (dino) => this.dropArtifact(dino);
+    this.dinosaurSystem = new DinosaurSystem(
+      this.simulation.entityManager,
+      this.simulation.tileGrid,
+      this.simulation.seed,
+      (name) => this.uiManager?.addLog(`${name} was killed!`),
+      (species) => {
+        const spawns = languageManager.narrative.dinosaurSpawns[species as keyof typeof languageManager.narrative.dinosaurSpawns];
+        if (spawns && spawns.length > 0) {
+          const msg = spawns[Math.floor(Math.random() * spawns.length)];
+          this.uiManager?.addLog(msg);
+          this.uiManager?.addEvent(msg);
+        }
+      }
+    );
+    this.combatSystem = new CombatSystem(
+      this.simulation.entityManager,
+      this.simulation.tileGrid
+    );
   }
 
   private showStartMenu(): void {
@@ -286,6 +294,28 @@ export class GameScene extends Phaser.Scene {
     makeButton(languageManager.ui.easy, languageManager.ui.easyDesc, cy - 12, () => this.time.delayedCall(0, () => this.startGame('easy')));
     makeButton(languageManager.ui.hard, languageManager.ui.hardDesc, cy + 52, () => this.time.delayedCall(0, () => this.startGame('hard')));
 
+    const replayLabel = this.add.text(cx, cy + 116, '--- Replay ---', {
+      fontSize: '14px', color: '#58a6ff', fontFamily: 'monospace',
+    }).setOrigin(0.5);
+    menu.add(replayLabel);
+
+    const loadFileBtn = this.add.text(cx, cy + 140, '[Load replay from file]', {
+      fontSize: '14px', color: '#c9d1d9', fontFamily: 'monospace',
+      backgroundColor: '#21262d', padding: { x: 12, y: 6 },
+    }).setOrigin(0.5).setInteractive({ useHandCursor: true });
+    loadFileBtn.on('pointerover', () => loadFileBtn.setColor('#58a6ff'));
+    loadFileBtn.on('pointerout', () => loadFileBtn.setColor('#c9d1d9'));
+    loadFileBtn.on('pointerdown', () => this.loadReplay());
+    menu.add(loadFileBtn);
+
+    this.uiManager.setBuildButtonsEnabled(false);
+    this.uiManager.setDayNightDimmed(true);
+    this.uiManager.setHudButtonsEnabled(false);
+    this.uiManager.setScrollButtonsEnabled(false);
+    this.uiManager.startMenuOpen = true;
+    this.debugPanel.setEnabled(false);
+    this.input.setDefaultCursor('default');
+
     this.startMenu = menu;
   }
 
@@ -299,6 +329,12 @@ export class GameScene extends Phaser.Scene {
   private startGame(difficulty: 'easy' | 'hard'): void {
     this.destroyStartMenu();
     this.worldReady = true;
+    this.uiManager.setBuildButtonsEnabled(true);
+    this.uiManager.setDayNightDimmed(false);
+    this.uiManager.setHudButtonsEnabled(true);
+    this.uiManager.setScrollButtonsEnabled(true);
+    this.uiManager.startMenuOpen = false;
+    this.debugPanel.setEnabled(true);
     try {
       const centerX = Math.floor(MAP_WIDTH / 2);
       const centerY = Math.floor(MAP_HEIGHT / 2);
@@ -314,6 +350,8 @@ export class GameScene extends Phaser.Scene {
       }
       this.simulation.tileGrid.reveal(centerX, centerY, FOG_REVEAL_RADIUS);
       this.selectedSettler = settlers[0];
+
+      this.replayRecorder.start();
 
       this.scrollX = Math.max(0, centerX - Math.floor(VIEWPORT_TILES / 2));
       this.scrollY = Math.max(0, centerY - Math.floor(VIEWPORT_TILES / 2));
@@ -360,63 +398,83 @@ export class GameScene extends Phaser.Scene {
     if (!this.worldReady) return;
 
     try {
-    this.handleScrollInput();
+      this.handleScrollInput();
 
-    if (Phaser.Input.Keyboard.JustDown(this.keys.TAB)) {
-      this.cycleSettler();
+      if (Phaser.Input.Keyboard.JustDown(this.keys.TAB)) {
+        this.cycleSettler();
+      }
+
+      if (!this.debugPanel.paused) {
+        this.runSystems(delta);
+      }
+
+      this.renderFrame(delta);
+    } catch (err) {
+      console.error('GameScene.update error:', err);
+      this.uiManager?.addLog('UPDATE ERR: ' + (err as Error).message);
     }
+  }
 
-    if (!this.debugPanel.paused) {
-      const adjustedDelta = delta * this.debugPanel.speed;
-      const ticked = this.simulation.update(adjustedDelta);
-      if (ticked) {
-        const td = (this.simulation.tickRate / 1000) * this.debugPanel.speed;
-        this.needsSystem.update(
-          this.simulation.entityManager.getByType('settler') as Settler[],
-          td,
-          this.simulation.tickCount
-        );
-        this.workSystem.update(td);
-        this.buildingSystem.update(td);
-        this.dinosaurSystem.update(td, this.simulation.tickCount);
-        const combatEvents = this.combatSystem.update(td);
-        for (const e of combatEvents) {
-          if (e.type === 'settler_attack') {
-            const lines = languageManager.narrative.combat.settlerAttack;
-            const msg = lines[Math.floor(Math.random() * lines.length)]
-              .replace('{attacker}', e.attacker)
-              .replace('{defender}', e.defender);
-            this.uiManager.addLog(msg);
-            if (e.killed && e.killedAt && e.killedSpecies) {
-              this.dropArtifact({
-                x: e.killedAt.x,
-                y: e.killedAt.y,
-                species: e.killedSpecies,
-                attacker: e.attacker,
-              } as any);
-            }
-          } else if (e.type === 'dino_vs_dino') {
-            const lines = languageManager.narrative.combat.dinoAttack;
-            const msg = lines[Math.floor(Math.random() * lines.length)]
-              .replace('{attacker}', e.attacker)
-              .replace('{defender}', e.defender);
-            this.uiManager.addLog(msg);
-            if (e.killed) {
-              const deathLines = languageManager.narrative.combat.dinoDeath;
-              const deathMsg = deathLines[Math.floor(Math.random() * deathLines.length)]
-                .replace('{species}', e.defender);
-              this.uiManager.addLog(deathMsg);
-            }
-          }
+  private runSystems(delta: number): void {
+    const adjustedDelta = delta * this.debugPanel.speed;
+    const ticked = this.simulation.update(adjustedDelta);
+    if (!ticked) return;
+
+    const td = (this.simulation.tickRate / 1000) * this.debugPanel.speed;
+    this.needsSystem.update(
+      this.simulation.entityManager.getByType('settler') as Settler[],
+      td,
+      this.simulation.tickCount
+    );
+    this.workSystem.update(td);
+    this.buildingSystem.update(td);
+    this.dinosaurSystem.update(td, this.simulation.tickCount);
+    this.processCombat(this.combatSystem.update(td));
+    this.uiManager.updateThoughts(ticked);
+    this.checkGameOver();
+    this.uiManager.updateBuildButtonStates();
+    this.replayRecorder.onTick(this.simulation.tickCount);
+  }
+
+  private processCombat(events: any[]): void {
+    for (const e of events) {
+      if (e.type === 'settler_attack') {
+        const lines = languageManager.narrative.combat.settlerAttack;
+        const msg = lines[Math.floor(Math.random() * lines.length)]
+          .replace('{attacker}', e.attacker)
+          .replace('{defender}', e.defender);
+        this.uiManager.addLog(msg);
+        if (e.killed && e.killedAt && e.killedSpecies) {
+          this.dropArtifact({
+            x: e.killedAt.x,
+            y: e.killedAt.y,
+            species: e.killedSpecies,
+            attacker: e.attacker,
+          } as any);
         }
-        this.uiManager.updateThoughts(ticked);
-        this.checkGameOver();
-        this.uiManager.updateBuildButtonStates();
+      } else if (e.type === 'dino_vs_dino') {
+        const lines = languageManager.narrative.combat.dinoAttack;
+        const msg = lines[Math.floor(Math.random() * lines.length)]
+          .replace('{attacker}', e.attacker)
+          .replace('{defender}', e.defender);
+        this.uiManager.addLog(msg);
+        if (e.killed) {
+          const deathLines = languageManager.narrative.combat.dinoDeath;
+          const deathMsg = deathLines[Math.floor(Math.random() * deathLines.length)]
+            .replace('{species}', e.defender);
+          this.uiManager.addLog(deathMsg);
+        }
       }
     }
-    this.mapRenderer.redrawFog();
-    this.mapRenderer.updateNight(this.simulation.tickCount);
+  }
+
+  private renderFrame(delta: number): void {
     this.entityRenderer.selectedSettler = this.selectedSettler;
+    const tilesPerMs = this.debugPanel.speed / this.simulation.tickRate;
+    this.entityRenderer.updateVisuals(delta, tilesPerMs);
+    this.mapRenderer.redrawFog();
+    this.simulation.tileGrid.updateFog(delta);
+    this.mapRenderer.updateNight(this.simulation.tickCount);
     this.entityRenderer.drawEntities();
     this.entityRenderer.drawPath();
     this.uiManager.updateLeftPanel(this.gameOver, this.simulation.tickCount);
@@ -424,10 +482,6 @@ export class GameScene extends Phaser.Scene {
     this.uiManager.updateInfoPanel();
     this.uiManager.updateMinimap();
     this.debugPanel.update(this.simulation);
-    } catch (err) {
-      console.error('GameScene.update error:', err);
-      this.uiManager?.addLog('UPDATE ERR: ' + (err as Error).message);
-    }
   }
 
   private buildStartingPerimeter(): void {
@@ -468,8 +522,8 @@ export class GameScene extends Phaser.Scene {
       if (occupant && occupant.entityType === 'resource') {
         const spot = findFreeInterior();
         if (spot) {
-          (occupant as Resource).x = spot.x;
-          (occupant as Resource).y = spot.y;
+          (occupant as Resource).moveTo(spot.x, spot.y);
+          (occupant as Resource).snapVisual();
           this.simulation.tileGrid.setOccupied(spot.x, spot.y, true);
         } else {
           this.simulation.entityManager.remove(occupant.id);
@@ -575,6 +629,7 @@ export class GameScene extends Phaser.Scene {
       this.uiManager.updateBuildButtonStates();
     }
     this.selectedSettler = settler;
+    this.scrollTo(this.selectedSettler.x, this.selectedSettler.y);
   }
 
   cycleSettler(): void {
@@ -583,10 +638,12 @@ export class GameScene extends Phaser.Scene {
     const idx = alive.indexOf(this.selectedSettler);
     const nextIdx = (idx + 1) % alive.length;
     this.selectedSettler = alive[nextIdx];
+    this.replayRecorder.record(ReplayActionType.SelectSettler, { settlerId: this.selectedSettler.id });
     if (this.uiManager.buildMode) {
       this.uiManager.buildMode = null;
       this.uiManager.updateBuildButtonStates();
     }
+    this.scrollTo(this.selectedSettler.x, this.selectedSettler.y);
     this.uiManager.addLog(`Selected: ${this.selectedSettler.name} (${this.selectedSettler.settlerClass})`);
   }
 
@@ -650,6 +707,8 @@ export class GameScene extends Phaser.Scene {
     this.gameOver = true;
     this.debugPanel.paused = true;
     this.inputHandler.hideHover();
+    this.replayRecorder.stop();
+    this.replayRecorder.autoSave();
 
     this.gameOverContainer = this.add.container(0, 0).setDepth(100);
 
@@ -688,5 +747,26 @@ export class GameScene extends Phaser.Scene {
       .on('pointerover', () => restartBtn.setColor('#ffffff'))
       .on('pointerout', () => restartBtn.setColor('#ffd700'));
     this.gameOverContainer.add(restartBtn);
+  }
+
+  private loadReplay(): void {
+    const input = document.createElement('input');
+    input.type = 'file';
+    input.accept = '.json';
+    input.onchange = (e) => {
+      const file = (e.target as HTMLInputElement).files?.[0];
+      if (!file) return;
+      const reader = new FileReader();
+      reader.onload = (ev) => {
+        try {
+          const data = JSON.parse(ev.target?.result as string);
+          this.scene.start('ReplayScene', { replay: data });
+        } catch (err) {
+          this.uiManager.addLog('Failed to load replay file');
+        }
+      };
+      reader.readAsText(file);
+    };
+    input.click();
   }
 }

@@ -2,6 +2,8 @@ import { Entity } from './Entity';
 import { Settler } from '../entities/Settler';
 import { Resource } from '../entities/Resource';
 import { Building } from '../entities/Building';
+import { Dinosaur } from '../entities/Dinosaur';
+import { Artifact } from '../entities/Artifact';
 
 export class EntityManager {
   private entities: Map<number, Entity> = new Map();
@@ -47,6 +49,12 @@ export class EntityManager {
           break;
         case 'building':
           entity = Building.deserialize(d);
+          break;
+        case 'dinosaur':
+          entity = Dinosaur.deserialize(d);
+          break;
+        case 'artifact':
+          entity = Artifact.deserialize(d);
           break;
         default:
           entity = Entity.deserialize(d);
