@@ -88,5 +88,6 @@
   "easy": "EASY",
   "hard": "HARD",
   "easyDesc": "Wall and gate",
-  "hardDesc": "No protection"
+  "hardDesc": "No protection",
+  "repair": "REPAIR"
 }

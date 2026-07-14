@@ -6,6 +6,7 @@ const TUTORIAL_KEY = 'colonySim_tutorialSeen';
 
 export class BootScene extends Phaser.Scene {
   private screens = languageManager.narrative.tutorial.screens;
+  private introSounds: Phaser.Sound.BaseSound[] = [];
   private currentScreen: number = 0;
   private screenText!: Phaser.GameObjects.Text;
   private button!: Phaser.GameObjects.Text;
@@ -16,6 +17,8 @@ export class BootScene extends Phaser.Scene {
 
   preload(): void {
     this.load.image('startMenuBg', 'bg/start_menu_bg.jpg');
+    this.load.audio('intro', 'assets/audio/intro.wav');
+
   }
 
   create(): void {
@@ -27,6 +30,20 @@ export class BootScene extends Phaser.Scene {
 
     const { width, height } = this.cameras.main;
 
+
+
+    // Фоновое изображение
+    const bg = this.add.image(width / 2, height / 2, 'startMenuBg');
+
+    // Растянуть по размеру камеры (если пропорции не совпадают)
+    const scaleX = width / bg.width;
+    const scaleY = height / bg.height;
+    const scale = Math.max(scaleX, scaleY);
+    bg.setScale(scale);
+    bg.setScrollFactor(0); // фон фиксирован относительно камеры
+
+    // Затем — тёмный оверлей, чтобы текст читался
+    this.add.rectangle(width / 2, height / 2, width, height, 0x0a0a2e, 0.6);
     this.add.rectangle(width / 2, height / 2, width, height, 0x0a0a2e, 1);
 
     const title = this.add.text(width / 2, 60, languageManager.narrative.tutorial.title, {
@@ -46,6 +63,9 @@ export class BootScene extends Phaser.Scene {
       .on('pointerover', () => this.button.setColor('#ffffff'))
       .on('pointerout', () => this.button.setColor('#ffd700'));
 
+    this.introSounds = [
+      this.sound.add('intro'),
+    ];
     this.showScreen(0);
   }
 
@@ -69,6 +89,16 @@ export class BootScene extends Phaser.Scene {
       duration: 500,
       delay: 200,
     });
+    // остановить прошлый звук (если шёл)
+    this.introSounds.forEach(s => {
+      if (s.isPlaying) s.stop();
+    });
+
+    // проиграть текущий звук, если есть
+    const sound = this.introSounds[index];
+    if (sound) {
+      sound.play();
+    }
   }
 
   private advanceScreen(): void {

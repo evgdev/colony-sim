@@ -84,8 +84,10 @@ export class UIManager {
   collectBtn!: Phaser.GameObjects.Text;
   demolishBtn!: Phaser.GameObjects.Text;
   continueBtn!: Phaser.GameObjects.Text;
+  repairBtn!: Phaser.GameObjects.Text;
   onDemolishCallback: ((entity: Entity) => void) | null = null;
   onContinueCallback: ((entity: Entity) => void) | null = null;
+  onRepairCallback: ((entity: Entity) => void) | null = null;
 
   eventText!: Phaser.GameObjects.Text;
 
@@ -357,6 +359,13 @@ export class UIManager {
     }).setInteractive({ useHandCursor: true })
       .on('pointerdown', () => this.onContinue());
     this.infoPanel.add(this.continueBtn);
+
+    this.repairBtn = this.scene.add.text(110, 190, `[${languageManager.ui.repair ?? 'REPAIR'}]`, {
+      fontSize: '14px', color: '#ffaa00', fontFamily: 'monospace',
+      backgroundColor: '#16213e', padding: { x: 12, y: 4 },
+    }).setInteractive({ useHandCursor: true })
+      .on('pointerdown', () => this.onRepair());
+    this.infoPanel.add(this.repairBtn);
   }
 
   private onDemolish(): void {
@@ -370,6 +379,13 @@ export class UIManager {
     if (!this.selectedBuilding) return;
     if (this.onContinueCallback) {
       this.onContinueCallback(this.selectedBuilding);
+    }
+  }
+
+  private onRepair(): void {
+    if (!this.selectedBuilding) return;
+    if (this.onRepairCallback) {
+      this.onRepairCallback(this.selectedBuilding);
     }
   }
 
@@ -772,6 +788,7 @@ export class UIManager {
       this.collectBtn.setVisible(false);
       this.demolishBtn.setVisible(true);
       this.continueBtn.setVisible(!bld.built);
+      this.repairBtn.setVisible(bld.built && bld.hp < bld.maxHp);
     } else if (this.selectedEntity) {
       const e = this.selectedEntity;
       let lines: string[] = [];
@@ -804,6 +821,7 @@ export class UIManager {
       this.infoText.setText(lines.join('\n'));
       this.demolishBtn.setVisible(false);
       this.continueBtn.setVisible(false);
+      this.repairBtn.setVisible(false);
     }
   }
 

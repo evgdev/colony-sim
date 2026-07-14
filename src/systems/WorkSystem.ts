@@ -103,6 +103,9 @@ export class WorkSystem {
       case TaskType.PickUpArtifact:
         this.executePickUpArtifact(settler, task, tickDelta);
         break;
+      case TaskType.Repair:
+        this.executeRepair(settler, task, tickDelta);
+        break;
       default:
         task.completed = true;
         break;
@@ -436,6 +439,70 @@ export class WorkSystem {
       assignedSettlerId: settler?.id,
     });
     this.taskQueue.add(task);
+    return task;
+  }
+
+  private executeRepair(settler: Settler, task: Task, tickDelta: number): void {
+    const building = this.findBuildingAt(task.targetX, task.targetY);
+    if (!building || building.built && building.hp >= building.maxHp) {
+      task.completed = true;
+      return;
+    }
+
+    if (settler.x !== task.targetX || settler.y !== task.targetY) {
+      if (settler.path.length === 0 || settler.pathIndex === 0) {
+        const path = this.movementSystem.findPath(settler.x, settler.y, task.targetX, task.targetY);
+        if (path.length <= 1) {
+          task.completed = true;
+          return;
+        }
+        settler.path = path;
+        settler.pathIndex = 1;
+      }
+
+      settler.pathIndex = this.movementSystem.stepAlongPath(settler, settler.path, settler.pathIndex);
+
+      if (settler.pathIndex < settler.path.length) return;
+      settler.path = [];
+      settler.pathIndex = 0;
+    }
+
+    // Repair costs resources from global inventory
+    const isSmall = building.buildingType === 'wall' || building.buildingType === 'gate';
+    const woodCost = isSmall ? 2 : 4;
+    const stoneCost = isSmall ? 2 : 4;
+    const healAmount = isSmall ? 20 : 20;
+
+    if (!this.simulation.hasResource('wood', woodCost) || !this.simulation.hasResource('stone', stoneCost)) {
+      task.completed = true;
+      return;
+    }
+
+    this.simulation.removeFromInventory('wood', woodCost);
+    this.simulation.removeFromInventory('stone', stoneCost);
+    building.repair(healAmount);
+  }
+
+  createRepairTask(building: Building, priority: TaskPriority = TaskPriority.Normal, settler?: Settler): Task {
+    if (settler) {
+      this.interruptSettler(settler);
+    } else {
+      const settlers = this.entityManager.getByType('settler') as Settler[];
+      for (const s of settlers) this.interruptSettler(s);
+    }
+    const task = new Task({
+      type: TaskType.Repair,
+      priority,
+      targetX: building.x,
+      targetY: building.y,
+      buildingId: `${building.id}`,
+      assignedSettlerId: settler?.id,
+    });
+    this.taskQueue.add(task);
+    if (settler && settler.isAlive && !settler.currentTaskId) {
+      settler.currentTaskId = task.id;
+      this.executeRepair(settler, task, 0);
+    }
     return task;
   }
 }

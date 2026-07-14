@@ -174,12 +174,30 @@ export class EntityRenderer {
     const baseColor = (buildingsData as any)[bld.buildingType]?.color ?? COLORS.building;
     const flash = bld.fireFlash;
     if (flash > 0) bld.fireFlash = Math.max(0, flash - 0.12);
+    const dmgFlash = bld.damageFlash;
+    if (dmgFlash > 0) bld.damageFlash = Math.max(0, dmgFlash - 0.15);
 
+    // HP-based damage tint: shift toward dark red as HP drops
+    const hpRatio = bld.built ? bld.hp / bld.maxHp : 1;
     let color = baseColor;
-    if (flash > 0) {
+    if (hpRatio < 1) {
       const r = (baseColor >> 16) & 0xff;
       const gg = (baseColor >> 8) & 0xff;
       const b = baseColor & 0xff;
+      // Blend toward dark red (0x440000) based on damage
+      const dmg = 1 - hpRatio;
+      const dr = 0x44, dg = 0x00, db = 0x00;
+      const lr = Math.round(r + (dr - r) * dmg * 0.6);
+      const lg = Math.round(gg + (dg - gg) * dmg * 0.6);
+      const lb = Math.round(b + (db - b) * dmg * 0.6);
+      color = (lr << 16) | (lg << 8) | lb;
+    }
+
+    // Fire flash overlay
+    if (flash > 0) {
+      const r = (color >> 16) & 0xff;
+      const gg = (color >> 8) & 0xff;
+      const b = color & 0xff;
       const lr = Math.min(255, Math.round(r + (255 - r) * flash));
       const lg = Math.min(255, Math.round(gg + (255 - gg) * flash));
       const lb = Math.min(255, Math.round(b + (255 - b) * flash));
@@ -189,12 +207,51 @@ export class EntityRenderer {
     const alpha = bld.built ? 1.0 : 0.5 + bld.progressPercent * 0.5;
     g.fillStyle(color, alpha);
     g.fillRect(cx - TILE_SIZE / 3, cy - TILE_SIZE / 3, TILE_SIZE / 1.5, TILE_SIZE / 1.5);
+
+    // Damage flash: red tint overlay
+    if (dmgFlash > 0) {
+      g.fillStyle(0xff0000, dmgFlash * 0.4);
+      g.fillRect(cx - TILE_SIZE / 3, cy - TILE_SIZE / 3, TILE_SIZE / 1.5, TILE_SIZE / 1.5);
+    }
+
+    // Fire flash overlay
     if (flash > 0) {
       g.fillStyle(0xffffff, flash * 0.5);
       g.fillRect(cx - TILE_SIZE / 3, cy - TILE_SIZE / 3, TILE_SIZE / 1.5, TILE_SIZE / 1.5);
     }
-    g.lineStyle(2, flash > 0 ? 0xffff66 : 0x000000);
+
+    g.lineStyle(2, (flash > 0 || dmgFlash > 0) ? 0xffff66 : 0x000000);
     g.strokeRect(cx - TILE_SIZE / 3, cy - TILE_SIZE / 3, TILE_SIZE / 1.5, TILE_SIZE / 1.5);
+
+    // Damage cracks: draw random lines when HP is low
+    if (bld.built && hpRatio < 0.7) {
+      const crackAlpha = (1 - hpRatio) * 0.8;
+      const crackColor = hpRatio < 0.4 ? 0x330000 : 0x553300;
+      g.lineStyle(1, crackColor, crackAlpha);
+      // Use building position as seed for deterministic cracks
+      const seed = bld.id * 17;
+      for (let i = 0; i < Math.floor((1 - hpRatio) * 5); i++) {
+        const ox = ((seed + i * 13) % 20) - 10;
+        const oy = ((seed + i * 7) % 20) - 10;
+        const len = 4 + ((seed + i * 3) % 6);
+        g.lineBetween(
+          cx + ox, cy + oy,
+          cx + ox + len, cy + oy + (i % 2 === 0 ? 3 : -3)
+        );
+      }
+    }
+
+    // HP bar for damaged buildings
+    if (bld.built && hpRatio < 1) {
+      const barX = cx - TILE_SIZE / 3;
+      const barY = cy - TILE_SIZE / 3 - 6;
+      const barW = TILE_SIZE / 1.5;
+      g.fillStyle(0x333333, 0.8);
+      g.fillRect(barX, barY, barW, 4);
+      const barColor = hpRatio > 0.5 ? 0x44cc44 : hpRatio > 0.25 ? 0xcccc44 : 0xcc4444;
+      g.fillStyle(barColor, 1);
+      g.fillRect(barX, barY, barW * hpRatio, 4);
+    }
 
     if (!bld.built) {
       const barX = cx - TILE_SIZE / 3;

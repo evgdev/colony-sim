@@ -40,6 +40,16 @@
     "dinoDeath": [
       "The {species} collapses. The ground shudders one last time.",
       "Nature reclaims what was borrowed."
+    ],
+    "wallAttack": [
+      "Scale strikes stone. The wall cracks.",
+      "The {species} methodically dismantles the defenses.",
+      "Blow after blow. The wall trembles."
+    ],
+    "wallDestroyed": [
+      "The defenses are breached! The wall crumbles!",
+      "A hole in the wall! Dinosaurs pour through!",
+      "The wall could not hold. The colony is exposed."
     ]
   },
   "milestones": {

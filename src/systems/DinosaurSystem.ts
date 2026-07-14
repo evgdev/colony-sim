@@ -19,15 +19,17 @@ export class DinosaurSystem {
   private maxDinosaurs: number = 6;
   private onSettlerDeath?: (name: string) => void;
   private onSpawn?: (species: string) => void;
+  private onWallDestroyed?: (x: number, y: number) => void;
   private nightSpawnMultiplier: number = 2;
   rng: SeededRandom;
 
-  constructor(entityManager: EntityManager, tileGrid: TileGrid, seed: number, onSettlerDeath?: (name: string) => void, onSpawn?: (species: string) => void) {
+  constructor(entityManager: EntityManager, tileGrid: TileGrid, seed: number, onSettlerDeath?: (name: string) => void, onSpawn?: (species: string) => void, onWallDestroyed?: (x: number, y: number) => void) {
     this.entityManager = entityManager;
     this.tileGrid = tileGrid;
     this.rng = new SeededRandom(seed ^ 77777);
     this.onSettlerDeath = onSettlerDeath;
     this.onSpawn = onSpawn;
+    this.onWallDestroyed = onWallDestroyed;
   }
 
   private isNightPhase(tickCount: number): boolean {
@@ -158,7 +160,19 @@ export class DinosaurSystem {
           break;
         }
         if (nearestSettler && distToSettler <= dino.aggroRange) {
-          this.moveToward(dino, nearestSettler, dino.speed);
+          const moved = this.moveToward(dino, nearestSettler, dino.speed);
+          if (!moved) {
+            // Blocked — check for adjacent wall to attack
+            const targetBuilding = this.findAdjacentBuilding(dino);
+            if (targetBuilding && dino.attackCooldown <= 0) {
+              targetBuilding.damage(dino.wallDamage);
+              targetBuilding.damageFlash = 1.0;
+              dino.attackCooldown = 2;
+              if (targetBuilding.hp <= 0) {
+                this.destroyBuilding(targetBuilding);
+              }
+            }
+          }
           dino.stateTimer = 0;
         } else {
           dino.state = 'wander';
@@ -173,9 +187,24 @@ export class DinosaurSystem {
 
       case 'attack':
         if (!nearestSettler || distToSettler > 1) {
-          dino.state = 'wander';
-          dino.wanderTarget = this.getRandomWalkableTile();
-          dino.stateTimer = 0;
+          // Can't reach settler — look for a wall/building to attack
+          const targetBuilding = this.findAdjacentBuilding(dino);
+          if (targetBuilding) {
+            if (dino.attackCooldown <= 0) {
+              targetBuilding.damage(dino.wallDamage);
+              targetBuilding.damageFlash = 1.0;
+              dino.attackCooldown = 2;
+              if (targetBuilding.hp <= 0) {
+                this.destroyBuilding(targetBuilding);
+                dino.state = 'idle';
+                dino.stateTimer = 0;
+              }
+            }
+          } else {
+            dino.state = 'wander';
+            dino.wanderTarget = this.getRandomWalkableTile();
+            dino.stateTimer = 0;
+          }
           break;
         }
         if (dino.attackCooldown <= 0) {
@@ -210,11 +239,14 @@ export class DinosaurSystem {
     }
   }
 
-  private moveToward(dino: Dinosaur, target: { x: number; y: number }, stepSize: number): void {
+  private moveToward(dino: Dinosaur, target: { x: number; y: number }, stepSize: number): boolean {
     const steps = Math.max(1, Math.ceil(stepSize));
+    let moved = false;
     for (let i = 0; i < steps; i++) {
       if (!this.stepOrthogonal(dino, target.x - dino.x, target.y - dino.y)) break;
+      moved = true;
     }
+    return moved;
   }
 
   private moveAwayFrom(dino: Dinosaur, threat: { x: number; y: number }, stepSize: number): void {
@@ -331,5 +363,31 @@ export class DinosaurSystem {
   private getRandomSpecies(night: boolean): string {
     const pool = night ? PREDATOR_SPECIES : HERBIVORE_SPECIES;
     return pool[this.rng.nextInt(pool.length)];
+  }
+
+  private findAdjacentBuilding(dino: Dinosaur): Building | null {
+    const dirs = [[0, -1], [0, 1], [-1, 0], [1, 0]];
+    for (const [dx, dy] of dirs) {
+      const nx = dino.x + dx;
+      const ny = dino.y + dy;
+      const tile = this.tileGrid.get(nx, ny);
+      if (!tile || !tile.building) continue;
+      const building = this.entityManager.getAll().find(
+        e => e.entityType === 'building' && e.x === nx && e.y === ny
+      ) as Building | undefined;
+      if (building) return building;
+    }
+    return null;
+  }
+
+  private destroyBuilding(building: Building): void {
+    this.entityManager.remove(building.id);
+    this.tileGrid.setOccupied(building.x, building.y, false);
+    this.tileGrid.setBuilding(building.x, building.y, false);
+    if ((building as any).buildingType === 'gate') {
+      this.tileGrid.setGate(building.x, building.y, false);
+      this.tileGrid.setDinoBlocked(building.x, building.y, false);
+    }
+    this.onWallDestroyed?.(building.x, building.y);
   }
 }

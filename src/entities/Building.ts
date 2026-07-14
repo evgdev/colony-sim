@@ -32,6 +32,7 @@ export class Building extends Entity {
   attackInterval: number = 0;
   attackCooldown: number = 0;
   fireFlash: number = 0;
+  damageFlash: number = 0;
 
   constructor(
     x: number, y: number, buildingType: string,

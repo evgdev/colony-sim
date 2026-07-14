@@ -141,6 +141,7 @@ export class GameScene extends Phaser.Scene {
     this.uiManager.onCollectCallback = (entity, queue) => this.handleCollect(entity, queue);
     this.uiManager.onDemolishCallback = (entity) => this.handleDemolish(entity);
     this.uiManager.onContinueCallback = (entity) => this.handleContinue(entity);
+    this.uiManager.onRepairCallback = (entity) => this.handleRepair(entity);
     this.uiManager.createSettlerIcons((index) => this.selectSettlerByIndex(index));
     this.uiManager.updateScroll(this.scrollX, this.scrollY);
 
@@ -270,6 +271,12 @@ export class GameScene extends Phaser.Scene {
           this.uiManager?.addLog(msg);
           this.uiManager?.addEvent(msg);
         }
+      },
+      (x, y) => {
+        const lines = languageManager.narrative.combat.wallDestroyed;
+        const msg = lines[Math.floor(Math.random() * lines.length)];
+        this.uiManager?.addLog(msg);
+        this.uiManager?.addEvent(msg);
       }
     );
     this.combatSystem = new CombatSystem(
@@ -797,6 +804,17 @@ export class GameScene extends Phaser.Scene {
     if (settler && settler.isAlive) {
       this.workSystem.createBuildTask(bld, TaskPriority.High, settler);
       this.uiManager.addLog(`Resuming construction of ${bld.buildingType}`);
+    }
+  }
+
+  private handleRepair(entity: import('../core/Entity').Entity): void {
+    if (entity.entityType !== 'building') return;
+    const bld = entity as Building;
+    if (!bld.built || bld.hp >= bld.maxHp) return;
+    const settler = this.selectedSettler;
+    if (settler && settler.isAlive) {
+      this.workSystem.createRepairTask(bld, TaskPriority.High, settler);
+      this.uiManager.addLog(`Repairing ${bld.buildingType} (needs wood:2 stone:2)`);
     }
   }
 
