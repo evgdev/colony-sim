@@ -19,6 +19,13 @@ export class BootScene extends Phaser.Scene {
     this.load.image('startMenuBg', 'bg/start_menu_bg.jpg');
     this.load.audio('intro', 'assets/audio/intro.wav');
 
+    const species = ['trex', 'raptor', 'brontosaur', 'pterodactyl'];
+    for (const s of species) {
+      this.load.spritesheet(s, `assets/dinosaurs/${s}.png`, {
+        frameWidth: 64,
+        frameHeight: 64,
+      });
+    }
   }
 
   create(): void {

@@ -102,27 +102,61 @@ function seededRandom(x: number, y: number, seed: number): number {
   return n - Math.floor(n);
 }
 
+function adjustBrightness(color: number, factor: number): number {
+  const r = Math.min(255, Math.max(0, Math.round(((color >> 16) & 0xff) * factor)));
+  const g = Math.min(255, Math.max(0, Math.round(((color >> 8) & 0xff) * factor)));
+  const b = Math.min(255, Math.max(0, Math.round((color & 0xff) * factor)));
+  return (r << 16) | (g << 8) | b;
+}
+
 export function createTileTextures(scene: Phaser.Scene): void {
   const s = TILE_SIZE;
 
-  const grassG = scene.add.graphics().setVisible(false);
-  grassG.fillStyle(0x3a5a2a);
-  grassG.fillRect(0, 0, s, s);
-  const grassColors = [0x336b25, 0x458a35, 0x2d4f1f, 0x3e6830, 0x2a5020];
-  const grassSeed = 42;
-  for (let y = 0; y < s; y++) {
-    for (let x = 0; x < s; x++) {
-      const r = seededRandom(x, y, grassSeed);
-      if (r < 0.4) {
-        const ci = Math.floor(seededRandom(x + 100, y + 100, grassSeed) * grassColors.length);
-        grassG.fillStyle(grassColors[ci]);
-        grassG.fillRect(x, y, 1, 1);
+  // === 8 grass variants ===
+  const grassBaseColors = [0x336b25, 0x458a35, 0x2d4f1f, 0x3e6830, 0x2a5020];
+  const grassFlowerColors = [0xffee44, 0xffffff, 0xff8844, 0xee66aa];
+  const grassBaseSeed = 42;
+
+  for (let v = 0; v < 8; v++) {
+    const baseGreen = adjustBrightness(0x3a5a2a, 0.9 + v * 0.03);
+    const g = scene.add.graphics().setVisible(false);
+    g.fillStyle(baseGreen);
+    g.fillRect(0, 0, s, s);
+
+    const seed = grassBaseSeed + v * 137;
+    for (let y = 0; y < s; y++) {
+      for (let x = 0; x < s; x++) {
+        const r = seededRandom(x, y, seed);
+        if (r < 0.4) {
+          const ci = Math.floor(seededRandom(x + 100, y + 100, seed) * grassBaseColors.length);
+          g.fillStyle(grassBaseColors[ci]);
+          g.fillRect(x, y, 1, 1);
+        }
       }
     }
-  }
-  grassG.generateTexture('tile_grass', s, s);
-  grassG.destroy();
 
+    // Occasional flowers (2-4 per tile)
+    const flowerCount = 2 + Math.floor(seededRandom(v, 0, seed + 999) * 3);
+    for (let f = 0; f < flowerCount; f++) {
+      const fx = Math.floor(seededRandom(v, f * 7, seed + 500) * (s - 4)) + 2;
+      const fy = Math.floor(seededRandom(v, f * 13, seed + 600) * (s - 4)) + 2;
+      const fc = grassFlowerColors[Math.floor(seededRandom(v, f, seed + 700) * grassFlowerColors.length)];
+      g.fillStyle(fc, 0.9);
+      g.fillCircle(fx, fy, 1.5);
+    }
+
+    g.generateTexture(`tile_grass_${v}`, s, s);
+    g.destroy();
+  }
+
+  // Keep original grass key as fallback
+  const fallbackG = scene.add.graphics().setVisible(false);
+  fallbackG.fillStyle(0x3a5a2a);
+  fallbackG.fillRect(0, 0, s, s);
+  fallbackG.generateTexture('tile_grass', s, s);
+  fallbackG.destroy();
+
+  // === Stone ===
   const stoneG = scene.add.graphics().setVisible(false);
   stoneG.fillStyle(0x4a4a4a);
   stoneG.fillRect(0, 0, s, s);
@@ -141,6 +175,7 @@ export function createTileTextures(scene: Phaser.Scene): void {
   stoneG.generateTexture('tile_stone', s, s);
   stoneG.destroy();
 
+  // === Sand ===
   const sandG = scene.add.graphics().setVisible(false);
   sandG.fillStyle(0xc2b280);
   sandG.fillRect(0, 0, s, s);
@@ -159,35 +194,59 @@ export function createTileTextures(scene: Phaser.Scene): void {
   sandG.generateTexture('tile_sand', s, s);
   sandG.destroy();
 
-  const waterG = scene.add.graphics().setVisible(false);
-  waterG.fillStyle(0x3b7dd8);
-  waterG.fillRect(0, 0, s, s);
-  waterG.lineStyle(2, 0x5599ee, 0.5);
-  waterG.beginPath();
-  waterG.moveTo(0, 12);
-  waterG.lineTo(12, 10);
-  waterG.lineTo(25, 14);
-  waterG.lineTo(38, 11);
-  waterG.lineTo(50, 13);
-  waterG.strokePath();
-  waterG.beginPath();
-  waterG.moveTo(0, 28);
-  waterG.lineTo(10, 26);
-  waterG.lineTo(22, 30);
-  waterG.lineTo(35, 27);
-  waterG.lineTo(50, 29);
-  waterG.strokePath();
-  waterG.lineStyle(1, 0x77bbee, 0.3);
-  waterG.beginPath();
-  waterG.moveTo(0, 40);
-  waterG.lineTo(15, 38);
-  waterG.lineTo(30, 42);
-  waterG.lineTo(45, 39);
-  waterG.lineTo(50, 41);
-  waterG.strokePath();
-  waterG.generateTexture('tile_water', s, s);
-  waterG.destroy();
+  // === Water (3 phases for animation) ===
+  for (let phase = 0; phase < 3; phase++) {
+    const wG = scene.add.graphics().setVisible(false);
+    wG.fillStyle(0x3b7dd8);
+    wG.fillRect(0, 0, s, s);
 
+    const offset = phase * 8;
+    wG.lineStyle(2, 0x5599ee, 0.5);
+    wG.beginPath();
+    wG.moveTo(0, 10 + offset % 6);
+    wG.lineTo(12, 8 + offset % 6);
+    wG.lineTo(25, 12 + offset % 6);
+    wG.lineTo(38, 9 + offset % 6);
+    wG.lineTo(50, 11 + offset % 6);
+    wG.strokePath();
+
+    wG.beginPath();
+    wG.moveTo(0, 26 + offset % 8);
+    wG.lineTo(10, 24 + offset % 8);
+    wG.lineTo(22, 28 + offset % 8);
+    wG.lineTo(35, 25 + offset % 8);
+    wG.lineTo(50, 27 + offset % 8);
+    wG.strokePath();
+
+    wG.lineStyle(1, 0x77bbee, 0.3);
+    wG.beginPath();
+    wG.moveTo(0, 40 + offset % 5);
+    wG.lineTo(15, 38 + offset % 5);
+    wG.lineTo(30, 42 + offset % 5);
+    wG.lineTo(45, 39 + offset % 5);
+    wG.lineTo(50, 41 + offset % 5);
+    wG.strokePath();
+
+    wG.generateTexture(`tile_water_${phase}`, s, s);
+    wG.destroy();
+  }
+
+  // Original water key as fallback
+  const waterFallback = scene.add.graphics().setVisible(false);
+  waterFallback.fillStyle(0x3b7dd8);
+  waterFallback.fillRect(0, 0, s, s);
+  waterFallback.lineStyle(2, 0x5599ee, 0.5);
+  waterFallback.beginPath();
+  waterFallback.moveTo(0, 12);
+  waterFallback.lineTo(12, 10);
+  waterFallback.lineTo(25, 14);
+  waterFallback.lineTo(38, 11);
+  waterFallback.lineTo(50, 13);
+  waterFallback.strokePath();
+  waterFallback.generateTexture('tile_water', s, s);
+  waterFallback.destroy();
+
+  // === Dirt ===
   const dirtG = scene.add.graphics().setVisible(false);
   dirtG.fillStyle(0x8b7355);
   dirtG.fillRect(0, 0, s, s);
@@ -205,4 +264,424 @@ export function createTileTextures(scene: Phaser.Scene): void {
   }
   dirtG.generateTexture('tile_dirt', s, s);
   dirtG.destroy();
+}
+
+export function createDecorationTextures(scene: Phaser.Scene): void {
+  const s = TILE_SIZE;
+
+  // === Tropical tree — split into bottom (trunk) and top (canopy) ===
+  const treeW = 70;
+  const treeH = 90;
+  for (let v = 0; v < 3; v++) {
+    const seed = 1000 + v * 31;
+    const cx = treeW / 2;
+    const baseY = treeH - 8;
+
+    const trunkColor = 0x5a4a3a;
+    const trunkDark = 0x3a2a1a;
+    const trunkLight = 0x6a5a4a;
+
+    const forkY = baseY - 35;
+
+    const branchAngles = [
+      { angle: -0.9, len: 28 + v * 2 },
+      { angle: -0.4, len: 24 + v },
+      { angle: 0.0, len: 20 },
+      { angle: 0.4, len: 24 + v },
+      { angle: 0.9, len: 28 + v * 2 },
+    ];
+
+    const leafColors = [0x2a5a1a, 0x3a7a2a, 0x2d6b1e, 0x1e5010, 0x4a8a3a];
+    const highlightColors = [0x5a9a4a, 0x6aaa5a, 0x4a8a3a];
+
+    // === BOTTOM: trunk + branches + lower leaf clusters ===
+    const gBot = scene.add.graphics().setVisible(false);
+
+    // Trunk
+    gBot.fillStyle(trunkColor);
+    gBot.fillRect(cx - 4, baseY - 35, 8, 35);
+    gBot.fillStyle(trunkLight, 0.4);
+    gBot.fillRect(cx - 2, baseY - 30, 3, 25);
+    gBot.fillStyle(trunkDark, 0.3);
+    gBot.fillRect(cx + 2, baseY - 28, 2, 22);
+
+    // Roots
+    gBot.lineStyle(3, trunkColor);
+    gBot.lineBetween(cx - 4, baseY, cx - 10, baseY + 4);
+    gBot.lineBetween(cx + 4, baseY, cx + 10, baseY + 4);
+    gBot.lineBetween(cx - 3, baseY + 1, cx - 7, baseY + 6);
+    gBot.lineBetween(cx + 3, baseY + 1, cx + 8, baseY + 5);
+
+    // Branches
+    gBot.lineStyle(3, trunkColor);
+    for (const b of branchAngles) {
+      const ex = cx + Math.sin(b.angle) * b.len;
+      const ey = forkY - Math.cos(b.angle) * b.len * 0.6;
+      gBot.lineBetween(cx, forkY, ex, ey);
+    }
+
+    // Lower leaf clusters (bottom half of canopy)
+    for (let i = 0; i < branchAngles.length; i++) {
+      const b = branchAngles[i];
+      const bx = cx + Math.sin(b.angle) * b.len;
+      const by = forkY - Math.cos(b.angle) * b.len * 0.6;
+
+      // Only draw clusters below the midline
+      if (by < forkY - 10) continue;
+
+      const clusterSize = 12 + seededRandom(v, i, seed + 50) * 6;
+      const leafColor = leafColors[Math.floor(seededRandom(v, i, seed + 60) * leafColors.length)];
+      gBot.fillStyle(leafColor, 0.85);
+      gBot.fillCircle(bx, by, clusterSize);
+      gBot.fillCircle(bx - 5, by + 3, clusterSize * 0.7);
+      gBot.fillCircle(bx + 4, by + 2, clusterSize * 0.6);
+    }
+
+    // Central lower mass
+    gBot.fillStyle(0x2a5a1a, 0.6);
+    gBot.fillCircle(cx, forkY, 16);
+
+    gBot.generateTexture(`dec_palm_${v}_bottom`, treeW, treeH);
+    gBot.destroy();
+
+    // === TOP: upper canopy only (covers settlers) ===
+    const gTop = scene.add.graphics().setVisible(false);
+
+    for (let i = 0; i < branchAngles.length; i++) {
+      const b = branchAngles[i];
+      const bx = cx + Math.sin(b.angle) * b.len;
+      const by = forkY - Math.cos(b.angle) * b.len * 0.6;
+
+      // Only draw clusters above the midline
+      if (by >= forkY - 10) continue;
+
+      const clusterSize = 12 + seededRandom(v, i, seed + 50) * 6;
+      const leafColor = leafColors[Math.floor(seededRandom(v, i, seed + 60) * leafColors.length)];
+      gTop.fillStyle(leafColor, 0.85);
+      gTop.fillCircle(bx, by, clusterSize);
+      gTop.fillCircle(bx - 5, by + 3, clusterSize * 0.7);
+      gTop.fillCircle(bx + 4, by + 2, clusterSize * 0.6);
+
+      // Highlight
+      const hlColor = highlightColors[Math.floor(seededRandom(v, i, seed + 70) * highlightColors.length)];
+      gTop.fillStyle(hlColor, 0.5);
+      gTop.fillCircle(bx - 4, by - 4, clusterSize * 0.5);
+    }
+
+    // Central upper mass
+    gTop.fillStyle(0x2a5a1a, 0.6);
+    gTop.fillCircle(cx, forkY - 15, 18);
+    gTop.fillStyle(0x3a7a2a, 0.5);
+    gTop.fillCircle(cx - 6, forkY - 20, 12);
+    gTop.fillCircle(cx + 7, forkY - 18, 10);
+    gTop.fillStyle(0x5a9a4a, 0.3);
+    gTop.fillCircle(cx - 3, forkY - 25, 14);
+
+    gTop.generateTexture(`dec_palm_${v}_top`, treeW, treeH);
+    gTop.destroy();
+  }
+
+  // === Bush (30×25) ===
+  for (let v = 0; v < 3; v++) {
+    const g = scene.add.graphics().setVisible(false);
+    const bw = 30;
+    const bh = 25;
+    const seed = 2000 + v * 31;
+    const shades = [0x2d6b1e, 0x3a7a2a, 0x256018];
+    // Main bush body
+    g.fillStyle(shades[0]);
+    g.fillCircle(bw / 2, bh / 2 + 3, 11);
+    g.fillStyle(shades[1]);
+    g.fillCircle(bw / 2 - 4, bh / 2, 8);
+    g.fillStyle(shades[2]);
+    g.fillCircle(bw / 2 + 5, bh / 2 + 2, 7);
+    // Highlight
+    g.fillStyle(0x4a9a3a, 0.5);
+    g.fillCircle(bw / 2 - 2, bh / 2 - 3, 5);
+    // Small berries
+    if (seededRandom(v, 0, seed) > 0.5) {
+      g.fillStyle(0xcc3333);
+      g.fillCircle(bw / 2 + 6, bh / 2 - 2, 2);
+      g.fillCircle(bw / 2 - 5, bh / 2 + 4, 2);
+    }
+    g.generateTexture(`dec_bush_${v}`, bw, bh);
+    g.destroy();
+  }
+
+  // === Flower patch (20×20) ===
+  const flowerPalette = [
+    [0xffee44, 0xff6644],
+    [0xff88cc, 0xee44aa],
+    [0x44aaff, 0x2266ee],
+  ];
+  for (let v = 0; v < 3; v++) {
+    const g = scene.add.graphics().setVisible(false);
+    const fw = 20;
+    const fh = 20;
+    const seed = 3000 + v * 31;
+    const colors = flowerPalette[v % flowerPalette.length];
+
+    // Leaves
+    g.fillStyle(0x3a7a2a, 0.6);
+    g.fillCircle(fw / 2, fh / 2 + 4, 6);
+
+    // Flowers (3-5)
+    const count = 3 + Math.floor(seededRandom(v, 0, seed) * 3);
+    for (let f = 0; f < count; f++) {
+      const fx = fw / 2 + (seededRandom(v, f, seed + 10) - 0.5) * 14;
+      const fy = fh / 2 + (seededRandom(v, f, seed + 20) - 0.5) * 10;
+      const fc = colors[f % 2];
+      g.fillStyle(fc);
+      g.fillCircle(fx, fy, 2.5);
+      g.fillStyle(0xffff88);
+      g.fillCircle(fx, fy, 1);
+    }
+    g.generateTexture(`dec_flower_${v}`, fw, fh);
+    g.destroy();
+  }
+
+  // === Small rock (16×12) ===
+  for (let v = 0; v < 2; v++) {
+    const g = scene.add.graphics().setVisible(false);
+    const rw = 16;
+    const rh = 12;
+    const seed = 4000 + v * 31;
+    const baseGray = 0x777777 + v * 0x111111;
+    g.fillStyle(baseGray);
+    g.fillCircle(rw / 2, rh / 2 + 1, 6);
+    g.fillStyle(0x999999, 0.4);
+    g.fillCircle(rw / 2 - 2, rh / 2 - 1, 3);
+    g.lineStyle(1, 0x555555, 0.6);
+    g.strokeCircle(rw / 2, rh / 2 + 1, 6);
+    g.generateTexture(`dec_rock_s_${v}`, rw, rh);
+    g.destroy();
+  }
+
+  // === Large rock (28×24) ===
+  for (let v = 0; v < 2; v++) {
+    const g = scene.add.graphics().setVisible(false);
+    const rw = 28;
+    const rh = 24;
+    const seed = 5000 + v * 31;
+    const baseGray = 0x666666 + v * 0x111111;
+    g.fillStyle(baseGray);
+    g.fillCircle(rw / 2, rh / 2 + 2, 10);
+    g.fillCircle(rw / 2 - 6, rh / 2, 7);
+    g.fillStyle(0x888888, 0.4);
+    g.fillCircle(rw / 2 - 3, rh / 2 - 3, 5);
+    g.lineStyle(1, 0x444444, 0.5);
+    g.strokeCircle(rw / 2, rh / 2 + 2, 10);
+    g.generateTexture(`dec_rock_l_${v}`, rw, rh);
+    g.destroy();
+  }
+
+  // === Shore plant (24×20) ===
+  for (let v = 0; v < 2; v++) {
+    const g = scene.add.graphics().setVisible(false);
+    const sw = 24;
+    const sh = 20;
+    const seed = 6000 + v * 31;
+    // Reeds
+    g.lineStyle(2, 0x5a8a3a);
+    for (let r = 0; r < 3; r++) {
+      const rx = sw / 2 - 4 + r * 4;
+      g.lineBetween(rx, sh, rx + (seededRandom(v, r, seed) - 0.5) * 4, 4);
+    }
+    // Leaves
+    g.fillStyle(0x4a7a2a, 0.8);
+    g.fillCircle(sw / 2, sh / 2, 5);
+    g.generateTexture(`dec_shore_${v}`, sw, sh);
+    g.destroy();
+  }
+
+  // === Tall grass (14×28) ===
+  for (let v = 0; v < 2; v++) {
+    const g = scene.add.graphics().setVisible(false);
+    const gw = 14;
+    const gh = 28;
+    const seed = 7000 + v * 31;
+    const greens = [0x4a8a3a, 0x3a7a2a, 0x5a9a4a];
+    g.lineStyle(2, greens[0]);
+    g.lineBetween(gw / 2 - 2, gh, gw / 2 - 4 + seededRandom(v, 0, seed) * 3, 3);
+    g.lineStyle(2, greens[1]);
+    g.lineBetween(gw / 2, gh, gw / 2 + seededRandom(v, 1, seed) * 3, 5);
+    g.lineStyle(2, greens[2]);
+    g.lineBetween(gw / 2 + 2, gh, gw / 2 + 1 + seededRandom(v, 2, seed) * 3, 2);
+    // Tips
+    g.fillStyle(0x6aaa5a);
+    g.fillCircle(gw / 2 - 3, 3, 2);
+    g.fillCircle(gw / 2 + 2, 5, 2);
+    g.generateTexture(`dec_grass_tall_${v}`, gw, gh);
+    g.destroy();
+  }
+}
+
+export function createTransitionTextures(scene: Phaser.Scene): void {
+  const s = TILE_SIZE;
+  const biomeColors: Record<string, number> = {
+    grass: 0x3a5a2a,
+    sand: 0xc2b280,
+    water: 0x3b7dd8,
+    stone: 0x4a4a4a,
+    dirt: 0x8b7355,
+  };
+
+  const pairs: [string, string][] = [
+    ['grass', 'sand'],
+    ['sand', 'water'],
+    ['grass', 'stone'],
+    ['grass', 'dirt'],
+    ['dirt', 'sand'],
+    ['stone', 'sand'],
+    ['dirt', 'water'],
+    ['stone', 'water'],
+    ['grass', 'water'],
+  ];
+
+  for (const [inner, outer] of pairs) {
+    const innerColor = biomeColors[inner];
+    const outerColor = biomeColors[outer];
+    if (innerColor === undefined || outerColor === undefined) continue;
+
+    const baseKey = inner === 'grass' ? `tile_grass_${Math.floor(Math.random() * 8)}` : `tile_${inner}`;
+    const baseTex = scene.textures.get(baseKey);
+    const baseSource = baseTex?.getSourceImage();
+
+    for (let mask = 0; mask < 16; mask++) {
+      const topEdge = (mask & 1) === 0;
+      const rightEdge = (mask & 2) === 0;
+      const bottomEdge = (mask & 4) === 0;
+      const leftEdge = (mask & 8) === 0;
+
+      const hasEdge = topEdge || rightEdge || bottomEdge || leftEdge;
+      if (!hasEdge) continue;
+
+      const canvas = document.createElement('canvas');
+      canvas.width = s;
+      canvas.height = s;
+      const ctx = canvas.getContext('2d')!;
+
+      if (baseSource) {
+        ctx.drawImage(baseSource as HTMLImageElement, 0, 0, s, s);
+      } else {
+        ctx.fillStyle = `#${innerColor.toString(16).padStart(6, '0')}`;
+        ctx.fillRect(0, 0, s, s);
+      }
+
+      const maskCanvas = document.createElement('canvas');
+      maskCanvas.width = s;
+      maskCanvas.height = s;
+      const maskCtx = maskCanvas.getContext('2d')!;
+
+      const outerHex = `#${outerColor.toString(16).padStart(6, '0')}`;
+      maskCtx.fillStyle = outerHex;
+      maskCtx.fillRect(0, 0, s, s);
+
+      const maskData = maskCtx.getImageData(0, 0, s, s);
+      const pixels = maskData.data;
+      const seed = mask * 1000 + inner.length * 7 + outer.length * 13;
+
+      for (let py = 0; py < s; py++) {
+        for (let px = 0; px < s; px++) {
+          const idx = (py * s + px) * 4;
+          const n = seededRandom(px, py, seed);
+
+          let edgeDist = 1.0;
+          if (topEdge) edgeDist = Math.min(edgeDist, py / s);
+          if (bottomEdge) edgeDist = Math.min(edgeDist, (s - 1 - py) / s);
+          if (leftEdge) edgeDist = Math.min(edgeDist, px / s);
+          if (rightEdge) edgeDist = Math.min(edgeDist, (s - 1 - px) / s);
+
+          const threshold = edgeDist + (n - 0.5) * 0.25;
+          const alpha = threshold < 0.08 ? 1.0 : threshold < 0.35 ? (0.35 - threshold) / 0.27 : 0;
+          pixels[idx + 3] = Math.round(alpha * 255);
+        }
+      }
+
+      maskCtx.putImageData(maskData, 0, 0);
+      ctx.drawImage(maskCanvas, 0, 0);
+
+      if (inner === 'grass') {
+        const grassNoise = ctx.getImageData(0, 0, s, s);
+        const gn = grassNoise.data;
+        const grassColors = [0x336b25, 0x458a35, 0x2d4f1f, 0x3e6830];
+        for (let py = 0; py < s; py++) {
+          for (let px = 0; px < s; px++) {
+            const idx = (py * s + px) * 4;
+            if (gn[idx + 3] < 200) continue;
+            const nr = seededRandom(px + 300, py + 300, seed);
+            if (nr < 0.15) {
+              const gc = grassColors[Math.floor(seededRandom(px + 400, py + 400, seed) * grassColors.length)];
+              gn[idx] = (gc >> 16) & 0xff;
+              gn[idx + 1] = (gc >> 8) & 0xff;
+              gn[idx + 2] = gc & 0xff;
+            }
+          }
+        }
+        ctx.putImageData(grassNoise, 0, 0);
+      }
+
+      const texKey = `trans_${inner}_${outer}_${mask}`;
+      if (scene.textures.exists(texKey)) scene.textures.remove(texKey);
+      scene.textures.addCanvas(texKey, canvas);
+    }
+
+    for (const [cornerName, cx, cy] of [
+      ['corner_ur', 1, 0],
+      ['corner_dr', 1, 1],
+      ['corner_dl', 0, 1],
+      ['corner_ul', 0, 0],
+    ] as [string, number, number][]) {
+      const canvas = document.createElement('canvas');
+      canvas.width = s;
+      canvas.height = s;
+      const ctx = canvas.getContext('2d')!;
+
+      const cornerBaseKey = inner === 'grass' ? `tile_grass_${Math.floor(Math.random() * 8)}` : `tile_${inner}`;
+      const cornerBaseTex = scene.textures.get(cornerBaseKey);
+      const cornerBaseSource = cornerBaseTex?.getSourceImage();
+
+      if (cornerBaseSource) {
+        ctx.drawImage(cornerBaseSource as HTMLImageElement, 0, 0, s, s);
+      } else {
+        ctx.fillStyle = `#${innerColor.toString(16).padStart(6, '0')}`;
+        ctx.fillRect(0, 0, s, s);
+      }
+
+      const maskCanvas = document.createElement('canvas');
+      maskCanvas.width = s;
+      maskCanvas.height = s;
+      const maskCtx = maskCanvas.getContext('2d')!;
+
+      const outerHex = `#${outerColor.toString(16).padStart(6, '0')}`;
+      maskCtx.fillStyle = outerHex;
+      maskCtx.fillRect(0, 0, s, s);
+
+      const maskData = maskCtx.getImageData(0, 0, s, s);
+      const pixels = maskData.data;
+      const seed = cornerName.charCodeAt(6) * 100 + inner.length * 7 + outer.length * 13;
+
+      for (let py = 0; py < s; py++) {
+        for (let px = 0; px < s; px++) {
+          const idx = (py * s + px) * 4;
+          const n = seededRandom(px, py, seed);
+
+          const cornerX = cx === 0 ? px : s - 1 - px;
+          const cornerY = cy === 0 ? py : s - 1 - py;
+          const cornerDist = Math.sqrt(cornerX * cornerX + cornerY * cornerY) / s;
+
+          const threshold = cornerDist + (n - 0.5) * 0.15;
+          const alpha = threshold < 0.2 ? 0.8 : threshold < 0.35 ? (0.35 - threshold) / 0.15 * 0.8 : 0;
+          pixels[idx + 3] = Math.round(alpha * 255);
+        }
+      }
+
+      maskCtx.putImageData(maskData, 0, 0);
+      ctx.drawImage(maskCanvas, 0, 0);
+
+      const texKey = `trans_${inner}_${outer}_${cornerName}`;
+      if (scene.textures.exists(texKey)) scene.textures.remove(texKey);
+      scene.textures.addCanvas(texKey, canvas);
+    }
+  }
 }

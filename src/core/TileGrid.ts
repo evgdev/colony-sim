@@ -1,9 +1,16 @@
 export type TileType = 'grass' | 'dirt' | 'water' | 'stone' | 'sand';
 
+export interface BiomeBlend {
+  primary: TileType;
+  secondary: TileType;
+  ratio: number;
+}
+
 export interface TileData {
   type: TileType;
   walkCost: number;
   walkable: boolean;
+  blend?: BiomeBlend;
 }
 
 export interface TileState extends TileData {
@@ -33,7 +40,11 @@ export class TileGrid {
       const revRow: boolean[] = [];
       const fogRow: number[] = [];
       for (let x = 0; x < width; x++) {
-        row.push({ type: 'grass', walkCost: 1, walkable: true, x, y, occupied: false, dinoBlocked: false, gate: false, building: false });
+        row.push({
+          type: 'grass', walkCost: 1, walkable: true,
+          blend: { primary: 'grass', secondary: 'grass', ratio: 0 },
+          x, y, occupied: false, dinoBlocked: false, gate: false, building: false,
+        });
         revRow.push(false);
         fogRow.push(0);
       }

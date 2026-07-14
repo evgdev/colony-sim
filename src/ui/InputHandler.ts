@@ -191,9 +191,7 @@ export class InputHandler {
       return;
     }
 
-    const buildingAtTile = this.simulation.entityManager.getAll().find(
-      e => e.entityType === 'building' && e.x === tileX && e.y === tileY
-    ) as Building | undefined;
+    const buildingAtTile = this.simulation.entityManager.getAt(tileX, tileY, 'building') as Building | undefined;
 
     if (buildingAtTile) {
       this.uiManager.selectedBuilding = buildingAtTile;
@@ -205,9 +203,7 @@ export class InputHandler {
       return;
     }
 
-    const settlerAtTile = this.simulation.entityManager.getAll().find(
-      e => e.entityType === 'settler' && e.x === tileX && e.y === tileY
-    ) as Settler | undefined;
+    const settlerAtTile = this.simulation.entityManager.getAt(tileX, tileY, 'settler') as Settler | undefined;
 
     if (settlerAtTile) {
       this.recorder?.record(ReplayActionType.SelectSettler, { settlerId: settlerAtTile.id });
@@ -218,9 +214,8 @@ export class InputHandler {
       return;
     }
 
-    const entityAtTile = this.simulation.entityManager.getAll().find(
-      e => (e.entityType === 'resource' || e.entityType === 'dinosaur' || e.entityType === 'artifact') && e.x === tileX && e.y === tileY
-    );
+    const entityAtTile = this.simulation.entityManager.getAllAt(tileX, tileY)
+      .find(e => e.entityType === 'resource' || e.entityType === 'dinosaur' || e.entityType === 'artifact');
 
     if (entityAtTile) {
       if (entityAtTile.entityType === 'resource' || entityAtTile.entityType === 'artifact') {
@@ -264,9 +259,7 @@ export class InputHandler {
       return;
     }
 
-    const entityAt = this.simulation.entityManager.getAll().find(
-      e => e.x === tileX && e.y === tileY
-    );
+    const entityAt = this.simulation.entityManager.getAt(tileX, tileY);
     if (entityAt && entityAt.entityType === 'settler') {
       const s = entityAt as Settler;
       (this.scene as any).selectSettler(s);

@@ -40,9 +40,10 @@ export class DinosaurSystem {
     const night = this.isNightPhase(tickCount);
     const spawnInterval = night ? Math.floor(this.spawnInterval / this.nightSpawnMultiplier) : this.spawnInterval;
 
-    if (tickCount > 0 && tickCount % spawnInterval === 0) {
-      this.trySpawn(night);
-    }
+    // SPAWN DISABLED FOR TESTING
+    // if (tickCount > 0 && tickCount % spawnInterval === 0) {
+    //   this.trySpawn(night);
+    // }
 
     const dinos = this.entityManager.getByType('dinosaur') as Dinosaur[];
     for (const dino of dinos) {
@@ -372,9 +373,7 @@ export class DinosaurSystem {
       const ny = dino.y + dy;
       const tile = this.tileGrid.get(nx, ny);
       if (!tile || !tile.building) continue;
-      const building = this.entityManager.getAll().find(
-        e => e.entityType === 'building' && e.x === nx && e.y === ny
-      ) as Building | undefined;
+      const building = this.entityManager.getAt(nx, ny, 'building') as Building | undefined;
       if (building) return building;
     }
     return null;

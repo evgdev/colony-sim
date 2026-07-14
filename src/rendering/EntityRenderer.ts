@@ -23,6 +23,8 @@ export class EntityRenderer {
   private scrollX: number = 0;
   private scrollY: number = 0;
   selectedSettler: Settler | null = null;
+  private dinoSprites: Map<number, Phaser.GameObjects.Sprite> = new Map();
+  private dinoLastX: Map<number, number> = new Map();
 
   constructor(scene: Phaser.Scene, simulation: Simulation) {
     this.scene = scene;
@@ -68,26 +70,40 @@ export class EntityRenderer {
     this.entityTexts.forEach(t => t.destroy());
     this.entityTexts = [];
 
+    const aliveDinoIds = new Set<number>();
+
     for (const entity of this.simulation.entityManager.getAll()) {
       if (entity.entityType !== 'settler' && !this.isInViewport(entity.visualX, entity.visualY)) continue;
       if (entity.entityType !== 'settler' && !this.simulation.tileGrid.isRevealed(Math.round(entity.visualX), Math.round(entity.visualY))) continue;
 
-      const g = this.scene.add.graphics().setDepth(10);
       const { sx: cx, sy: cy } = this.worldToScreen(entity.visualX, entity.visualY);
 
-      if (entity.entityType === 'settler') {
-        this.drawSettler(g, entity as Settler, cx, cy);
-      } else if (entity.entityType === 'resource') {
-        this.drawResource(g, entity as Resource, cx, cy);
-      } else if (entity.entityType === 'building') {
-        this.drawBuilding(g, entity as Building, cx, cy);
-      } else if (entity.entityType === 'dinosaur') {
-        this.drawDinosaur(g, entity as Dinosaur, cx, cy);
-      } else if (entity.entityType === 'artifact') {
-        this.drawArtifact(g, entity as Artifact, cx, cy);
+      if (entity.entityType === 'dinosaur') {
+        const dino = entity as Dinosaur;
+        aliveDinoIds.add(dino.id);
+        this.drawDinoSprite(dino, cx, cy);
+      } else {
+        const g = this.scene.add.graphics().setDepth(10);
+        if (entity.entityType === 'settler') {
+          this.drawSettler(g, entity as Settler, cx, cy);
+        } else if (entity.entityType === 'resource') {
+          this.drawResource(g, entity as Resource, cx, cy);
+        } else if (entity.entityType === 'building') {
+          this.drawBuilding(g, entity as Building, cx, cy);
+        } else if (entity.entityType === 'artifact') {
+          this.drawArtifact(g, entity as Artifact, cx, cy);
+        }
+        this.entityGraphics.push(g);
       }
+    }
 
-      this.entityGraphics.push(g);
+    // Cleanup dead dino sprites
+    for (const [id, sprite] of this.dinoSprites) {
+      if (!aliveDinoIds.has(id)) {
+        sprite.destroy();
+        this.dinoSprites.delete(id);
+        this.dinoLastX.delete(id);
+      }
     }
   }
 
@@ -272,22 +288,69 @@ export class EntityRenderer {
     }
   }
 
-  private drawDinosaur(g: Phaser.GameObjects.Graphics, dino: Dinosaur, cx: number, cy: number): void {
+  private drawDinoSprite(dino: Dinosaur, cx: number, cy: number): void {
     const def = (dinosaursData as any)[dino.species];
+    const hasSprite = def?.sprite && this.scene.textures.exists(def.sprite);
+
+    if (hasSprite) {
+      this.drawDinoAsSprite(dino, cx, cy, def);
+    } else {
+      this.drawDinoAsCircle(dino, cx, cy, def);
+    }
+  }
+
+  private drawDinoAsSprite(dino: Dinosaur, cx: number, cy: number, def: any): void {
+    let sprite = this.dinoSprites.get(dino.id);
+    if (!sprite) {
+      sprite = this.scene.add.sprite(cx, cy, def.sprite, 0).setDepth(10);
+      this.dinoSprites.set(dino.id, sprite);
+    }
+
+    const animKey = `${def.sprite}_${this.stateToAnim(dino.state)}`;
+    if (sprite.anims.currentAnim?.key !== animKey && this.scene.anims.exists(animKey)) {
+      sprite.play(animKey);
+    }
+
+    const frameSize = def.frameSize || 64;
+    const spriteScale = def.spriteScale || 1.0;
+    const scale = ((TILE_SIZE / 3) * dino.size) / (frameSize / 2) * spriteScale;
+    sprite.setScale(scale);
+    sprite.setPosition(cx, cy);
+    sprite.setVisible(true);
+
+    // Flip based on movement direction
+    const lastX = this.dinoLastX.get(dino.id);
+    if (lastX !== undefined && dino.x !== lastX) {
+      sprite.setFlipX(dino.x < lastX);
+    }
+    this.dinoLastX.set(dino.id, dino.x);
+
+    // HP bar and label on top via Graphics
+    const g = this.scene.add.graphics().setDepth(11);
+    this.drawDinoOverlay(g, dino, cx, cy, (TILE_SIZE / 3) * dino.size);
+    this.entityGraphics.push(g);
+  }
+
+  private drawDinoAsCircle(dino: Dinosaur, cx: number, cy: number, def: any): void {
+    const g = this.scene.add.graphics().setDepth(10);
     const color = def?.color ?? COLORS.dinosaur;
     const r = (TILE_SIZE / 3) * dino.size;
     g.fillStyle(color, 0.9);
     g.fillCircle(cx, cy, r);
     g.lineStyle(2, 0x000000);
     g.strokeCircle(cx, cy, r);
+    this.drawDinoOverlay(g, dino, cx, cy, r);
+    this.entityGraphics.push(g);
+  }
 
+  private drawDinoOverlay(g: Phaser.GameObjects.Graphics, dino: Dinosaur, cx: number, cy: number, r: number): void {
     const stateColors: Record<string, string> = {
       idle: '#888888', wander: '#ffaa00', investigate: '#ff4444', flee: '#44ff44',
     };
     this.entityTexts.push(
       this.scene.add.text(cx, cy - r - 8, `${dino.species}`, {
         fontSize: '13px', color: stateColors[dino.state] ?? '#ffffff', fontFamily: 'monospace',
-      }).setOrigin(0.5).setDepth(10)
+      }).setOrigin(0.5).setDepth(11)
     );
 
     if (dino.hp < dino.maxHp) {
@@ -298,6 +361,16 @@ export class EntityRenderer {
       g.fillRect(barX, barY, barW, 4);
       g.fillStyle(0xff3333, 1);
       g.fillRect(barX, barY, barW * (dino.hp / dino.maxHp), 4);
+    }
+  }
+
+  private stateToAnim(state: string): string {
+    switch (state) {
+      case 'wander':
+      case 'investigate':
+      case 'flee': return 'walk';
+      case 'attack': return 'attack';
+      default: return 'idle';
     }
   }
 

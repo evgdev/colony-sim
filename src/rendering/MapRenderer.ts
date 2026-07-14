@@ -5,6 +5,13 @@ import {
   NIGHT_TINT, nightAlpha,
 } from '../config';
 import { Simulation } from '../core/Simulation';
+import { TextureMixer } from './TextureMixer';
+import { TileType } from '../core/TileGrid';
+
+function seededRandom(x: number, y: number, seed: number): number {
+  const n = Math.sin(x * 12.9898 + y * 78.233 + seed * 43.1234) * 43758.5453;
+  return n - Math.floor(n);
+}
 
 export class MapRenderer {
   private scene: Phaser.Scene;
@@ -15,14 +22,30 @@ export class MapRenderer {
   private nightOverlay!: Phaser.GameObjects.Rectangle;
   private scrollX: number = 0;
   private scrollY: number = 0;
+  private waterPhase: number = 0;
+  private waterTimer: number = 0;
+  private grassVariantMap: number[][] = [];
+  private textureMixer: TextureMixer;
 
   constructor(scene: Phaser.Scene, simulation: Simulation) {
     this.scene = scene;
     this.simulation = simulation;
+    this.textureMixer = new TextureMixer(scene);
     this.transitionGraphics = scene.add.graphics().setDepth(1);
     this.fogGraphics = scene.add.graphics().setDepth(3);
     this.setViewportClip();
     this.createNightOverlay();
+    this.generateGrassVariants();
+  }
+
+  private generateGrassVariants(): void {
+    this.grassVariantMap = [];
+    for (let y = 0; y < MAP_HEIGHT; y++) {
+      this.grassVariantMap[y] = [];
+      for (let x = 0; x < MAP_WIDTH; x++) {
+        this.grassVariantMap[y][x] = Math.floor(seededRandom(x, y, 5555) * 8);
+      }
+    }
   }
 
   private createNightOverlay(): void {
@@ -44,7 +67,26 @@ export class MapRenderer {
     this.transitionGraphics.setMask(new Phaser.Display.Masks.GeometryMask(this.scene, mask));
   }
 
+  private getTileTextureKey(tileType: string, x: number, y: number): string {
+    return this.getBaseTextureKey(tileType as TileType, x, y);
+  }
+
+  private getBaseTextureKey(type: TileType, x: number, y: number): string {
+    if (type === 'grass') {
+      const variant = this.grassVariantMap[y]?.[x] ?? 0;
+      const key = `tile_grass_${variant}`;
+      return this.scene.textures.exists(key) ? key : 'tile_grass';
+    }
+    if (type === 'water') {
+      const key = `tile_water_${this.waterPhase}`;
+      return this.scene.textures.exists(key) ? key : 'tile_water';
+    }
+    return `tile_${type}`;
+  }
+
   drawMap(): void {
+    this.textureMixer.clearCache();
+
     for (const row of this.tileSprites) {
       for (const rect of row) {
         rect.destroy();
@@ -56,9 +98,9 @@ export class MapRenderer {
       this.tileSprites[y] = [];
       for (let x = 0; x < MAP_WIDTH; x++) {
         const tile = this.simulation.tileGrid.get(x, y)!;
-        const texKey = `tile_${tile.type}`;
-        const hasTexture = this.scene.textures.exists(texKey);
+        const texKey = this.getTileKeyWithTransitions(x, y, tile.type);
 
+        const hasTexture = this.scene.textures.exists(texKey);
         let sprite: Phaser.GameObjects.Rectangle | Phaser.GameObjects.Image;
         if (hasTexture) {
           sprite = this.scene.add.image(0, 0, texKey)
@@ -72,6 +114,111 @@ export class MapRenderer {
       }
     }
     this.updateScroll(this.scrollX, this.scrollY);
+  }
+
+  private getTileKeyWithTransitions(x: number, y: number, biomeType: string): string {
+    const grid = this.simulation.tileGrid;
+    const up = grid.get(x, y - 1)?.type ?? biomeType;
+    const right = grid.get(x + 1, y)?.type ?? biomeType;
+    const down = grid.get(x, y + 1)?.type ?? biomeType;
+    const left = grid.get(x - 1, y)?.type ?? biomeType;
+
+    const upSame = up === biomeType;
+    const rightSame = right === biomeType;
+    const downSame = down === biomeType;
+    const leftSame = left === biomeType;
+
+    const hasCardinalDifferent = !upSame || !rightSame || !downSame || !leftSame;
+
+    if (hasCardinalDifferent) {
+      let mask = 0;
+      if (upSame) mask |= 1;
+      if (rightSame) mask |= 2;
+      if (downSame) mask |= 4;
+      if (leftSame) mask |= 8;
+
+      const outerBiome = this.chooseOuterBiomeForMask(mask, up, right, down, left, biomeType);
+      const transKey = `trans_${biomeType}_${outerBiome}_${mask}`;
+      if (this.scene.textures.exists(transKey)) return transKey;
+      return this.getBaseTextureKey(biomeType as any, x, y);
+    }
+
+    const upRight = grid.get(x + 1, y - 1)?.type ?? biomeType;
+    const downRight = grid.get(x + 1, y + 1)?.type ?? biomeType;
+    const downLeft = grid.get(x - 1, y + 1)?.type ?? biomeType;
+    const upLeft = grid.get(x - 1, y - 1)?.type ?? biomeType;
+
+    const diagonals: [string, string][] = [
+      [upRight, 'corner_ur'],
+      [downRight, 'corner_dr'],
+      [downLeft, 'corner_dl'],
+      [upLeft, 'corner_ul'],
+    ];
+
+    for (const [diagType, cornerName] of diagonals) {
+      if (diagType !== biomeType) {
+        const outerBiome = diagType;
+        const cornerKey = `trans_${biomeType}_${outerBiome}_${cornerName}`;
+        if (this.scene.textures.exists(cornerKey)) return cornerKey;
+      }
+    }
+
+    return this.getBaseTextureKey(biomeType as any, x, y);
+  }
+
+  private chooseOuterBiomeForMask(mask: number, up: string, right: string, down: string, left: string, current: string): string {
+    const priority: Record<string, number> = { water: 0, sand: 1, stone: 2, dirt: 3, grass: 4 };
+    const edges: [boolean, string][] = [
+      [(mask & 1) === 0, up],
+      [(mask & 2) === 0, right],
+      [(mask & 4) === 0, down],
+      [(mask & 8) === 0, left],
+    ];
+
+    const differentNeighbors = edges
+      .filter(([isDifferent, type]) => isDifferent && type !== current)
+      .map(([_, type]) => type);
+
+    if (differentNeighbors.length === 0) return current;
+
+    differentNeighbors.sort((a, b) => (priority[a] ?? 10) - (priority[b] ?? 10));
+    return differentNeighbors[0];
+  }
+
+  private getBoundaryNeighbors(x: number, y: number, primaryType: string): { dx: number; dy: number; type: string }[] {
+    const neighbors: { dx: number; dy: number; type: string }[] = [];
+    const dirs = [[1, 0], [-1, 0], [0, 1], [0, -1]];
+    for (const [dx, dy] of dirs) {
+      const t = this.simulation.tileGrid.get(x + dx, y + dy);
+      if (t && t.type !== primaryType) {
+        neighbors.push({ dx, dy, type: t.type });
+      }
+    }
+    return neighbors;
+  }
+
+  updateWater(delta: number): void {
+    this.waterTimer += delta;
+    if (this.waterTimer < 500) return;
+    this.waterTimer = 0;
+    this.waterPhase = (this.waterPhase + 1) % 3;
+
+    const sx = this.scrollX;
+    const sy = this.scrollY;
+    const grid = this.simulation.tileGrid;
+
+    for (let y = sy; y < sy + VIEWPORT_TILES; y++) {
+      for (let x = sx; x < sx + VIEWPORT_TILES; x++) {
+        const tile = grid.get(x, y);
+        if (!tile || tile.type !== 'water') continue;
+        const sprite = this.tileSprites[y]?.[x];
+        if (!sprite || !(sprite instanceof Phaser.GameObjects.Image)) continue;
+        const key = `tile_water_${this.waterPhase}`;
+        if (this.scene.textures.exists(key)) {
+          sprite.setTexture(key);
+        }
+      }
+    }
   }
 
   updateScroll(sx: number, sy: number): void {
@@ -120,8 +267,26 @@ export class MapRenderer {
         if (grid.isRevealed(x, y)) continue;
         const px = FIELD_X + (x - sx) * TILE_SIZE;
         const py = FIELD_Y + (y - sy) * TILE_SIZE;
-        this.fogGraphics.fillStyle(0x000000, 1);
-        this.fogGraphics.fillRect(px, py, TILE_SIZE, TILE_SIZE);
+
+        // Check adjacent revealed tiles for soft edge
+        let hasRevealedNeighbor = false;
+        const dirs = [[0, -1], [0, 1], [-1, 0], [1, 0]];
+        for (const [dx, dy] of dirs) {
+          if (grid.isRevealed(x + dx, y + dy)) {
+            hasRevealedNeighbor = true;
+            break;
+          }
+        }
+
+        if (hasRevealedNeighbor) {
+          // Soft fog edge (semi-transparent)
+          this.fogGraphics.fillStyle(0x000000, 0.6);
+          this.fogGraphics.fillRect(px, py, TILE_SIZE, TILE_SIZE);
+        } else {
+          // Solid fog
+          this.fogGraphics.fillStyle(0x000000, 1);
+          this.fogGraphics.fillRect(px, py, TILE_SIZE, TILE_SIZE);
+        }
       }
     }
   }
@@ -147,11 +312,6 @@ export class MapRenderer {
       sand: 2,
       dirt: 1,
       grass: 0,
-    };
-
-    const seededRandom = (x: number, y: number, seed: number): number => {
-      const n = Math.sin(x * 12.9898 + y * 78.233 + seed * 43.1234) * 43758.5453;
-      return n - Math.floor(n);
     };
 
     const minX = Math.max(0, sx - 1);

@@ -28,8 +28,12 @@ export class EntityManager {
     return this.getAll().filter(e => e.entityType === type);
   }
 
-  getAt(x: number, y: number): Entity | undefined {
-    return this.getAll().find(e => e.x === x && e.y === y);
+  getAt(x: number, y: number, type?: string): Entity | undefined {
+    return this.getAll().find(e => e.x === x && e.y === y && (!type || e.entityType === type));
+  }
+
+  getAllAt(x: number, y: number): Entity[] {
+    return this.getAll().filter(e => e.x === x && e.y === y);
   }
 
   serialize(): object[] {

@@ -293,21 +293,15 @@ export class WorkSystem {
   }
 
   private findResourceAt(x: number, y: number): Resource | undefined {
-    return this.entityManager.getAll().find(
-      e => e.entityType === 'resource' && e.x === x && e.y === y
-    ) as Resource | undefined;
+    return this.entityManager.getAt(x, y, 'resource') as Resource | undefined;
   }
 
   private findBuildingAt(x: number, y: number): Building | undefined {
-    return this.entityManager.getAll().find(
-      e => e.entityType === 'building' && e.x === x && e.y === y
-    ) as Building | undefined;
+    return this.entityManager.getAt(x, y, 'building') as Building | undefined;
   }
 
   private findArtifactAt(x: number, y: number): Artifact | undefined {
-    return this.entityManager.getAll().find(
-      e => e.entityType === 'artifact' && e.x === x && e.y === y
-    ) as Artifact | undefined;
+    return this.entityManager.getAt(x, y, 'artifact') as Artifact | undefined;
   }
 
   private executePickUpArtifact(settler: Settler, task: Task, tickDelta: number): void {

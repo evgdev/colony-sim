@@ -1,7 +1,7 @@
 import { Entity } from '../core/Entity';
 
 export interface InventoryItem {
-  id: string;
+  id?: string;
   name: string;
   quantity: number;
   resourceType: string;

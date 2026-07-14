@@ -8,7 +8,15 @@
     "attackDamage": 50,
     "wallDamage": 30,
     "size": 1.4,
-    "description": "Apex predator. Slow but devastating."
+    "description": "Apex predator. Slow but devastating.",
+    "sprite": "trex",
+    "frameSize": 64,
+    "spriteScale": 1.8,
+    "animations": {
+      "idle": { "start": 0, "frames": 9, "rate": 6 },
+      "walk": { "start": 0, "frames": 9, "rate": 6 },
+      "attack": { "start": 0, "frames": 9, "rate": 8 }
+    }
   },
   "raptor": {
     "name": "Raptor",
@@ -19,7 +27,15 @@
     "attackDamage": 15,
     "wallDamage": 8,
     "size": 0.8,
-    "description": "Fast and agile pack hunter."
+    "description": "Fast and agile pack hunter.",
+    "sprite": "raptor",
+    "frameSize": 64,
+    "spriteScale": 1.0,
+    "animations": {
+      "idle": { "start": 0, "frames": 4, "rate": 8 },
+      "walk": { "start": 4, "frames": 6, "rate": 14 },
+      "attack": { "start": 10, "frames": 3, "rate": 12 }
+    }
   },
   "brontosaur": {
     "name": "Brontosaur",
@@ -30,7 +46,15 @@
     "attackDamage": 5,
     "wallDamage": 20,
     "size": 1.8,
-    "description": "Gentle giant. Avoids conflict."
+    "description": "Gentle giant. Avoids conflict.",
+    "sprite": "brontosaur",
+    "frameSize": 64,
+    "spriteScale": 1.0,
+    "animations": {
+      "idle": { "start": 0, "frames": 4, "rate": 6 },
+      "walk": { "start": 4, "frames": 6, "rate": 8 },
+      "attack": { "start": 10, "frames": 3, "rate": 8 }
+    }
   },
   "pterodactyl": {
     "name": "Pterodactyl",
@@ -41,6 +65,14 @@
     "attackDamage": 10,
     "wallDamage": 5,
     "size": 0.7,
-    "description": "Flies overhead. Swoops down to investigate."
+    "description": "Flies overhead. Swoops down to investigate.",
+    "sprite": "pterodactyl",
+    "frameSize": 64,
+    "spriteScale": 1.0,
+    "animations": {
+      "idle": { "start": 0, "frames": 4, "rate": 10 },
+      "walk": { "start": 4, "frames": 6, "rate": 16 },
+      "attack": { "start": 10, "frames": 3, "rate": 14 }
+    }
   }
 }
