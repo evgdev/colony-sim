@@ -72,6 +72,34 @@ export class TileGrid {
     if (tile) tile.occupied = occupied;
   }
 
+  setOccupiedArea(x: number, y: number, size: number, occupied: boolean): void {
+    for (let dy = 0; dy < size; dy++) {
+      for (let dx = 0; dx < size; dx++) {
+        this.setOccupied(x + dx, y + dy, occupied);
+      }
+    }
+  }
+
+  isAreaWalkable(x: number, y: number, size: number): boolean {
+    for (let dy = 0; dy < size; dy++) {
+      for (let dx = 0; dx < size; dx++) {
+        const tile = this.get(x + dx, y + dy);
+        if (!tile || !tile.walkable || tile.occupied) return false;
+      }
+    }
+    return true;
+  }
+
+  isAreaWalkableForDino(x: number, y: number, size: number): boolean {
+    for (let dy = 0; dy < size; dy++) {
+      for (let dx = 0; dx < size; dx++) {
+        const tile = this.get(x + dx, y + dy);
+        if (!tile || !tile.walkable || tile.occupied || tile.dinoBlocked || tile.building) return false;
+      }
+    }
+    return true;
+  }
+
   setDinoBlocked(x: number, y: number, blocked: boolean): void {
     const tile = this.get(x, y);
     if (tile) tile.dinoBlocked = blocked;

@@ -8,6 +8,7 @@
     "attackDamage": 50,
     "wallDamage": 30,
     "size": 1.4,
+    "footprint": 2,
     "description": "Apex predator. Slow but devastating.",
     "sprite": "trex",
     "frameSize": 64,

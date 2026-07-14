@@ -313,33 +313,35 @@ export class EntityRenderer {
 
     const frameSize = def.frameSize || 64;
     const spriteScale = def.spriteScale || 1.0;
-    const scale = ((TILE_SIZE / 3) * dino.size) / (frameSize / 2) * spriteScale;
+    const footprint = dino.footprint;
+    const footprintCenterOffset = (footprint - 1) * TILE_SIZE / 2;
+    const scale = ((TILE_SIZE / 3) * dino.size * footprint) / (frameSize / 2) * spriteScale;
     sprite.setScale(scale);
-    sprite.setPosition(cx, cy);
+    sprite.setPosition(cx + footprintCenterOffset, cy + footprintCenterOffset);
     sprite.setVisible(true);
 
-    // Flip based on movement direction
     const lastX = this.dinoLastX.get(dino.id);
     if (lastX !== undefined && dino.x !== lastX) {
       sprite.setFlipX(dino.x < lastX);
     }
     this.dinoLastX.set(dino.id, dino.x);
 
-    // HP bar and label on top via Graphics
     const g = this.scene.add.graphics().setDepth(11);
-    this.drawDinoOverlay(g, dino, cx, cy, (TILE_SIZE / 3) * dino.size);
+    this.drawDinoOverlay(g, dino, cx + footprintCenterOffset, cy + footprintCenterOffset, (TILE_SIZE / 3) * dino.size * footprint);
     this.entityGraphics.push(g);
   }
 
   private drawDinoAsCircle(dino: Dinosaur, cx: number, cy: number, def: any): void {
     const g = this.scene.add.graphics().setDepth(10);
     const color = def?.color ?? COLORS.dinosaur;
-    const r = (TILE_SIZE / 3) * dino.size;
+    const footprint = dino.footprint;
+    const footprintCenterOffset = (footprint - 1) * TILE_SIZE / 2;
+    const r = (TILE_SIZE / 3) * dino.size * footprint;
     g.fillStyle(color, 0.9);
-    g.fillCircle(cx, cy, r);
+    g.fillCircle(cx + footprintCenterOffset, cy + footprintCenterOffset, r);
     g.lineStyle(2, 0x000000);
-    g.strokeCircle(cx, cy, r);
-    this.drawDinoOverlay(g, dino, cx, cy, r);
+    g.strokeCircle(cx + footprintCenterOffset, cy + footprintCenterOffset, r);
+    this.drawDinoOverlay(g, dino, cx + footprintCenterOffset, cy + footprintCenterOffset, r);
     this.entityGraphics.push(g);
   }
 

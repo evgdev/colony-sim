@@ -12,12 +12,13 @@ export class Dinosaur extends Entity {
   wallDamage: number;
   attackCooldown: number = 0;
   size: number;
+  footprint: number = 1;
   state: DinosaurState = 'idle';
   wanderTarget: { x: number; y: number } | null = null;
   stateTimer: number = 0;
   idleTime: number = 0;
 
-  constructor(x: number, y: number, species: string, maxHp: number, speed: number, aggroRange: number, size: number, attackDamage: number = 10, wallDamage: number = 5) {
+  constructor(x: number, y: number, species: string, maxHp: number, speed: number, aggroRange: number, size: number, attackDamage: number = 10, wallDamage: number = 5, footprint: number = 1) {
     super('dinosaur', x, y);
     this.species = species;
     this.maxHp = maxHp;
@@ -27,6 +28,7 @@ export class Dinosaur extends Entity {
     this.attackDamage = attackDamage;
     this.wallDamage = wallDamage;
     this.size = size;
+    this.footprint = footprint;
   }
 
   takeDamage(amount: number): void {
@@ -52,6 +54,7 @@ export class Dinosaur extends Entity {
       ad: this.attackDamage,
       wd: this.wallDamage,
       sz: this.size,
+      fp: this.footprint,
       st: this.state,
       wt: this.wanderTarget,
       st2: this.stateTimer,
@@ -68,7 +71,8 @@ export class Dinosaur extends Entity {
       data.ar ?? data.aggroRange,
       data.sz ?? data.size,
       data.ad ?? data.attackDamage,
-      data.wd ?? data.wallDamage ?? 5
+      data.wd ?? data.wallDamage ?? 5,
+      data.fp ?? 1
     );
     d.id = data.i ?? data.id;
     d.hp = data.hp ?? d.maxHp;

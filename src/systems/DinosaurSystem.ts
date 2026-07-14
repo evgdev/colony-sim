@@ -57,7 +57,7 @@ export class DinosaurSystem {
         e => e.entityType === 'artifact' && e.x === d.x && e.y === d.y
       );
       if (!artifactHere) {
-        this.tileGrid.setOccupied(d.x, d.y, false);
+        this.tileGrid.setOccupiedArea(d.x, d.y, d.footprint, false);
       }
     }
 
@@ -262,7 +262,6 @@ export class DinosaurSystem {
     const sx = Math.sign(dx);
     const sy = Math.sign(dy);
 
-    // Move strictly orthogonally, never cut diagonal corners through walls.
     const tryOrder: [number, number][] =
       Math.abs(dx) >= Math.abs(dy)
         ? [[sx, 0], [0, sy]]
@@ -272,13 +271,12 @@ export class DinosaurSystem {
       if (mx === 0 && my === 0) continue;
       const nx = dino.x + mx;
       const ny = dino.y + my;
-      if (this.tileGrid.isWalkableForDino(nx, ny)) {
-        const oldTile = this.tileGrid.get(dino.x, dino.y);
-        if (oldTile && !oldTile.building) {
-          this.tileGrid.setOccupied(dino.x, dino.y, false);
-        }
+      const fp = dino.footprint;
+
+      if (this.tileGrid.isAreaWalkableForDino(nx, ny, fp)) {
+        this.tileGrid.setOccupiedArea(dino.x, dino.y, fp, false);
         dino.moveTo(nx, ny);
-        this.tileGrid.setOccupied(nx, ny, true);
+        this.tileGrid.setOccupiedArea(nx, ny, fp, true);
         return true;
       }
     }
@@ -331,28 +329,29 @@ export class DinosaurSystem {
     const dinoCount = this.entityManager.getByType('dinosaur').length;
     if (dinoCount >= this.maxDinosaurs) return;
 
-    const spawnPoint = this.getSpawnTile(MIN_SPAWN_DISTANCE);
-    if (!spawnPoint) return;
-
     const species = this.getRandomSpecies(night);
     const def = (dinosaursData as any)[species];
     if (!def) return;
 
+    const footprint = def.footprint ?? 1;
+    const spawnPoint = this.getSpawnTile(MIN_SPAWN_DISTANCE, footprint);
+    if (!spawnPoint) return;
+
     const dino = new Dinosaur(
       spawnPoint.x, spawnPoint.y, species,
-      def.hp, def.speed, def.aggroRange, def.size, def.attackDamage
+      def.hp, def.speed, def.aggroRange, def.size, def.attackDamage, def.wallDamage ?? 5, footprint
     );
     this.entityManager.add(dino);
-    this.tileGrid.setOccupied(spawnPoint.x, spawnPoint.y, true);
+    this.tileGrid.setOccupiedArea(spawnPoint.x, spawnPoint.y, footprint, true);
     this.onSpawn?.(species);
   }
 
-  private getSpawnTile(minDist: number): { x: number; y: number } | null {
+  private getSpawnTile(minDist: number, footprint: number = 1): { x: number; y: number } | null {
     const settlers = this.entityManager.getByType('settler') as Settler[];
     for (let i = 0; i < 40; i++) {
-      const x = this.rng.nextInt(this.tileGrid.width);
-      const y = this.rng.nextInt(this.tileGrid.height);
-      if (!this.tileGrid.isWalkableForDino(x, y)) continue;
+      const x = this.rng.nextInt(this.tileGrid.width - footprint + 1);
+      const y = this.rng.nextInt(this.tileGrid.height - footprint + 1);
+      if (!this.tileGrid.isAreaWalkableForDino(x, y, footprint)) continue;
       const farEnough = settlers.every(s =>
         Math.abs(s.x - x) + Math.abs(s.y - y) >= minDist
       );

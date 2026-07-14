@@ -5,7 +5,7 @@ import {
   NIGHT_TINT, nightAlpha,
 } from '../config';
 import { Simulation } from '../core/Simulation';
-import { TextureMixer } from './TextureMixer';
+import { TextureCache } from './TextureCache';
 import { TileType } from '../core/TileGrid';
 
 function seededRandom(x: number, y: number, seed: number): number {
@@ -19,20 +19,22 @@ export class MapRenderer {
   tileSprites: (Phaser.GameObjects.Rectangle | Phaser.GameObjects.Image)[][] = [];
   private transitionGraphics: Phaser.GameObjects.Graphics;
   private fogGraphics: Phaser.GameObjects.Graphics;
+  private debugGraphics!: Phaser.GameObjects.Graphics;
   private nightOverlay!: Phaser.GameObjects.Rectangle;
   private scrollX: number = 0;
   private scrollY: number = 0;
   private waterPhase: number = 0;
   private waterTimer: number = 0;
   private grassVariantMap: number[][] = [];
-  private textureMixer: TextureMixer;
+  private textureCache: TextureCache;
 
   constructor(scene: Phaser.Scene, simulation: Simulation) {
     this.scene = scene;
     this.simulation = simulation;
-    this.textureMixer = new TextureMixer(scene);
+    this.textureCache = new TextureCache(scene);
     this.transitionGraphics = scene.add.graphics().setDepth(1);
     this.fogGraphics = scene.add.graphics().setDepth(3);
+    this.debugGraphics = scene.add.graphics().setDepth(15);
     this.setViewportClip();
     this.createNightOverlay();
     this.generateGrassVariants();
@@ -85,7 +87,7 @@ export class MapRenderer {
   }
 
   drawMap(): void {
-    this.textureMixer.clearCache();
+    this.textureCache.clear();
 
     for (const row of this.tileSprites) {
       for (const rect of row) {
@@ -98,7 +100,7 @@ export class MapRenderer {
       this.tileSprites[y] = [];
       for (let x = 0; x < MAP_WIDTH; x++) {
         const tile = this.simulation.tileGrid.get(x, y)!;
-        const texKey = this.getTileKeyWithTransitions(x, y, tile.type);
+        const texKey = this.getBaseTextureKey(tile.type as any, x, y);
 
         const hasTexture = this.scene.textures.exists(texKey);
         let sprite: Phaser.GameObjects.Rectangle | Phaser.GameObjects.Image;
@@ -117,72 +119,7 @@ export class MapRenderer {
   }
 
   private getTileKeyWithTransitions(x: number, y: number, biomeType: string): string {
-    const grid = this.simulation.tileGrid;
-    const up = grid.get(x, y - 1)?.type ?? biomeType;
-    const right = grid.get(x + 1, y)?.type ?? biomeType;
-    const down = grid.get(x, y + 1)?.type ?? biomeType;
-    const left = grid.get(x - 1, y)?.type ?? biomeType;
-
-    const upSame = up === biomeType;
-    const rightSame = right === biomeType;
-    const downSame = down === biomeType;
-    const leftSame = left === biomeType;
-
-    const hasCardinalDifferent = !upSame || !rightSame || !downSame || !leftSame;
-
-    if (hasCardinalDifferent) {
-      let mask = 0;
-      if (upSame) mask |= 1;
-      if (rightSame) mask |= 2;
-      if (downSame) mask |= 4;
-      if (leftSame) mask |= 8;
-
-      const outerBiome = this.chooseOuterBiomeForMask(mask, up, right, down, left, biomeType);
-      const transKey = `trans_${biomeType}_${outerBiome}_${mask}`;
-      if (this.scene.textures.exists(transKey)) return transKey;
-      return this.getBaseTextureKey(biomeType as any, x, y);
-    }
-
-    const upRight = grid.get(x + 1, y - 1)?.type ?? biomeType;
-    const downRight = grid.get(x + 1, y + 1)?.type ?? biomeType;
-    const downLeft = grid.get(x - 1, y + 1)?.type ?? biomeType;
-    const upLeft = grid.get(x - 1, y - 1)?.type ?? biomeType;
-
-    const diagonals: [string, string][] = [
-      [upRight, 'corner_ur'],
-      [downRight, 'corner_dr'],
-      [downLeft, 'corner_dl'],
-      [upLeft, 'corner_ul'],
-    ];
-
-    for (const [diagType, cornerName] of diagonals) {
-      if (diagType !== biomeType) {
-        const outerBiome = diagType;
-        const cornerKey = `trans_${biomeType}_${outerBiome}_${cornerName}`;
-        if (this.scene.textures.exists(cornerKey)) return cornerKey;
-      }
-    }
-
     return this.getBaseTextureKey(biomeType as any, x, y);
-  }
-
-  private chooseOuterBiomeForMask(mask: number, up: string, right: string, down: string, left: string, current: string): string {
-    const priority: Record<string, number> = { water: 0, sand: 1, stone: 2, dirt: 3, grass: 4 };
-    const edges: [boolean, string][] = [
-      [(mask & 1) === 0, up],
-      [(mask & 2) === 0, right],
-      [(mask & 4) === 0, down],
-      [(mask & 8) === 0, left],
-    ];
-
-    const differentNeighbors = edges
-      .filter(([isDifferent, type]) => isDifferent && type !== current)
-      .map(([_, type]) => type);
-
-    if (differentNeighbors.length === 0) return current;
-
-    differentNeighbors.sort((a, b) => (priority[a] ?? 10) - (priority[b] ?? 10));
-    return differentNeighbors[0];
   }
 
   private getBoundaryNeighbors(x: number, y: number, primaryType: string): { dx: number; dy: number; type: string }[] {
@@ -247,8 +184,47 @@ export class MapRenderer {
       }
     }
 
-    this.drawTileTransitions();
+    // this.drawDebugDots();
     this.drawFog();
+  }
+
+  private drawDebugDots(): void {
+    this.debugGraphics.clear();
+    const sx = this.scrollX;
+    const sy = this.scrollY;
+    const grid = this.simulation.tileGrid;
+
+    for (let y = sy; y < sy + VIEWPORT_TILES; y++) {
+      for (let x = sx; x < sx + VIEWPORT_TILES; x++) {
+        const tile = grid.get(x, y);
+        if (!tile) continue;
+
+        const up = grid.get(x, y - 1)?.type ?? tile.type;
+        const upRight = grid.get(x + 1, y - 1)?.type ?? tile.type;
+        const right = grid.get(x + 1, y)?.type ?? tile.type;
+        const down = grid.get(x, y + 1)?.type ?? tile.type;
+        const downLeft = grid.get(x - 1, y + 1)?.type ?? tile.type;
+        const left = grid.get(x - 1, y)?.type ?? tile.type;
+
+        const isT1 = (t: string) => t === tile.type;
+        const isT2 = (t: string) => t !== tile.type;
+
+        const case1 = isT1(up) && isT1(upRight) && isT1(right) &&
+                       isT2(down) && isT2(downLeft) && isT2(left) &&
+                       down === downLeft && downLeft === left;
+
+        const case2 = isT2(right) && isT2(upRight) && isT2(up) &&
+                       isT1(left) && isT1(downLeft) && isT1(down) &&
+                       right === upRight && upRight === up;
+
+        if (case1 || case2) {
+          const px = FIELD_X + (x - sx) * TILE_SIZE + TILE_SIZE / 2;
+          const py = FIELD_Y + (y - sy) * TILE_SIZE + TILE_SIZE / 2;
+          this.debugGraphics.fillStyle(0xff0000, 1);
+          this.debugGraphics.fillCircle(px, py, 6);
+        }
+      }
+    }
   }
 
   private drawFog(): void {

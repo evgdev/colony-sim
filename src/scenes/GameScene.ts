@@ -23,7 +23,7 @@ import { DebugPanel } from '../ui/DebugPanel';
 import { languageManager } from '../data/LanguageManager';
 import dinosaursData from '../data/dinosaurs.json';
 
-import { createBuildingIcons, createTileTextures, createDecorationTextures, createTransitionTextures } from '../rendering/TextureGenerator';
+import { createBuildingIcons, createTileTextures, createDecorationTextures } from '../rendering/TextureGenerator';
 import { MapRenderer } from '../rendering/MapRenderer';
 import { EntityRenderer } from '../rendering/EntityRenderer';
 import { DecorationGenerator } from '../rendering/DecorationGenerator';
@@ -128,7 +128,6 @@ export class GameScene extends Phaser.Scene {
     createTileTextures(this);
     createBuildingIcons(this);
     createDecorationTextures(this);
-    createTransitionTextures(this);
     this.createDinosaurAnims();
 
     this.mapRenderer = new MapRenderer(this, this.simulation);
@@ -280,16 +279,16 @@ export class GameScene extends Phaser.Scene {
         this.uiManager.addLog(`${languageManager.ui.hard}: ${languageManager.ui.hardDesc}`);
       }
 
-      // TEST SPAWN DISABLED
-      // const trexDef = (dinosaursData as any).trex;
-      // const trex = new Dinosaur(
-      //   world.centerX + 5, world.centerY,
-      //   'trex', trexDef.hp, trexDef.speed, trexDef.aggroRange,
-      //   trexDef.size, trexDef.attackDamage, trexDef.wallDamage
-      // );
-      // this.simulation.entityManager.add(trex);
-      // this.simulation.tileGrid.setOccupied(trex.x, trex.y, true);
-      // this.uiManager?.addLog('TEST: T-Rex spawned at ' + trex.x + ',' + trex.y);
+      // TEST: spawn T-Rex near settlers
+      const trexDef = (dinosaursData as any).trex;
+      const trex = new Dinosaur(
+        world.centerX + 5, world.centerY,
+        'trex', trexDef.hp, trexDef.speed, trexDef.aggroRange,
+        trexDef.size, trexDef.attackDamage, trexDef.wallDamage ?? 30, trexDef.footprint ?? 2
+      );
+      this.simulation.entityManager.add(trex);
+      this.simulation.tileGrid.setOccupiedArea(trex.x, trex.y, trex.footprint, true);
+      this.uiManager?.addLog('TEST: T-Rex (2x2) spawned at ' + trex.x + ',' + trex.y);
 
       this.mapRenderer.drawMap();
       this.mapRenderer.updateScroll(this.scrollX, this.scrollY);
