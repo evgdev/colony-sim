@@ -28,6 +28,7 @@ export class MapRenderer {
   private grassVariantMap: number[][] = [];
   private sandVariantMap: number[][] = [];
   private dirtVariantMap: number[][] = [];
+  private stoneVariantMap: number[][] = [];
   private textureCache: TextureCache;
 
   constructor(scene: Phaser.Scene, simulation: Simulation) {
@@ -42,6 +43,7 @@ export class MapRenderer {
     this.generateGrassVariants();
     this.generateSandVariants();
     this.generateDirtVariants();
+    this.generateStoneVariants();
   }
 
   private generateGrassVariants(): void {
@@ -70,6 +72,16 @@ export class MapRenderer {
       this.dirtVariantMap[y] = [];
       for (let x = 0; x < MAP_WIDTH; x++) {
         this.dirtVariantMap[y][x] = Math.floor(seededRandom(x, y, 7777) * 8);
+      }
+    }
+  }
+
+  private generateStoneVariants(): void {
+    this.stoneVariantMap = [];
+    for (let y = 0; y < MAP_HEIGHT; y++) {
+      this.stoneVariantMap[y] = [];
+      for (let x = 0; x < MAP_WIDTH; x++) {
+        this.stoneVariantMap[y][x] = Math.floor(seededRandom(x, y, 8888) * 8);
       }
     }
   }
@@ -112,6 +124,11 @@ export class MapRenderer {
       const variant = this.dirtVariantMap[y]?.[x] ?? 0;
       const key = `tile_dirt_${variant}`;
       return this.scene.textures.exists(key) ? key : 'tile_dirt';
+    }
+    if (type === 'stone') {
+      const variant = this.stoneVariantMap[y]?.[x] ?? 0;
+      const key = `tile_stone_${variant}`;
+      return this.scene.textures.exists(key) ? key : 'tile_stone';
     }
     if (type === 'water') {
       const key = `tile_water_${this.waterPhase}`;

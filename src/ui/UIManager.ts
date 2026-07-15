@@ -211,9 +211,10 @@ export class UIManager {
       lineSpacing: 3,
       fontStyle: 'italic',
     });
+    this.thoughtText.setCrop(0, 0, LEFT_PANEL_WIDTH - 28, 48);
     this.leftPanelContainer.add(this.thoughtText);
 
-    const minimapY = 610;
+    const minimapY = 620;
     const minimapTitle = this.scene.add.text(14, minimapY, `\u2500\u2500 Map \u2500\u2500`, {
       fontSize: '14px', color: '#58a6ff', fontFamily: 'monospace',
       fontStyle: 'bold',
@@ -911,14 +912,14 @@ export class UIManager {
     const grid = this.simulation.tileGrid;
     const ts = this.minimapTileSize;
     const ox = 14;
-    const oy = 584;
+    const oy = 644;
 
     const tileColors: Record<string, number> = {
       grass: 0x3a5a2a,
-      dirt: 0x3a5a2a,
+      dirt: 0x8b7355,
       water: 0x3b7dd8,
-      stone: 0x3a5a2a,
-      sand: 0x3a5a2a,
+      stone: 0x808080,
+      sand: 0xc2b280,
     };
 
     for (let y = 0; y < grid.height; y++) {

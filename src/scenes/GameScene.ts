@@ -24,7 +24,7 @@ import { languageManager } from '../data/LanguageManager';
 import dinosaursData from '../data/dinosaurs.json';
 
 import { createBuildingIcons, createTileTextures, createDecorationTextures, createTrexSprite } from '../rendering/TextureGenerator';
-import { MapRenderer } from '../rendering/MapRenderer';
+import { AnimatedMapRenderer } from '../rendering/AnimatedMapRenderer';
 import { EntityRenderer } from '../rendering/EntityRenderer';
 import { DecorationGenerator } from '../rendering/DecorationGenerator';
 import { UIManager } from '../ui/UIManager';
@@ -54,7 +54,7 @@ export class GameScene extends Phaser.Scene {
   selectedSettler!: Settler;
   private attackedSettler: Settler | null = null;
 
-  private mapRenderer!: MapRenderer;
+  private mapRenderer!: AnimatedMapRenderer;
   private entityRenderer!: EntityRenderer;
   private decorationGenerator!: DecorationGenerator;
   private uiManager!: UIManager;
@@ -131,7 +131,7 @@ export class GameScene extends Phaser.Scene {
     createTrexSprite(this);
     this.createDinosaurAnims();
 
-    this.mapRenderer = new MapRenderer(this, this.simulation);
+    this.mapRenderer = new AnimatedMapRenderer(this, this.simulation);
     this.mapRenderer.drawMap();
     this.mapRenderer.updateScroll(this.scrollX, this.scrollY);
 
@@ -183,10 +183,10 @@ export class GameScene extends Phaser.Scene {
       }
     );
 
-    // Start background music
-    if (this.cache.audio.exists('music_level1')) {
-      this.sound.play('music_level1', { volume: 0.3, loop: true });
-    }
+    // Start background music (disabled)
+    // if (this.cache.audio.exists('music_level1')) {
+    //   this.sound.play('music_level1', { volume: 0.3, loop: true });
+    // }
 
     this.uiManager.addLog(languageManager.narrative.intro[0] + ` [${languageManager.ui.day} 1]`);
     this.uiManager.addEvent(languageManager.narrative.intro[1]);
@@ -432,9 +432,10 @@ export class GameScene extends Phaser.Scene {
     this.entityRenderer.selectedSettler = this.selectedSettler;
     const tilesPerMs = this.debugPanel.speed / this.simulation.tickRate;
     this.entityRenderer.updateVisuals(delta, tilesPerMs);
-    this.mapRenderer.updateWater(delta);
+    this.mapRenderer.updateAnimations(delta);
     this.mapRenderer.redrawFog();
     this.decorationGenerator?.updateVisibility();
+    this.decorationGenerator?.updateTreeAnimation(delta);
     this.simulation.tileGrid.updateFog(delta);
     this.mapRenderer.updateNight(this.simulation.tickCount);
     this.entityRenderer.drawEntities();
