@@ -26,6 +26,8 @@ export class MapRenderer {
   private waterPhase: number = 0;
   private waterTimer: number = 0;
   private grassVariantMap: number[][] = [];
+  private sandVariantMap: number[][] = [];
+  private dirtVariantMap: number[][] = [];
   private textureCache: TextureCache;
 
   constructor(scene: Phaser.Scene, simulation: Simulation) {
@@ -38,6 +40,8 @@ export class MapRenderer {
     this.setViewportClip();
     this.createNightOverlay();
     this.generateGrassVariants();
+    this.generateSandVariants();
+    this.generateDirtVariants();
   }
 
   private generateGrassVariants(): void {
@@ -46,6 +50,26 @@ export class MapRenderer {
       this.grassVariantMap[y] = [];
       for (let x = 0; x < MAP_WIDTH; x++) {
         this.grassVariantMap[y][x] = Math.floor(seededRandom(x, y, 5555) * 8);
+      }
+    }
+  }
+
+  private generateSandVariants(): void {
+    this.sandVariantMap = [];
+    for (let y = 0; y < MAP_HEIGHT; y++) {
+      this.sandVariantMap[y] = [];
+      for (let x = 0; x < MAP_WIDTH; x++) {
+        this.sandVariantMap[y][x] = Math.floor(seededRandom(x, y, 6666) * 8);
+      }
+    }
+  }
+
+  private generateDirtVariants(): void {
+    this.dirtVariantMap = [];
+    for (let y = 0; y < MAP_HEIGHT; y++) {
+      this.dirtVariantMap[y] = [];
+      for (let x = 0; x < MAP_WIDTH; x++) {
+        this.dirtVariantMap[y][x] = Math.floor(seededRandom(x, y, 7777) * 8);
       }
     }
   }
@@ -78,6 +102,16 @@ export class MapRenderer {
       const variant = this.grassVariantMap[y]?.[x] ?? 0;
       const key = `tile_grass_${variant}`;
       return this.scene.textures.exists(key) ? key : 'tile_grass';
+    }
+    if (type === 'sand') {
+      const variant = this.sandVariantMap[y]?.[x] ?? 0;
+      const key = `tile_sand_${variant}`;
+      return this.scene.textures.exists(key) ? key : 'tile_sand';
+    }
+    if (type === 'dirt') {
+      const variant = this.dirtVariantMap[y]?.[x] ?? 0;
+      const key = `tile_dirt_${variant}`;
+      return this.scene.textures.exists(key) ? key : 'tile_dirt';
     }
     if (type === 'water') {
       const key = `tile_water_${this.waterPhase}`;
@@ -116,6 +150,7 @@ export class MapRenderer {
       }
     }
     this.updateScroll(this.scrollX, this.scrollY);
+    this.drawTileTransitions();
   }
 
   private getTileKeyWithTransitions(x: number, y: number, biomeType: string): string {
@@ -186,6 +221,7 @@ export class MapRenderer {
 
     // this.drawDebugDots();
     this.drawFog();
+    this.drawTileTransitions();
   }
 
   private drawDebugDots(): void {
@@ -284,15 +320,15 @@ export class MapRenderer {
 
     const priority: Record<string, number> = {
       water: 4,
-      stone: 3,
-      sand: 2,
+      sand: 3,
+      stone: 2,
       dirt: 1,
       grass: 0,
     };
 
     const minX = Math.max(0, sx - 1);
     const maxX = Math.min(MAP_WIDTH, sx + VIEWPORT_TILES + 1);
-    const minY = Math.max(1, sy);
+    const minY = Math.max(0, sy - 1);
     const maxY = Math.min(MAP_HEIGHT, sy + VIEWPORT_TILES + 2);
 
     for (let y = minY; y < maxY; y++) {
@@ -306,79 +342,110 @@ export class MapRenderer {
         const seed = x * 100 + y;
         const c = getColor(tile.type);
 
-        const neighbors = [
-          { dx: 1, dy: 0, seedOff: 0 },
-          { dx: 0, dy: 1, seedOff: 50 },
-          { dx: -1, dy: 0, seedOff: 100 },
-          { dx: 0, dy: -1, seedOff: 150 },
+        // Check all 8 neighbors for angular protrusion shapes
+        const dirs = [
+          { dx: 1, dy: 0 },   // right
+          { dx: 0, dy: 1 },   // down
+          { dx: -1, dy: 0 },  // left
+          { dx: 0, dy: -1 },  // up
+          { dx: 1, dy: 1 },   // down-right
+          { dx: -1, dy: 1 },  // down-left
+          { dx: 1, dy: -1 },  // up-right
+          { dx: -1, dy: -1 }, // up-left
         ];
 
-        for (const n of neighbors) {
-          const nx = x + n.dx;
-          const ny = y + n.dy;
+        for (const d of dirs) {
+          const nx = x + d.dx;
+          const ny = y + d.dy;
           const neighbor = this.simulation.tileGrid.get(nx, ny);
           if (!neighbor) continue;
           const neighborPriority = priority[neighbor.type] ?? 0;
           if (myPriority <= neighborPriority) continue;
 
           this.transitionGraphics.fillStyle(c, 1);
-          const seed2 = seed + n.seedOff;
+          const seed2 = seed + d.dx * 73 + d.dy * 137;
 
-          if (n.dx === 1) {
-            for (let dy = 0; dy < tileSize; dy += 3) {
-              const edgeFactor = 1 - Math.abs(dy - tileSize / 2) / (tileSize / 2);
-              const maxDepth = 3 + Math.floor(edgeFactor * 4);
-              const depth = Math.floor(seededRandom(x, dy, seed2) * maxDepth) + 1;
-              const w = seededRandom(x + 200, dy, seed2) > 0.5 ? 1 : 2;
-              const solidLen = Math.floor(depth * 0.7);
-              this.transitionGraphics.fillRect(px + tileSize, py + dy, solidLen, w);
-              for (let px2 = solidLen; px2 < depth; px2++) {
-                if (seededRandom(x + 300, dy + px2, seed2) > 0.4) {
-                  this.transitionGraphics.fillRect(px + tileSize + px2, py + dy, 1, w);
-                }
+          // Generate angular block protrusions
+          const isHorizontal = d.dx !== 0 && d.dy === 0;
+          const isVertical = d.dy !== 0 && d.dx === 0;
+          const isDiagonal = d.dx !== 0 && d.dy !== 0;
+
+          if (isHorizontal) {
+            // Protrusion along vertical edge
+            const dir = d.dx > 0 ? 1 : -1;
+            const edgeX = dir > 0 ? tileSize : 0;
+            // Generate angular blocks
+            let yy = 0;
+            while (yy < tileSize) {
+              const blockH = 3 + Math.floor(seededRandom(x + seed2, yy, 42) * 6);
+              const blockDepth = 2 + Math.floor(seededRandom(x, yy + seed2, 99) * 6);
+              const solidDepth = Math.floor(blockDepth * 0.75);
+              // Solid block
+              this.transitionGraphics.fillRect(
+                px + edgeX - (dir < 0 ? solidDepth : 0),
+                py + yy,
+                solidDepth,
+                blockH
+              );
+              // Angular tip
+              if (blockDepth > solidDepth) {
+                const tipW = 1 + Math.floor(seededRandom(x + 50, yy, seed2) * 2);
+                this.transitionGraphics.fillRect(
+                  px + edgeX - (dir < 0 ? blockDepth : 0),
+                  py + yy + 1,
+                  tipW,
+                  blockH - 2
+                );
               }
+              yy += blockH + 1 + Math.floor(seededRandom(x, yy, seed2 + 200) * 3);
             }
-          } else if (n.dy === 1) {
-            for (let dx = 0; dx < tileSize; dx += 3) {
-              const edgeFactor = 1 - Math.abs(dx - tileSize / 2) / (tileSize / 2);
-              const maxDepth = 3 + Math.floor(edgeFactor * 4);
-              const depth = Math.floor(seededRandom(dx, y, seed2) * maxDepth) + 1;
-              const w = seededRandom(dx, y + 200, seed2) > 0.5 ? 1 : 2;
-              const solidLen = Math.floor(depth * 0.7);
-              this.transitionGraphics.fillRect(px + dx, py + tileSize, w, solidLen);
-              for (let py2 = solidLen; py2 < depth; py2++) {
-                if (seededRandom(dx + 300, y + py2, seed2) > 0.4) {
-                  this.transitionGraphics.fillRect(px + dx, py + tileSize + py2, w, 1);
-                }
+          } else if (isVertical) {
+            // Protrusion along horizontal edge
+            const dir = d.dy > 0 ? 1 : -1;
+            const edgeY = dir > 0 ? tileSize : 0;
+            let xx = 0;
+            while (xx < tileSize) {
+              const blockW = 3 + Math.floor(seededRandom(xx, y + seed2, 42) * 6);
+              const blockDepth = 2 + Math.floor(seededRandom(xx + seed2, y, 99) * 6);
+              const solidDepth = Math.floor(blockDepth * 0.75);
+              this.transitionGraphics.fillRect(
+                px + xx,
+                py + edgeY - (dir < 0 ? solidDepth : 0),
+                blockW,
+                solidDepth
+              );
+              if (blockDepth > solidDepth) {
+                const tipH = 1 + Math.floor(seededRandom(xx, y + 50, seed2) * 2);
+                this.transitionGraphics.fillRect(
+                  px + xx + 1,
+                  py + edgeY - (dir < 0 ? blockDepth : 0),
+                  blockW - 2,
+                  tipH
+                );
               }
+              xx += blockW + 1 + Math.floor(seededRandom(xx, y, seed2 + 200) * 3);
             }
-          } else if (n.dx === -1) {
-            for (let dy = 0; dy < tileSize; dy += 3) {
-              const edgeFactor = 1 - Math.abs(dy - tileSize / 2) / (tileSize / 2);
-              const maxDepth = 3 + Math.floor(edgeFactor * 4);
-              const depth = Math.floor(seededRandom(x, dy, seed2) * maxDepth) + 1;
-              const w = seededRandom(x + 200, dy, seed2) > 0.5 ? 1 : 2;
-              const solidLen = Math.floor(depth * 0.7);
-              this.transitionGraphics.fillRect(px - solidLen, py + dy, solidLen, w);
-              for (let px2 = solidLen; px2 < depth; px2++) {
-                if (seededRandom(x + 300, dy + px2, seed2) > 0.4) {
-                  this.transitionGraphics.fillRect(px - px2 - 1, py + dy, 1, w);
-                }
-              }
+          } else if (isDiagonal) {
+            // Diagonal corner protrusion — angular chunk
+            const cx2 = d.dx > 0 ? tileSize : 0;
+            const cy2 = d.dy > 0 ? tileSize : 0;
+            const chunkSize = 4 + Math.floor(seededRandom(x + seed2, y, 77) * 5);
+            const ox = d.dx > 0 ? -chunkSize : 0;
+            const oy = d.dy > 0 ? -chunkSize : 0;
+            // Main diagonal block
+            this.transitionGraphics.fillRect(px + cx2 + ox, py + cy2 + oy, chunkSize, chunkSize);
+            // Angular extensions
+            const ext1 = 2 + Math.floor(seededRandom(x, y + seed2, 88) * 3);
+            const ext2 = 2 + Math.floor(seededRandom(x + seed2, y, 88) * 3);
+            if (d.dx > 0) {
+              this.transitionGraphics.fillRect(px + tileSize - chunkSize - ext1, py + cy2 + oy, ext1, chunkSize / 2);
+            } else {
+              this.transitionGraphics.fillRect(px + chunkSize, py + cy2 + oy, ext1, chunkSize / 2);
             }
-          } else if (n.dy === -1) {
-            for (let dx = 0; dx < tileSize; dx += 3) {
-              const edgeFactor = 1 - Math.abs(dx - tileSize / 2) / (tileSize / 2);
-              const maxDepth = 3 + Math.floor(edgeFactor * 4);
-              const depth = Math.floor(seededRandom(dx, y, seed2) * maxDepth) + 1;
-              const w = seededRandom(dx, y + 200, seed2) > 0.5 ? 1 : 2;
-              const solidLen = Math.floor(depth * 0.7);
-              this.transitionGraphics.fillRect(px + dx, py - solidLen, w, solidLen);
-              for (let py2 = solidLen; py2 < depth; py2++) {
-                if (seededRandom(dx + 300, y + py2, seed2) > 0.4) {
-                  this.transitionGraphics.fillRect(px + dx, py - py2 - 1, w, 1);
-                }
-              }
+            if (d.dy > 0) {
+              this.transitionGraphics.fillRect(px + cx2 + ox, py + tileSize - chunkSize - ext2, chunkSize / 2, ext2);
+            } else {
+              this.transitionGraphics.fillRect(px + cx2 + ox, py + chunkSize, chunkSize / 2, ext2);
             }
           }
         }

@@ -23,7 +23,7 @@ import { DebugPanel } from '../ui/DebugPanel';
 import { languageManager } from '../data/LanguageManager';
 import dinosaursData from '../data/dinosaurs.json';
 
-import { createBuildingIcons, createTileTextures, createDecorationTextures } from '../rendering/TextureGenerator';
+import { createBuildingIcons, createTileTextures, createDecorationTextures, createTrexSprite } from '../rendering/TextureGenerator';
 import { MapRenderer } from '../rendering/MapRenderer';
 import { EntityRenderer } from '../rendering/EntityRenderer';
 import { DecorationGenerator } from '../rendering/DecorationGenerator';
@@ -128,6 +128,7 @@ export class GameScene extends Phaser.Scene {
     createTileTextures(this);
     createBuildingIcons(this);
     createDecorationTextures(this);
+    createTrexSprite(this);
     this.createDinosaurAnims();
 
     this.mapRenderer = new MapRenderer(this, this.simulation);
@@ -181,6 +182,11 @@ export class GameScene extends Phaser.Scene {
         this.scene.start('BootScene');
       }
     );
+
+    // Start background music
+    if (this.cache.audio.exists('music_level1')) {
+      this.sound.play('music_level1', { volume: 0.3, loop: true });
+    }
 
     this.uiManager.addLog(languageManager.narrative.intro[0] + ` [${languageManager.ui.day} 1]`);
     this.uiManager.addEvent(languageManager.narrative.intro[1]);
@@ -284,11 +290,16 @@ export class GameScene extends Phaser.Scene {
       const trex = new Dinosaur(
         world.centerX + 5, world.centerY,
         'trex', trexDef.hp, trexDef.speed, trexDef.aggroRange,
-        trexDef.size, trexDef.attackDamage, trexDef.wallDamage ?? 30, trexDef.footprint ?? 2
+        trexDef.size, trexDef.attackDamage, trexDef.wallDamage ?? 30, trexDef.footprint ?? 1
       );
       this.simulation.entityManager.add(trex);
       this.simulation.tileGrid.setOccupiedArea(trex.x, trex.y, trex.footprint, true);
-      this.uiManager?.addLog('TEST: T-Rex (2x2) spawned at ' + trex.x + ',' + trex.y);
+      this.uiManager?.addLog('TEST: T-Rex (1x1) spawned at ' + trex.x + ',' + trex.y);
+
+      // Play T-Rex footstep sound (once)
+      if (this.cache.audio.exists('trex_footstep')) {
+        this.sound.play('trex_footstep', { volume: 0.5 });
+      }
 
       this.mapRenderer.drawMap();
       this.mapRenderer.updateScroll(this.scrollX, this.scrollY);

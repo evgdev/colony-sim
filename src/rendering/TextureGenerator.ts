@@ -175,24 +175,99 @@ export function createTileTextures(scene: Phaser.Scene): void {
   stoneG.generateTexture('tile_stone', s, s);
   stoneG.destroy();
 
-  // === Sand ===
-  const sandG = scene.add.graphics().setVisible(false);
-  sandG.fillStyle(0xc2b280);
-  sandG.fillRect(0, 0, s, s);
-  const sandColors = [0xd4c490, 0xb8a870, 0xc9ba88, 0xa89860, 0xd0c080];
-  const sandSeed = 137;
-  for (let y = 0; y < s; y++) {
-    for (let x = 0; x < s; x++) {
-      const r = seededRandom(x, y, sandSeed);
-      if (r < 0.4) {
-        const ci = Math.floor(seededRandom(x + 100, y + 100, sandSeed) * sandColors.length);
-        sandG.fillStyle(sandColors[ci]);
-        sandG.fillRect(x, y, 1, 1);
+  // === 8 sand variants ===
+  const sandBaseColors = [0xc2b280, 0xc9ba88, 0xb8a870, 0xd0c080, 0xa89860];
+  const sandStoneColors = [0x999080, 0x8a8578, 0xa09888, 0x7a7568];
+  const sandBaseSeed = 200;
+
+  for (let v = 0; v < 8; v++) {
+    const baseColor = adjustBrightness(0xc2b280, 0.92 + v * 0.025);
+    const g = scene.add.graphics().setVisible(false);
+    g.fillStyle(baseColor);
+    g.fillRect(0, 0, s, s);
+
+    const seed = sandBaseSeed + v * 151;
+    // Noise — varied sand grains
+    for (let y = 0; y < s; y++) {
+      for (let x = 0; x < s; x++) {
+        const r = seededRandom(x, y, seed);
+        if (r < 0.45) {
+          const ci = Math.floor(seededRandom(x + 100, y + 100, seed) * sandBaseColors.length);
+          g.fillStyle(sandBaseColors[ci]);
+          g.fillRect(x, y, 1, 1);
+        }
       }
     }
+
+    // Small stones (2-5 per tile)
+    const stoneCount = 2 + Math.floor(seededRandom(v, 0, seed + 888) * 4);
+    for (let st = 0; st < stoneCount; st++) {
+      const sx2 = Math.floor(seededRandom(v, st * 5, seed + 300) * (s - 4)) + 2;
+      const sy2 = Math.floor(seededRandom(v, st * 9, seed + 400) * (s - 4)) + 2;
+      const sc = sandStoneColors[Math.floor(seededRandom(v, st, seed + 500) * sandStoneColors.length)];
+      const size = 1 + seededRandom(v, st, seed + 600) * 1.5;
+      g.fillStyle(sc, 0.8);
+      g.fillCircle(sx2, sy2, size);
+      // Shadow
+      g.fillStyle(0x000000, 0.15);
+      g.fillCircle(sx2 + 0.5, sy2 + 0.5, size);
+    }
+
+    g.generateTexture(`tile_sand_${v}`, s, s);
+    g.destroy();
   }
-  sandG.generateTexture('tile_sand', s, s);
-  sandG.destroy();
+
+  // Sand fallback
+  const sandFallback = scene.add.graphics().setVisible(false);
+  sandFallback.fillStyle(0xc2b280);
+  sandFallback.fillRect(0, 0, s, s);
+  sandFallback.generateTexture('tile_sand', s, s);
+  sandFallback.destroy();
+
+  // === 8 dirt variants ===
+  const dirtBaseColors = [0x8b7355, 0x7a6548, 0x9c8562, 0x6e5a40, 0x8a7050];
+  const dirtBaseSeed = 300;
+
+  for (let v = 0; v < 8; v++) {
+    const baseColor = adjustBrightness(0x8b7355, 0.9 + v * 0.03);
+    const g = scene.add.graphics().setVisible(false);
+    g.fillStyle(baseColor);
+    g.fillRect(0, 0, s, s);
+
+    const seed = dirtBaseSeed + v * 163;
+    // Noise — soil texture
+    for (let y = 0; y < s; y++) {
+      for (let x = 0; x < s; x++) {
+        const r = seededRandom(x, y, seed);
+        if (r < 0.45) {
+          const ci = Math.floor(seededRandom(x + 100, y + 100, seed) * dirtBaseColors.length);
+          g.fillStyle(dirtBaseColors[ci]);
+          g.fillRect(x, y, 1, 1);
+        }
+      }
+    }
+
+    // Small pebbles (1-3 per tile)
+    const pebbleCount = 1 + Math.floor(seededRandom(v, 0, seed + 777) * 3);
+    for (let p = 0; p < pebbleCount; p++) {
+      const px2 = Math.floor(seededRandom(v, p * 7, seed + 350) * (s - 4)) + 2;
+      const py2 = Math.floor(seededRandom(v, p * 11, seed + 450) * (s - 4)) + 2;
+      const pc = adjustBrightness(baseColor, 0.7 + seededRandom(v, p, seed + 550) * 0.3);
+      const size = 1 + seededRandom(v, p, seed + 650) * 1.2;
+      g.fillStyle(pc, 0.7);
+      g.fillCircle(px2, py2, size);
+    }
+
+    g.generateTexture(`tile_dirt_${v}`, s, s);
+    g.destroy();
+  }
+
+  // Dirt fallback
+  const dirtFallback = scene.add.graphics().setVisible(false);
+  dirtFallback.fillStyle(0x8b7355);
+  dirtFallback.fillRect(0, 0, s, s);
+  dirtFallback.generateTexture('tile_dirt', s, s);
+  dirtFallback.destroy();
 
   // === Water (3 phases for animation) ===
   for (let phase = 0; phase < 3; phase++) {
@@ -514,4 +589,313 @@ export function createDecorationTextures(scene: Phaser.Scene): void {
     g.generateTexture(`dec_grass_tall_${v}`, gw, gh);
     g.destroy();
   }
+}
+
+export function createTrexSprite(scene: Phaser.Scene): void {
+  if (scene.textures.exists('trex')) {
+    scene.textures.remove('trex');
+  }
+
+  const fw = 64;
+  const fh = 64;
+  const idleFrames = 9;
+  const walkFrames = 9;
+  const attackFrames = 9;
+  const totalFrames = idleFrames + walkFrames + attackFrames;
+
+  // Create an offscreen canvas for the spritesheet
+  const htmlCanvas = document.createElement('canvas');
+  htmlCanvas.width = fw * totalFrames;
+  htmlCanvas.height = fh;
+  const ctx = htmlCanvas.getContext('2d')!;
+
+  // Cartoon T-Rex color palette matching the reference
+  const BODY = '#c8a060';
+  const BODY_DARK = '#a07840';
+  const BODY_SHADOW = '#8a6830';
+  const BELLY = '#d8b878';
+  const OUTLINE = '#3a2a18';
+  const EYE_W = '#ffffff';
+  const EYE_B = '#1a1a1a';
+  const MOUTH_IN = '#c04030';
+  const TOOTH = '#ffffff';
+  const TONGUE = '#d04838';
+
+  function drawTrexAt(ox: number, jawOpen: number, legShift: number, bob: number) {
+    const cx = ox + 32; // center x of frame
+    const cy = 36 + bob; // center y
+
+    // === TAIL (long, pointed, extends left) ===
+    ctx.fillStyle = BODY;
+    ctx.beginPath();
+    ctx.moveTo(cx - 14, cy + 2);
+    ctx.quadraticCurveTo(cx - 26, cy - 2, cx - 30, cy + 1);
+    ctx.quadraticCurveTo(cx - 26, cy + 6, cx - 14, cy + 6);
+    ctx.closePath();
+    ctx.fill();
+    // Tail underside shadow
+    ctx.fillStyle = BODY_SHADOW;
+    ctx.beginPath();
+    ctx.moveTo(cx - 14, cy + 5);
+    ctx.quadraticCurveTo(cx - 24, cy + 4, cx - 28, cy + 2);
+    ctx.quadraticCurveTo(cx - 24, cy + 6, cx - 14, cy + 6);
+    ctx.closePath();
+    ctx.fill();
+
+    // === BODY (large, rounded) ===
+    ctx.fillStyle = BODY;
+    ctx.beginPath();
+    ctx.ellipse(cx, cy, 16, 11, 0, 0, Math.PI * 2);
+    ctx.fill();
+    // Belly highlight
+    ctx.fillStyle = BELLY;
+    ctx.beginPath();
+    ctx.ellipse(cx + 2, cy + 3, 10, 6, 0.1, 0, Math.PI * 2);
+    ctx.fill();
+    // Back shadow
+    ctx.fillStyle = BODY_SHADOW;
+    ctx.beginPath();
+    ctx.ellipse(cx - 2, cy - 4, 12, 4, -0.2, 0, Math.PI);
+    ctx.fill();
+
+    // === LEGS (two strong legs with pendulum motion) ===
+    const legAngle = legShift * 0.15;
+
+    // Left leg (back)
+    ctx.save();
+    ctx.translate(cx - 6, cy + 8);
+    // Thigh
+    ctx.fillStyle = BODY_DARK;
+    ctx.beginPath();
+    ctx.moveTo(-4, 0);
+    ctx.lineTo(4, 0);
+    ctx.lineTo(3, 10);
+    ctx.lineTo(-3, 10);
+    ctx.closePath();
+    ctx.fill();
+    // Shin + foot (pendulum from knee)
+    ctx.save();
+    ctx.translate(0, 10);
+    ctx.rotate(legAngle);
+    ctx.fillStyle = BODY_DARK;
+    ctx.fillRect(-2, 0, 4, 8);
+    // Foot with 3 toes
+    ctx.beginPath();
+    ctx.moveTo(-4, 8);
+    ctx.lineTo(6, 8);
+    ctx.lineTo(6, 10);
+    ctx.lineTo(-4, 10);
+    ctx.closePath();
+    ctx.fill();
+    // Toes
+    ctx.fillRect(-5, 9, 3, 2);
+    ctx.fillRect(0, 9, 3, 2);
+    ctx.fillRect(5, 9, 2, 2);
+    ctx.restore();
+    ctx.restore();
+
+    // Right leg (front)
+    ctx.save();
+    ctx.translate(cx + 4, cy + 7);
+    ctx.fillStyle = BODY;
+    ctx.beginPath();
+    ctx.moveTo(-4, 0);
+    ctx.lineTo(4, 0);
+    ctx.lineTo(3, 10);
+    ctx.lineTo(-3, 10);
+    ctx.closePath();
+    ctx.fill();
+    ctx.save();
+    ctx.translate(0, 10);
+    ctx.rotate(-legAngle);
+    ctx.fillStyle = BODY;
+    ctx.fillRect(-2, 0, 4, 8);
+    ctx.beginPath();
+    ctx.moveTo(-4, 8);
+    ctx.lineTo(6, 8);
+    ctx.lineTo(6, 10);
+    ctx.lineTo(-4, 10);
+    ctx.closePath();
+    ctx.fill();
+    ctx.fillRect(-5, 9, 3, 2);
+    ctx.fillRect(0, 9, 3, 2);
+    ctx.fillRect(5, 9, 2, 2);
+    ctx.restore();
+    ctx.restore();
+
+    // === NECK ===
+    ctx.fillStyle = BODY;
+    ctx.beginPath();
+    ctx.moveTo(cx + 10, cy - 6);
+    ctx.lineTo(cx + 16, cy - 14);
+    ctx.lineTo(cx + 12, cy - 2);
+    ctx.closePath();
+    ctx.fill();
+
+    // === HEAD ===
+    const headX = cx + 18;
+    const headY = cy - 16;
+
+    // Skull
+    ctx.fillStyle = BODY;
+    ctx.beginPath();
+    ctx.moveTo(headX - 8, headY);
+    ctx.lineTo(headX + 8, headY - 2);
+    ctx.lineTo(headX + 10, headY + 4);
+    ctx.lineTo(headX - 8, headY + 6);
+    ctx.closePath();
+    ctx.fill();
+
+    // Upper snout
+    ctx.beginPath();
+    ctx.moveTo(headX + 4, headY + 3);
+    ctx.lineTo(headX + 14, headY + 2);
+    ctx.lineTo(headX + 14, headY + 6);
+    ctx.lineTo(headX + 4, headY + 6);
+    ctx.closePath();
+    ctx.fill();
+
+    // Lower jaw
+    ctx.fillStyle = BODY_DARK;
+    ctx.beginPath();
+    ctx.moveTo(headX - 4, headY + 7);
+    ctx.lineTo(headX + 12, headY + 6);
+    ctx.lineTo(headX + 10, headY + 6 + jawOpen * 8);
+    ctx.lineTo(headX - 4, headY + 8 + jawOpen * 5);
+    ctx.closePath();
+    ctx.fill();
+
+    // Mouth interior
+    if (jawOpen > 0.15) {
+      ctx.fillStyle = MOUTH_IN;
+      ctx.beginPath();
+      ctx.moveTo(headX + 2, headY + 6);
+      ctx.lineTo(headX + 12, headY + 6);
+      ctx.lineTo(headX + 10, headY + 6 + jawOpen * 6);
+      ctx.lineTo(headX + 2, headY + 7);
+      ctx.closePath();
+      ctx.fill();
+
+      // Tongue
+      ctx.fillStyle = TONGUE;
+      ctx.beginPath();
+      ctx.ellipse(headX + 6, headY + 7 + jawOpen * 3, 3, 2, 0, 0, Math.PI * 2);
+      ctx.fill();
+
+      // Teeth (top row)
+      ctx.fillStyle = TOOTH;
+      for (let i = 0; i < 4; i++) {
+        const tx = headX + 4 + i * 2.5;
+        ctx.beginPath();
+        ctx.moveTo(tx, headY + 5.5);
+        ctx.lineTo(tx + 1.5, headY + 5.5);
+        ctx.lineTo(tx + 0.75, headY + 7.5);
+        ctx.closePath();
+        ctx.fill();
+      }
+      // Teeth (bottom row)
+      for (let i = 0; i < 3; i++) {
+        const tx = headX + 5 + i * 2.5;
+        ctx.beginPath();
+        ctx.moveTo(tx, headY + 6 + jawOpen * 6);
+        ctx.lineTo(tx + 1.5, headY + 6 + jawOpen * 6);
+        ctx.lineTo(tx + 0.75, headY + 4.5 + jawOpen * 6);
+        ctx.closePath();
+        ctx.fill();
+      }
+    }
+
+    // Eye
+    ctx.fillStyle = EYE_W;
+    ctx.beginPath();
+    ctx.arc(headX + 2, headY + 2, 3, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.fillStyle = EYE_B;
+    ctx.beginPath();
+    ctx.arc(headX + 3, headY + 2, 1.5, 0, Math.PI * 2);
+    ctx.fill();
+    // Brow
+    ctx.strokeStyle = BODY_DARK;
+    ctx.lineWidth = 1.5;
+    ctx.beginPath();
+    ctx.moveTo(headX - 4, headY - 1);
+    ctx.lineTo(headX + 6, headY - 3);
+    ctx.stroke();
+
+    // Nostril
+    ctx.fillStyle = BODY_SHADOW;
+    ctx.beginPath();
+    ctx.arc(headX + 12, headY + 3, 1, 0, Math.PI * 2);
+    ctx.fill();
+
+    // === TINY ARMS (with 2 fingers + claws) ===
+    ctx.fillStyle = BODY_DARK;
+    // Arm
+    ctx.beginPath();
+    ctx.moveTo(cx + 10, cy - 2);
+    ctx.lineTo(cx + 14, cy + 1);
+    ctx.lineTo(cx + 13, cy + 3);
+    ctx.lineTo(cx + 10, cy);
+    ctx.closePath();
+    ctx.fill();
+    // Fingers with claws
+    ctx.strokeStyle = BODY_SHADOW;
+    ctx.lineWidth = 1.2;
+    ctx.beginPath();
+    ctx.moveTo(cx + 13, cy + 2);
+    ctx.lineTo(cx + 16, cy + 4);
+    ctx.stroke();
+    ctx.beginPath();
+    ctx.moveTo(cx + 13, cy + 3);
+    ctx.lineTo(cx + 15, cy + 6);
+    ctx.stroke();
+
+    // === BODY OUTLINE ===
+    ctx.strokeStyle = OUTLINE;
+    ctx.lineWidth = 1;
+    ctx.beginPath();
+    ctx.ellipse(cx, cy, 16, 11, 0, 0, Math.PI * 2);
+    ctx.stroke();
+  }
+
+  // IDLE: 9 frames (0-8) — breathing, subtle head bob, mouth slightly open/close
+  for (let f = 0; f < idleFrames; f++) {
+    const ox = f * fw;
+    ctx.save();
+    const t = (f / idleFrames) * Math.PI * 2;
+    const bob = Math.sin(t) * 1.5;
+    const jawOpen = 0.03 + Math.sin(t * 0.5) * 0.05;
+    const legShift = Math.sin(t * 0.3) * 0.5;
+    drawTrexAt(ox, jawOpen, legShift, bob);
+    ctx.restore();
+  }
+
+  // WALK: 9 frames (9-17) — legs alternate, body bobs, tail swings
+  for (let f = 0; f < walkFrames; f++) {
+    const ox = (idleFrames + f) * fw;
+    ctx.save();
+    const t = (f / walkFrames) * Math.PI * 2;
+    const legShift = Math.sin(t) * 4;
+    const bob = Math.abs(Math.sin(t)) * -2;
+    const jawOpen = 0.05 + Math.sin(t * 2) * 0.04;
+    drawTrexAt(ox, jawOpen, legShift, bob);
+    ctx.restore();
+  }
+
+  // ATTACK: 9 frames (18-26) — jaw opens wide, leans forward, snaps
+  for (let f = 0; f < attackFrames; f++) {
+    const ox = (idleFrames + walkFrames + f) * fw;
+    ctx.save();
+    const t = f / attackFrames;
+    // Jaw opens in first half, snaps shut in second
+    const jawOpen = t < 0.5 ? t * 1.6 : (1 - t) * 1.6;
+    // Body lunges forward then returns
+    const bob = t < 0.4 ? -t * 3 : -(0.4 * 3) + (t - 0.4) * 5;
+    const legShift = t < 0.4 ? -t * 4 : -1.6 + (t - 0.4) * 4;
+    drawTrexAt(ox, jawOpen, legShift, bob);
+    ctx.restore();
+  }
+
+  // Register as spritesheet so Phaser knows frame dimensions
+  scene.textures.addSpriteSheet('trex', htmlCanvas as any, { frameWidth: fw, frameHeight: fh });
 }

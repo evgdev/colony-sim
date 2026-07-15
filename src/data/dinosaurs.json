@@ -8,15 +8,15 @@
     "attackDamage": 50,
     "wallDamage": 30,
     "size": 1.4,
-    "footprint": 2,
+    "footprint": 1,
     "description": "Apex predator. Slow but devastating.",
     "sprite": "trex",
     "frameSize": 64,
     "spriteScale": 1.8,
     "animations": {
       "idle": { "start": 0, "frames": 9, "rate": 6 },
-      "walk": { "start": 0, "frames": 9, "rate": 6 },
-      "attack": { "start": 0, "frames": 9, "rate": 8 }
+      "walk": { "start": 9, "frames": 9, "rate": 14 },
+      "attack": { "start": 18, "frames": 9, "rate": 18 }
     }
   },
   "raptor": {

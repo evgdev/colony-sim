@@ -18,6 +18,8 @@ export class BootScene extends Phaser.Scene {
   preload(): void {
     this.load.image('startMenuBg', 'bg/start_menu_bg.jpg');
     this.load.audio('intro', 'assets/audio/intro.wav');
+    this.load.audio('trex_footstep', 'assets/audio/trex_footstep.wav');
+    this.load.audio('music_level1', 'assets/audio/music_level1.wav');
 
     const species = ['trex', 'raptor', 'brontosaur', 'pterodactyl'];
     for (const s of species) {
