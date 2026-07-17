@@ -1,4 +1,18 @@
 {
+  "fossil": {
+    "icon": "F",
+    "color": "#ddddaa",
+    "effect": "fogRadius",
+    "value": 0.5,
+    "description": "Окаменелость. След древней жизни."
+  },
+  "strange_track": {
+    "icon": " footprint",
+    "color": "#ddaa44",
+    "effect": "fogRadius",
+    "value": 0.5,
+    "description": "Странный отпечаток. Что-то прошло здесь."
+  },
   "trex tooth": {
     "icon": "T",
     "color": "#ff4444",

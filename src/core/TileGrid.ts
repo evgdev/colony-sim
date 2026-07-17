@@ -55,8 +55,10 @@ export class TileGrid {
   }
 
   get(x: number, y: number): TileState | null {
-    if (x < 0 || x >= this.width || y < 0 || y >= this.height) return null;
-    return this.tiles[y][x];
+    const ix = Math.floor(x);
+    const iy = Math.floor(y);
+    if (ix < 0 || ix >= this.width || iy < 0 || iy >= this.height) return null;
+    return this.tiles[iy][ix];
   }
 
   setTile(x: number, y: number, data: Partial<TileData>): void {
@@ -73,17 +75,21 @@ export class TileGrid {
   }
 
   setOccupiedArea(x: number, y: number, size: number, occupied: boolean): void {
+    const ix = Math.floor(x);
+    const iy = Math.floor(y);
     for (let dy = 0; dy < size; dy++) {
       for (let dx = 0; dx < size; dx++) {
-        this.setOccupied(x + dx, y + dy, occupied);
+        this.setOccupied(ix + dx, iy + dy, occupied);
       }
     }
   }
 
   isAreaWalkable(x: number, y: number, size: number): boolean {
+    const ix = Math.floor(x);
+    const iy = Math.floor(y);
     for (let dy = 0; dy < size; dy++) {
       for (let dx = 0; dx < size; dx++) {
-        const tile = this.get(x + dx, y + dy);
+        const tile = this.get(ix + dx, iy + dy);
         if (!tile || !tile.walkable || tile.occupied) return false;
       }
     }
@@ -91,10 +97,12 @@ export class TileGrid {
   }
 
   isAreaWalkableForDino(x: number, y: number, size: number): boolean {
+    const ix = Math.floor(x);
+    const iy = Math.floor(y);
     for (let dy = 0; dy < size; dy++) {
       for (let dx = 0; dx < size; dx++) {
-        const tile = this.get(x + dx, y + dy);
-        if (!tile || !tile.walkable || tile.occupied || tile.dinoBlocked || tile.building) return false;
+        const tile = this.get(ix + dx, iy + dy);
+        if (!tile || !tile.walkable || tile.type === 'water' || tile.occupied || tile.dinoBlocked || tile.building) return false;
       }
     }
     return true;
@@ -122,25 +130,32 @@ export class TileGrid {
 
   isWalkableForDino(x: number, y: number): boolean {
     const tile = this.get(x, y);
-    return tile !== null && tile.walkable && !tile.occupied && !tile.dinoBlocked && !tile.building;
+    return tile !== null && tile.walkable && tile.type !== 'water' && !tile.occupied && !tile.dinoBlocked && !tile.building;
   }
 
   isRevealed(x: number, y: number): boolean {
-    if (x < 0 || x >= this.width || y < 0 || y >= this.height) return false;
-    return this.revealed[y][x];
+    const ix = Math.floor(x);
+    const iy = Math.floor(y);
+    if (ix < 0 || ix >= this.width || iy < 0 || iy >= this.height) return false;
+    return this.revealed[iy]?.[ix] ?? false;
   }
 
   getFogAlpha(x: number, y: number): number {
-    if (x < 0 || x >= this.width || y < 0 || y >= this.height) return 1;
-    return 1 - this.fogAlpha[y][x];
+    const ix = Math.floor(x);
+    const iy = Math.floor(y);
+    if (ix < 0 || ix >= this.width || iy < 0 || iy >= this.height) return 1;
+    return 1 - (this.fogAlpha[iy]?.[ix] ?? 1);
   }
 
   reveal(cx: number, cy: number, radius: number): void {
-    for (let dy = -radius; dy <= radius; dy++) {
-      for (let dx = -radius; dx <= radius; dx++) {
-        if (dx * dx + dy * dy > radius * radius) continue;
-        const x = cx + dx;
-        const y = cy + dy;
+    const icx = Math.floor(cx);
+    const icy = Math.floor(cy);
+    const r = Math.floor(radius);
+    for (let dy = -r; dy <= r; dy++) {
+      for (let dx = -r; dx <= r; dx++) {
+        if (dx * dx + dy * dy > r * r) continue;
+        const x = icx + dx;
+        const y = icy + dy;
         if (x >= 0 && x < this.width && y >= 0 && y < this.height) {
           if (!this.revealed[y][x]) {
             this.fogAlpha[y][x] = 0;
@@ -155,6 +170,7 @@ export class TileGrid {
     const fadeSpeed = 0.004;
     const step = fadeSpeed * deltaMs;
     for (let y = 0; y < this.height; y++) {
+      if (!this.revealed[y] || !this.fogAlpha[y]) continue;
       for (let x = 0; x < this.width; x++) {
         if (this.revealed[y][x] && this.fogAlpha[y][x] < 1) {
           this.fogAlpha[y][x] = Math.min(1, this.fogAlpha[y][x] + step);
@@ -180,7 +196,7 @@ export class TileGrid {
     const revealed: number[] = [];
     for (let y = 0; y < this.height; y++) {
       for (let x = 0; x < this.width; x++) {
-        if (this.revealed[y][x]) revealed.push(y * this.width + x);
+        if (this.revealed[y]?.[x]) revealed.push(y * this.width + x);
       }
     }
     return {
@@ -242,10 +258,22 @@ export class TileGrid {
         }
       }
     } else if (data.revealed) {
-      grid.revealed = data.revealed;
-      for (let y = 0; y < h; y++) {
-        for (let x = 0; x < w; x++) {
-          grid.fogAlpha[y][x] = grid.revealed[y][x] ? 1 : 0;
+      const src = data.revealed;
+      if (Array.isArray(src) && src.length > 0 && Array.isArray(src[0])) {
+        grid.revealed = src;
+        for (let y = 0; y < h; y++) {
+          for (let x = 0; x < w; x++) {
+            grid.fogAlpha[y][x] = grid.revealed[y]?.[x] ? 1 : 0;
+          }
+        }
+      } else if (Array.isArray(src)) {
+        for (let i = 0; i < src.length; i++) {
+          const ry = Math.floor(i / w);
+          const rx = i % w;
+          if (ry < h && rx < w && src[i]) {
+            grid.revealed[ry][rx] = true;
+            grid.fogAlpha[ry][rx] = 1;
+          }
         }
       }
     }

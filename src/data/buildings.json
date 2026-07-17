@@ -1,4 +1,27 @@
 {
+  "wall": {
+    "name": "Wall",
+    "color": 9133628,
+    "maxHp": 100,
+    "buildTime": 3,
+    "requires": {
+      "wood": 2
+    },
+    "blocksMovement": true,
+    "description": "Cheap barrier. Blocks dinosaur movement, enclose your base."
+  },
+  "gate": {
+    "name": "Gate",
+    "color": 8019004,
+    "maxHp": 150,
+    "buildTime": 4,
+    "requires": {
+      "wood": 2,
+      "stone": 2
+    },
+    "isGate": true,
+    "description": "Passable for settlers, but blocks dinosaurs. Use in your walls."
+  },
   "house": {
     "name": "House",
     "color": 8947848,
@@ -61,18 +84,6 @@
     "isRadio": true,
     "description": "Build radio to call for rescue. Requires fragments and components."
   },
-  "wall": {
-    "name": "Wall",
-    "color": 8421504,
-    "maxHp": 250,
-    "buildTime": 3,
-    "requires": {
-      "wood": 2,
-      "stone": 2
-    },
-    "blocksMovement": true,
-    "description": "Cheap barrier. Blocks dinosaur movement, enclose your base."
-  },
   "turret": {
     "name": "Turret",
     "color": 16744192,
@@ -87,16 +98,16 @@
     "attackInterval": 1,
     "description": "Auto-attacks nearest dinosaur within range every tick."
   },
-  "gate": {
-    "name": "Gate",
-    "color": 10181046,
-    "maxHp": 150,
-    "buildTime": 4,
+  "lab": {
+    "name": "Lab",
+    "color": 4491338,
+    "maxHp": 120,
+    "buildTime": 12,
+    "size": 2,
     "requires": {
-      "wood": 2,
-      "stone": 2
+      "wood": 10,
+      "stone": 8
     },
-    "isGate": true,
-    "description": "Passable for settlers, but blocks dinosaurs. Use in your walls."
+    "description": "Research station. Bring plant samples here for analysis."
   }
 }

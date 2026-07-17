@@ -24,6 +24,7 @@ import { TaskPriority } from '../core/Task';
 import { languageManager } from '../data/LanguageManager';
 import buildingsData from '../data/buildings.json';
 import { ReplayRecorder } from '../replay/ReplayRecorder';
+import { QuestModal } from './QuestModal';
 
 type BuildingType = keyof typeof buildingsData;
 
@@ -85,9 +86,11 @@ export class UIManager {
   demolishBtn!: Phaser.GameObjects.Text;
   continueBtn!: Phaser.GameObjects.Text;
   repairBtn!: Phaser.GameObjects.Text;
+  journalBtn!: Phaser.GameObjects.Text;
   onDemolishCallback: ((entity: Entity) => void) | null = null;
   onContinueCallback: ((entity: Entity) => void) | null = null;
   onRepairCallback: ((entity: Entity) => void) | null = null;
+  onJournalCallback: ((building: Building) => void) | null = null;
 
   eventText!: Phaser.GameObjects.Text;
 
@@ -104,6 +107,8 @@ export class UIManager {
 
   private artifactTooltip!: Phaser.GameObjects.Container;
   private artifactSystem: import('../systems/ArtifactSystem').ArtifactSystem | null = null;
+  private questModal!: QuestModal;
+  private questBtn!: Phaser.GameObjects.Text;
 
   constructor(scene: Phaser.Scene, simulation: Simulation) {
     this.scene = scene;
@@ -182,17 +187,31 @@ export class UIManager {
     });
     this.leftPanelContainer.add(this.colonistTaskText);
 
-    this.colonistInvText = this.scene.add.text(14, 400, '', {
+    this.colonistInvText = this.scene.add.text(14, 380, '', {
       fontSize: '14px', color: '#c9d1d9', fontFamily: 'monospace',
       wordWrap: { width: LEFT_PANEL_WIDTH - 28 },
       lineSpacing: 4,
     });
     this.leftPanelContainer.add(this.colonistInvText);
 
-    this.questText = this.scene.add.text(14, 450, '', {
-      fontSize: '14px', color: '#ffaa00', fontFamily: 'monospace',
+    this.questModal = new QuestModal(this.scene);
+
+    this.questBtn = this.scene.add.text(14, 448, '📋 КВЕСТЫ', {
+      fontSize: '13px', color: '#58a6ff', fontFamily: 'monospace', fontStyle: 'bold',
+      backgroundColor: '#16213e', padding: { x: 6, y: 3 },
+    }).setInteractive({ useHandCursor: true })
+      .on('pointerover', () => this.questBtn.setColor('#ffffff'))
+      .on('pointerout', () => this.questBtn.setColor('#58a6ff'))
+      .on('pointerdown', () => {
+        const qm = (this.scene as any).questManager;
+        if (qm) this.questModal.show(qm);
+      });
+    this.leftPanelContainer.add(this.questBtn);
+
+    this.questText = this.scene.add.text(14, 474, '', {
+      fontSize: '12px', color: '#8b949e', fontFamily: 'monospace',
       wordWrap: { width: LEFT_PANEL_WIDTH - 28 },
-      lineSpacing: 4,
+      lineSpacing: 3,
     });
     this.leftPanelContainer.add(this.questText);
 
@@ -274,17 +293,27 @@ export class UIManager {
       const container = this.scene.add.container(startX + i * (iconSize + 8), startY).setDepth(21);
 
       const bg = this.scene.add.rectangle(0, 0, iconSize, iconSize, 0x21262d, 0.9)
-        .setOrigin(0).setStrokeStyle(2, COLORS.panelBorder);
+        .setOrigin(0).setStrokeStyle(2, COLORS.panelBorder)
+        .setInteractive({ useHandCursor: true })
+        .on('pointerover', () => {
+          bg.setStrokeStyle(2, 0x58a6ff);
+        })
+        .on('pointerout', () => {
+          const alive = this.simulation?.entityManager?.getByType('settler') as any[];
+          if (!alive) { bg.setStrokeStyle(2, COLORS.panelBorder); return; }
+          const selSettler = (this.scene as any).getSelectedSettler?.();
+          const selIdx = selSettler ? alive.indexOf(selSettler) : -1;
+          if (i === selIdx) {
+            bg.setStrokeStyle(2, 0xffd700);
+          } else {
+            bg.setStrokeStyle(2, COLORS.panelBorder);
+          }
+        })
+        .on('pointerdown', () => this.onSettlerIconClick?.(i));
       container.add(bg);
 
-      const num = this.scene.add.text(iconSize / 2, iconSize / 2, `${i + 1}`, {
-        fontSize: '14px', color: '#ffd700', fontFamily: 'monospace',
-      }).setOrigin(0.5);
-      container.add(num);
-
+      // Portrait will be added in updateSettlerIcons on first update
       container.setSize(iconSize, iconSize);
-      container.setInteractive({ useHandCursor: true })
-        .on('pointerdown', () => this.onSettlerIconClick?.(i));
 
       this.leftPanelContainer.add(container);
       this.settlerIcons.push(container);
@@ -293,8 +322,49 @@ export class UIManager {
   }
 
   updateSettlerIcons(selectedIndex: number): void {
-    for (let i = 0; i < this.settlerIconsBg.length; i++) {
+    const allSettlers = this.simulation?.entityManager?.getByType('settler') as any[] ?? [];
+    const heroKeys = ['hero_engineer', 'hero_biologist', 'hero_pilot'];
+    for (let i = 0; i < this.settlerIcons.length; i++) {
+      const container = this.settlerIcons[i];
       const bg = this.settlerIconsBg[i];
+
+      if (i >= allSettlers.length || (allSettlers[i] && !allSettlers[i].isAlive)) {
+        container.setVisible(false);
+        continue;
+      }
+      container.setVisible(true);
+
+      // Remove old children (avatar + hp bar)
+      while (container.list.length > 1) {
+        container.list[container.list.length - 1].destroy();
+      }
+
+      // Add hero image
+      const texKey = heroKeys[i] || heroKeys[0];
+      const avatar = this.scene.add.image(20, 18, texKey).setDisplaySize(36, 36);
+
+      // Tint portrait red when HP < 50%
+      const settler = allSettlers[i];
+      if (settler && settler.hp < settler.maxHp * 0.5) {
+        avatar.setTint(0xff6666);
+      }
+
+      container.add(avatar);
+
+      // HP bar below portrait
+      if (settler) {
+        const hpRatio = settler.hp / settler.maxHp;
+        const barW = 36;
+        const barH = 4;
+        const barX = 20 - barW / 2;
+        const barY = 38;
+        const hpBarBg = this.scene.add.rectangle(barX, barY, barW, barH, 0x333333, 0.8).setOrigin(0);
+        const hpColor = hpRatio > 0.5 ? 0x44cc44 : hpRatio > 0.25 ? 0xcccc44 : 0xcc4444;
+        const hpBar = this.scene.add.rectangle(barX, barY, barW * hpRatio, barH, hpColor, 1).setOrigin(0);
+        container.add(hpBarBg);
+        container.add(hpBar);
+      }
+
       if (i === selectedIndex) {
         bg.setStrokeStyle(2, 0xffd700);
         bg.setFillStyle(0x3a3a4a, 0.9);
@@ -330,7 +400,7 @@ export class UIManager {
 
     this.infoPanel = this.scene.add.container(px, py).setDepth(25).setVisible(false);
 
-    const bg = this.scene.add.rectangle(0, 0, 230, 200, 0x0a0a2e, 0.95)
+    const bg = this.scene.add.rectangle(0, 0, 230, 250, 0x0a0a2e, 0.95)
       .setOrigin(0).setStrokeStyle(1, 0x44cc44);
     this.infoPanel.add(bg);
 
@@ -367,6 +437,13 @@ export class UIManager {
     }).setInteractive({ useHandCursor: true })
       .on('pointerdown', () => this.onRepair());
     this.infoPanel.add(this.repairBtn);
+
+    this.journalBtn = this.scene.add.text(10, 220, '[📋 Журнал]', {
+      fontSize: '14px', color: '#58a6ff', fontFamily: 'monospace',
+      backgroundColor: '#16213e', padding: { x: 12, y: 4 },
+    }).setInteractive({ useHandCursor: true })
+      .on('pointerdown', () => this.onJournal());
+    this.infoPanel.add(this.journalBtn);
   }
 
   private onDemolish(): void {
@@ -387,6 +464,13 @@ export class UIManager {
     if (!this.selectedBuilding) return;
     if (this.onRepairCallback) {
       this.onRepairCallback(this.selectedBuilding);
+    }
+  }
+
+  private onJournal(): void {
+    if (!this.selectedBuilding) return;
+    if (this.onJournalCallback) {
+      this.onJournalCallback(this.selectedBuilding);
     }
   }
 
@@ -689,9 +773,21 @@ export class UIManager {
     );
   }
 
+  getAllowedBuildTypes(): string[] | null {
+    const qm = (this.scene as any).questManager;
+    if (!qm) return null;
+    const active = qm.getActiveQuests();
+    if (active.length === 0) return null;
+    const questId = active[0].quest.id;
+    // q1_2: only walls and gates
+    if (questId === 'q1_2') return ['wall', 'gate'];
+    return null;
+  }
+
   updateBuildButtonStates(): void {
     const types = Object.keys(buildingsData) as BuildingType[];
     const settler = (this.scene as any).getSelectedSettler() as Settler;
+    const allowedTypes = this.getAllowedBuildTypes();
 
     if (this.buildMode) {
       this.bottomHudBg.setFillStyle(0x3a2a0a, 0.98);
@@ -713,14 +809,18 @@ export class UIManager {
       const bg = btn.list[0] as Phaser.GameObjects.Rectangle;
       const icon = btn.list[1] as Phaser.GameObjects.Image;
 
+      const isAllowed = allowedTypes === null || allowedTypes.includes(type);
       const affordable = Object.entries(def.requires).every(([res, qty]) =>
         this.simulation.hasResource(res, qty as number)
       );
 
-      if (!settler) {
-        icon.setAlpha(0.35);
-        bg.setFillStyle(0x161b22, 0.9);
+      if (!settler || !isAllowed) {
+        icon.setAlpha(0.15);
+        bg.setFillStyle(0x161b22, 0.5);
+        btn.disableInteractive();
         continue;
+      } else {
+        btn.setInteractive({ useHandCursor: true });
       }
 
       if (affordable) {
@@ -790,6 +890,7 @@ export class UIManager {
       this.demolishBtn.setVisible(true);
       this.continueBtn.setVisible(!bld.built);
       this.repairBtn.setVisible(bld.built && bld.hp < bld.maxHp);
+      this.journalBtn.setVisible(bld.built && bld.buildingType === 'lab');
     } else if (this.selectedEntity) {
       const e = this.selectedEntity;
       let lines: string[] = [];
@@ -823,17 +924,22 @@ export class UIManager {
       this.demolishBtn.setVisible(false);
       this.continueBtn.setVisible(false);
       this.repairBtn.setVisible(false);
+      this.journalBtn.setVisible(false);
     }
   }
 
   updateSelection(): void {
     if (this.selectedBuilding) {
+      const bldSize = this.selectedBuilding.size ?? 1;
       const { sx, sy } = this.tileToScreen(this.selectedBuilding.x, this.selectedBuilding.y);
-      this.selectionRect.setPosition(sx, sy);
+      const footprintPx = TILE_SIZE * bldSize;
+      this.selectionRect.setPosition(sx + footprintPx / 2 - TILE_SIZE / 2, sy + footprintPx / 2 - TILE_SIZE / 2);
+      this.selectionRect.setSize(footprintPx + 4, footprintPx + 4);
       this.selectionRect.setVisible(true);
     } else if (this.selectedEntity) {
       const { sx, sy } = this.tileToScreen(this.selectedEntity.x, this.selectedEntity.y);
-      this.selectionRect.setPosition(sx, sy);
+      this.selectionRect.setPosition(sx + TILE_SIZE / 2, sy + TILE_SIZE / 2);
+      this.selectionRect.setSize(TILE_SIZE + 4, TILE_SIZE + 4);
       this.selectionRect.setVisible(true);
     } else {
       this.selectionRect.setVisible(false);
@@ -850,19 +956,26 @@ export class UIManager {
     const buildStr = this.buildMode ? `\n${languageManager.ui.buildMode}: ${(buildingsData as any)[this.buildMode].name}` : '';
 
     const colorHex = '#' + s.color.toString(16).padStart(6, '0');
+    const foodWarning = s.food <= 2 ? ' ⚠' : '';
+    const hungerWarning = s.hunger <= 20 ? ' ⚠' : '';
     this.colonistStatusText.setText(
       `${s.name} (${s.settlerClass})\n` +
       `${languageManager.ui.position}: ${s.x},${s.y}\n` +
       `${languageManager.ui.hp}: ${Math.round(s.hp)}/${s.maxHp}\n` +
       (NEEDS_ENABLED
-        ? `${languageManager.ui.hunger}: ${Math.round(s.hunger)}%\n` +
+        ? `${languageManager.ui.hunger}: ${Math.round(s.hunger)}%${hungerWarning}\n` +
         `${languageManager.ui.energy}: ${Math.round(s.energy)}%\n`
         : '') +
-      `${languageManager.ui.food}: ${s.food}\n` +
+      `${languageManager.ui.food}: ${s.food}${foodWarning}\n` +
       `${languageManager.ui.tick}: ${tickCount}` +
       buildStr
     );
     this.colonistStatusText.setColor(colorHex);
+
+    // Update settler icons (hide dead, show alive, update portraits)
+    const allSettlers = this.simulation?.entityManager?.getByType('settler') as any[] ?? [];
+    const selIdx = allSettlers.indexOf(s);
+    this.updateSettlerIcons(selIdx);
 
     this.colonistTaskText.setText(
       `\u2500\u2500 ${languageManager.ui.taskSection} \u2500\u2500\n` +
@@ -882,7 +995,35 @@ export class UIManager {
     this.updateGlobalInventory();
 
     const questSystem = (this.scene as any).questSystem;
-    if (questSystem) {
+    const questManager = (this.scene as any).questManager;
+    if (questManager) {
+      const activeQuests = questManager.getActiveQuests();
+      if (activeQuests.length > 0) {
+        const lines: string[] = ['\u2500\u2500 Квесты \u2500\u2500'];
+        for (const { quest, state } of activeQuests) {
+          lines.push(`▸ ${quest.title}`);
+          const progress = questManager.getProgressText(quest.id);
+          if (progress) lines.push(`  ${progress}`);
+        }
+        const available = questManager.getAvailableQuests();
+        for (const { quest } of available) {
+          lines.push(`○ ${quest.title} (доступен)`);
+        }
+        this.questText.setText(lines.join('\n'));
+      } else {
+        const available = questManager.getAvailableQuests();
+        if (available.length > 0) {
+          const lines = ['\u2500\u2500 Квесты \u2500\u2500'];
+          for (const { quest } of available) {
+            lines.push(`○ ${quest.title}`);
+          }
+          this.questText.setText(lines.join('\n'));
+        } else {
+          // Check if all quests completed
+          this.questText.setText('\u2500\u2500 Квесты \u2500\u2500\nВсе квесты выполнены!');
+        }
+      }
+    } else if (questSystem) {
       const questState = questSystem.getState();
       if (questState.completed) {
         this.questText.setText('\u2500\u2500 Quest \u2500\u2500\nComplete!');
@@ -989,7 +1130,7 @@ export class UIManager {
     };
 
     const startX = 14;
-    const startY = 380;
+    const startY = 398;
     const iconSize = 24;
     const gap = 4;
 

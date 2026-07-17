@@ -17,16 +17,18 @@ import { WorkSystem } from '../systems/WorkSystem';
 import { ArtifactSystem } from '../systems/ArtifactSystem';
 import { TaskPriority } from '../core/Task';
 import { UIManager } from './UIManager';
+import { MenuSystem } from './MenuSystem';
 import { languageManager } from '../data/LanguageManager';
 import buildingsData from '../data/buildings.json';
 import { ReplayRecorder } from '../replay/ReplayRecorder';
 import { ReplayActionType } from '../replay/ReplayTypes';
 import { Dinosaur } from '../entities/Dinosaur';
+import { getContextMenuForEntity, getTooltipForEntity, EntityMenuContext } from './EntityMenuBuilder';
 
 type BuildingType = keyof typeof buildingsData;
 
 const MINIMAP_X = 14;
-const MINIMAP_Y = 584;
+const MINIMAP_Y = 644;
 const MINIMAP_TILE_SIZE = 7;
 const MINIMAP_SIZE = 210;
 
@@ -36,16 +38,20 @@ export class InputHandler {
   private scene: Phaser.Scene;
   private simulation: Simulation;
   private uiManager: UIManager;
+  private menuSystem: MenuSystem;
   private workSystem: WorkSystem;
   private artifactSystem: ArtifactSystem;
   recorder: ReplayRecorder | null = null;
   hoverRect!: Phaser.GameObjects.Rectangle;
+  private blockedTilesGfx!: Phaser.GameObjects.Graphics;
   private scrollX = 0;
   private scrollY = 0;
   private isPainting = false;
   private lastPaintX = -1;
   private lastPaintY = -1;
   scrollTo: ((tileX: number, tileY: number) => void) | null = null;
+  onMoveHere: ((x: number, y: number, queue: boolean) => void) | null = null;
+  onAttackEntity: ((entity: import('../core/Entity').Entity, queue: boolean) => void) | null = null;
 
   // Selection indicators
   private selectionIndicator!: Phaser.GameObjects.Graphics;
@@ -57,16 +63,23 @@ export class InputHandler {
   private isDragging = false;
   private dragGfx!: Phaser.GameObjects.Graphics;
 
+  // ── Hover tooltip state ──
+  private lastHoverEntity: import('../core/Entity').Entity | null = null;
+  private lastPointerWasRight = false;
+  selectedTreeTile: { x: number; y: number } | null = null;
+
   constructor(
     scene: Phaser.Scene,
     simulation: Simulation,
     uiManager: UIManager,
+    menuSystem: MenuSystem,
     workSystem: WorkSystem,
     artifactSystem: ArtifactSystem
   ) {
     this.scene = scene;
     this.simulation = simulation;
     this.uiManager = uiManager;
+    this.menuSystem = menuSystem;
     this.workSystem = workSystem;
     this.artifactSystem = artifactSystem;
   }
@@ -107,6 +120,7 @@ export class InputHandler {
       .setOrigin(0)
       .setDepth(5)
       .setVisible(false);
+    this.blockedTilesGfx = this.scene.add.graphics().setDepth(5);
   }
 
   createSelectionRect(): void {
@@ -133,18 +147,41 @@ export class InputHandler {
       const ctx = (this.scene.sound as any)?.context;
       if (ctx && ctx.state === 'suspended') ctx.resume();
       if (this.uiManager.startMenuOpen) return;
+      if ((this.scene as any).dialoguePaused) return;
 
       // Right-click
       if (pointer.rightButtonDown()) {
+        this.lastPointerWasRight = true;
+        this.menuSystem.hideAll();
         if (this.uiManager.buildMode) {
           this.cancelBuildMode();
           return;
         }
         const coords = this.screenToTile(pointer.x, pointer.y);
         if (!coords) return;
+
+        // Right-click on lab → auto deliver artifact
+        const building = this.simulation.entityManager.getAt(coords.tileX, coords.tileY, 'building') as Building | undefined;
+        const settler = (this.scene as any).getSelectedSettler() as Settler | undefined;
+        if (building?.buildingType === 'lab' && building.built && settler?.isAlive) {
+          const artifactItem = settler.inventory.find(i => i.resourceType === 'artifact');
+          if (artifactItem) {
+            this.workSystem.createDeliverArtifactTask(settler, TaskPriority.High);
+            this.uiManager.addLog(`${settler.name} несёт ${artifactItem.name} в лабораторию`);
+            return;
+          }
+        }
+
         this.handleCommand(coords.tileX, coords.tileY, (pointer.event as MouseEvent).shiftKey);
         return;
       }
+
+      // Left-click — close context menu if open
+      if (this.menuSystem.isContextMenuVisible()) {
+        this.menuSystem.hideContextMenu();
+        return;
+      }
+      this.lastPointerWasRight = false;
 
       // Left-click
       const minimapCoords = this.screenToMinimapTile(pointer.x, pointer.y);
@@ -170,8 +207,9 @@ export class InputHandler {
 
     // ── Pointer MOVE ──
     this.scene.input.on('pointermove', (pointer: Phaser.Input.Pointer) => {
-      if (this.uiManager.startMenuOpen) {
+      if (this.uiManager.startMenuOpen || (this.scene as any).dialoguePaused) {
         this.hoverRect.setVisible(false);
+        this.menuSystem.hideTooltip();
         return;
       }
 
@@ -179,12 +217,77 @@ export class InputHandler {
 
       // Hover
       if (coords && !this.isDragging) {
-        const { sx, sy } = this.tileToScreen(coords.tileX, coords.tileY);
-        this.hoverRect.setPosition(sx, sy);
+        // Check if hovering over any tile of a multi-tile building
+        let hoverTileX = coords.tileX;
+        let hoverTileY = coords.tileY;
+        let hoverSize = 1;
+        if (!this.uiManager.buildMode) {
+          const allBuildings = this.simulation.entityManager.getByType('building') as Building[];
+          for (const b of allBuildings) {
+            const bldSize = b.size ?? 1;
+            if (coords.tileX >= b.x && coords.tileX < b.x + bldSize &&
+                coords.tileY >= b.y && coords.tileY < b.y + bldSize) {
+              hoverTileX = b.x;
+              hoverTileY = b.y;
+              hoverSize = bldSize;
+              break;
+            }
+          }
+        }
+
+        const { sx: hsx, sy: hsy } = this.tileToScreen(hoverTileX, hoverTileY);
+        this.hoverRect.setPosition(hsx, hsy);
+
+        // Resize hover rect for multi-tile buildings
+        if (this.uiManager.buildMode) {
+          const def = (buildingsData as any)[this.uiManager.buildMode];
+          const bldSize = def?.size ?? 1;
+          this.hoverRect.setSize(TILE_SIZE * bldSize, TILE_SIZE * bldSize);
+        } else {
+          this.hoverRect.setSize(TILE_SIZE * hoverSize, TILE_SIZE * hoverSize);
+        }
+
         this.hoverRect.setVisible(true);
         this.updateHoverStyle(coords.tileX, coords.tileY);
+
+        // Draw red rects on blocked tiles in footprint
+        this.blockedTilesGfx.clear();
+        if (this.uiManager.buildMode) {
+          const def = (buildingsData as any)[this.uiManager.buildMode];
+          const bldSize = def?.size ?? 1;
+          for (let dy = 0; dy < bldSize; dy++) {
+            for (let dx = 0; dx < bldSize; dx++) {
+              const fx = coords.tileX + dx;
+              const fy = coords.tileY + dy;
+              const ft = this.simulation.tileGrid.get(fx, fy);
+              const decGen = (this.scene as any).decorationGenerator;
+              const hasTree = decGen?.getTreeAt(fx, fy);
+              const hasEntity = this.simulation.entityManager.getAt(fx, fy);
+              const blocked = !ft || !ft.walkable || ft.occupied || ft.building || hasTree || hasEntity;
+              if (blocked) {
+                const { sx: rx, sy: ry } = this.tileToScreen(fx, fy);
+                this.blockedTilesGfx.fillStyle(0xff4444, 0.4);
+                this.blockedTilesGfx.fillRect(rx, ry, TILE_SIZE, TILE_SIZE);
+              }
+            }
+          }
+        }
+
+        // Show tooltip for entity under cursor
+        const hoverEntity = this.simulation.entityManager.getAt(coords.tileX, coords.tileY);
+        if (hoverEntity && hoverEntity !== this.lastHoverEntity) {
+          this.lastHoverEntity = hoverEntity;
+          const lines = getTooltipForEntity(hoverEntity);
+          this.menuSystem.showTooltip(lines, pointer.x, pointer.y);
+        } else if (!hoverEntity) {
+          this.lastHoverEntity = null;
+          this.menuSystem.hideTooltip();
+        }
       } else if (!this.isDragging) {
         this.hoverRect.setVisible(false);
+        this.blockedTilesGfx.clear();
+        this.lastHoverEntity = null;
+        this.menuSystem.hideTooltip();
       }
 
       // Build painting
@@ -201,6 +304,7 @@ export class InputHandler {
         if (!this.isDragging && (Math.abs(dx) > DRAG_THRESHOLD || Math.abs(dy) > DRAG_THRESHOLD)) {
           this.isDragging = true;
           this.hoverRect.setVisible(false);
+          this.menuSystem.hideTooltip();
         }
 
         if (this.isDragging) {
@@ -211,7 +315,7 @@ export class InputHandler {
 
     // ── Pointer UP ──
     this.scene.input.on('pointerup', (pointer: Phaser.Input.Pointer) => {
-      if (pointer.rightButtonDown()) return;
+      if (this.lastPointerWasRight) return;
 
       // End paint
       this.isPainting = false;
@@ -228,7 +332,7 @@ export class InputHandler {
       }
 
       // ── Single click select ──
-      if (this.uiManager.startMenuOpen) return;
+      if (this.uiManager.startMenuOpen || (this.scene as any).dialoguePaused) return;
       const coords = this.screenToTile(pointer.x, pointer.y);
       if (!coords) return;
 
@@ -241,7 +345,10 @@ export class InputHandler {
     });
 
     // ── Keyboard ──
-    this.scene.input.keyboard?.on('keydown-ESC', () => this.cancelBuildMode());
+    this.scene.input.keyboard?.on('keydown-ESC', () => {
+      this.menuSystem.hideAll();
+      this.cancelBuildMode();
+    });
 
     // ── Block browser context menu ──
     this.scene.input.mouse?.disableContextMenu();
@@ -434,8 +541,24 @@ export class InputHandler {
         this.hoverRect.setFillStyle(0x88aaff, 0.15);
       }
     } else {
-      this.hoverRect.setStrokeStyle(2, 0xffffff);
-      this.hoverRect.setFillStyle(0xffffff, 0.1);
+      // Check multi-tile buildings
+      const allBuildings = this.simulation.entityManager.getByType('building') as Building[];
+      let isMultiTileBuilding = false;
+      for (const b of allBuildings) {
+        const bldSize = b.size ?? 1;
+        if (bldSize > 1 && tileX >= b.x && tileX < b.x + bldSize &&
+            tileY >= b.y && tileY < b.y + bldSize) {
+          isMultiTileBuilding = true;
+          break;
+        }
+      }
+      if (isMultiTileBuilding) {
+        this.hoverRect.setStrokeStyle(2, 0x88aaff);
+        this.hoverRect.setFillStyle(0x88aaff, 0.15);
+      } else {
+        this.hoverRect.setStrokeStyle(2, 0xffffff);
+        this.hoverRect.setFillStyle(0xffffff, 0.1);
+      }
     }
   }
 
@@ -447,6 +570,13 @@ export class InputHandler {
 
     const settlerAtTile = this.simulation.entityManager.getAt(tileX, tileY, 'settler') as Settler | undefined;
     if (settlerAtTile) {
+      // Double-select: if already selected, show context menu
+      if (this.uiManager.selectedEntity === settlerAtTile ||
+        ((this.scene as any).getSelectedSettler?.() === settlerAtTile &&
+          !this.uiManager.selectedBuilding && !this.uiManager.selectedEntity)) {
+        this.showEntityContextMenu(settlerAtTile, tileX, tileY);
+        return;
+      }
       this.recorder?.record(ReplayActionType.SelectSettler, { settlerId: settlerAtTile.id });
       (this.scene as any).selectSettler(settlerAtTile);
       this.uiManager.selectedBuilding = null;
@@ -456,8 +586,36 @@ export class InputHandler {
       return;
     }
 
+    // Check multi-tile buildings first
+    if (!this.uiManager.buildMode) {
+      const allBuildings = this.simulation.entityManager.getByType('building') as Building[];
+      for (const b of allBuildings) {
+        const bldSize = b.size ?? 1;
+        if (bldSize > 1 && tileX >= b.x && tileX < b.x + bldSize &&
+            tileY >= b.y && tileY < b.y + bldSize) {
+          if (this.uiManager.selectedBuilding === b) {
+            this.showEntityContextMenu(b, b.x, b.y);
+            return;
+          }
+          this.uiManager.selectedBuilding = b;
+          this.uiManager.selectedEntity = null;
+          this.uiManager.buildMode = null;
+          this.uiManager.updateBuildButtonStates();
+          const def = (buildingsData as any)[b.buildingType];
+          this.uiManager.addLog(`${languageManager.ui.selected}: ${def?.name ?? b.buildingType}`);
+          this.showSelectionRing(b.x, b.y, 0x88aaff);
+          return;
+        }
+      }
+    }
+
     const buildingAtTile = this.simulation.entityManager.getAt(tileX, tileY, 'building') as Building | undefined;
     if (buildingAtTile) {
+      // Double-select: if already selected, show context menu
+      if (this.uiManager.selectedBuilding === buildingAtTile) {
+        this.showEntityContextMenu(buildingAtTile, tileX, tileY);
+        return;
+      }
       this.uiManager.selectedBuilding = buildingAtTile;
       this.uiManager.selectedEntity = null;
       this.uiManager.buildMode = null;
@@ -472,6 +630,11 @@ export class InputHandler {
       .find(e => e.entityType === 'resource' || e.entityType === 'dinosaur' || e.entityType === 'artifact');
 
     if (entityAtTile) {
+      // Double-select: if already selected, show context menu
+      if (this.uiManager.selectedEntity === entityAtTile) {
+        this.showEntityContextMenu(entityAtTile, tileX, tileY);
+        return;
+      }
       this.uiManager.selectedBuilding = null;
       this.uiManager.selectedEntity = entityAtTile;
       this.uiManager.buildMode = null;
@@ -492,9 +655,46 @@ export class InputHandler {
       return;
     }
 
+    // Check for tree at this tile
+    const decGen = (this.scene as any).decorationGenerator;
+    if (decGen) {
+      const dec = decGen.getDecorationAt(tileX, tileY);
+      if (dec && dec.isTree) {
+        if (this.selectedTreeTile && this.selectedTreeTile.x === tileX && this.selectedTreeTile.y === tileY) {
+          // Second click — show context menu
+          this.showTreeContextMenu(tileX, tileY);
+          return;
+        }
+        // First click — select tree
+        this.selectedTreeTile = { x: tileX, y: tileY };
+        this.showSelectionRing(tileX, tileY, 0x88cc44);
+        this.uiManager.addLog('Дерево выделено');
+        return;
+      }
+    }
+
+    this.selectedTreeTile = null;
     this.uiManager.deselectAll();
     this.uiManager.buildMode = null;
     this.uiManager.updateBuildButtonStates();
+  }
+
+  private showEntityContextMenu(entity: import('../core/Entity').Entity, tileX: number, tileY: number): void {
+    const ctx: EntityMenuContext = {
+      selectedSettler: (this.scene as any).getSelectedSettler?.() ?? null,
+      onMoveHere: (x, y, queue) => this.onMoveHere?.(x, y, queue),
+      onCollect: (entity, queue) => this.uiManager.onCollectCallback?.(entity, queue),
+      onAttack: (entity, queue) => this.onAttackEntity?.(entity, queue),
+      onDemolish: (entity) => this.uiManager.onDemolishCallback?.(entity),
+      onContinue: (entity) => this.uiManager.onContinueCallback?.(entity),
+      onRepair: (entity) => this.uiManager.onRepairCallback?.(entity),
+      onSelectSettler: (settler) => (this.scene as any).selectSettler(settler),
+    };
+    const items = getContextMenuForEntity(entity, ctx);
+    if (items.length > 0) {
+      const { sx, sy } = this.tileToScreen(tileX, tileY);
+      this.menuSystem.showContextMenu(items, sx + TILE_SIZE, sy);
+    }
   }
 
   // ── Right-click command ──
@@ -520,8 +720,13 @@ export class InputHandler {
     const dinoAtTile = this.simulation.entityManager.getAt(tileX, tileY, 'dinosaur');
     if (dinoAtTile) {
       this.uiManager.selectedEntity = dinoAtTile;
-      this.uiManager.addLog(`Attack command: ${tileX},${tileY}`);
-      this.showCommandMarker(tileX, tileY, 0xff4444);
+      const target = this.findAdjacentWalkable(settler.x, settler.y, tileX, tileY);
+      if (target) {
+        this.workSystem.createMoveTask(target.x, target.y, undefined, settler, queue);
+        this.showCommandMarker(target.x, target.y, 0xff4444);
+      } else {
+        this.uiManager.addLog(`No path to target`);
+      }
       return;
     }
 
@@ -532,19 +737,72 @@ export class InputHandler {
     }
   }
 
+  private showTreeContextMenu(tileX: number, tileY: number): void {
+    const { sx, sy } = this.tileToScreen(tileX, tileY);
+    const screenX = sx + TILE_SIZE;
+    const screenY = sy;
+
+    const settler = (this.scene as any).getSelectedSettler() as Settler;
+    const isBiologist = settler?.settlerClass === 'biologist';
+
+    const items: import('./menu/MenuItem').MenuItem[] = [
+      {
+        icon: '🪓',
+        label: 'Срубить',
+        action: () => {
+          this.selectedTreeTile = null;
+          this.workSystem.createChopTask(tileX, tileY, TaskPriority.High, settler);
+          this.uiManager.addLog(`${settler ? settler.name : 'Поселенец'} направляется рубить дерево`);
+        }
+      },
+    ];
+
+    if (isBiologist) {
+      items.push({
+        icon: '🔬',
+        label: 'Исследовать',
+        action: () => {
+          this.selectedTreeTile = null;
+          this.uiManager.addLog(`${settler.name} изучает растительность...`);
+          settler.artifactFogBonus += 0.5;
+          // Notify quest system
+          const qm = (this.scene as any).questManager;
+          if (qm) qm.onPlantResearched();
+        }
+      });
+    }
+
+    this.menuSystem.showContextMenu(items, screenX, screenY);
+  }
+
   // ── Selection ring ──
   private showSelectionRing(tileX: number, tileY: number, color: number): void {
-    const { sx, sy } = this.tileToScreen(tileX, tileY);
-    const cx = sx + TILE_SIZE / 2;
-    const cy = sy + TILE_SIZE / 2;
-    const r = TILE_SIZE / 2 + 4;
+    // Check if this tile belongs to a multi-tile building
+    const building = this.simulation.entityManager.getAt(tileX, tileY, 'building') as Building | undefined;
+    const bldSize = building?.size ?? 1;
 
     this.selectionIndicator.clear();
     this.selectionIndicator.setVisible(true);
-    this.selectionIndicator.lineStyle(2, color, 0.8);
-    this.selectionIndicator.strokeCircle(cx, cy, r);
-    this.selectionIndicator.lineStyle(1, color, 0.4);
-    this.selectionIndicator.strokeCircle(cx, cy, r + 3);
+
+    if (bldSize > 1) {
+      // Draw rectangle around full footprint
+      const { sx, sy } = this.tileToScreen(tileX, tileY);
+      const pad = 3;
+      this.selectionIndicator.lineStyle(2, color, 0.8);
+      this.selectionIndicator.strokeRect(sx - pad, sy - pad, TILE_SIZE * bldSize + pad * 2, TILE_SIZE * bldSize + pad * 2);
+      this.selectionIndicator.lineStyle(1, color, 0.4);
+      this.selectionIndicator.strokeRect(sx - pad - 3, sy - pad - 3, TILE_SIZE * bldSize + (pad + 3) * 2, TILE_SIZE * bldSize + (pad + 3) * 2);
+    } else {
+      // Circle for single-tile entities
+      const { sx, sy } = this.tileToScreen(tileX, tileY);
+      const cx = sx + TILE_SIZE / 2;
+      const cy = sy + TILE_SIZE / 2;
+      const r = TILE_SIZE / 2 + 4;
+      this.selectionIndicator.lineStyle(2, color, 0.8);
+      this.selectionIndicator.strokeCircle(cx, cy, r);
+      this.selectionIndicator.lineStyle(1, color, 0.4);
+      this.selectionIndicator.strokeCircle(cx, cy, r + 3);
+    }
 
     this.scene.tweens.add({
       targets: this.selectionIndicator,
@@ -599,23 +857,57 @@ export class InputHandler {
     if (tileX === this.lastPaintX && tileY === this.lastPaintY) return;
     this.lastPaintX = tileX;
     this.lastPaintY = tileY;
-    this.handleBuildClick(tileX, tileY, this.simulation.tileGrid.get(tileX, tileY)!);
+    const tile = this.simulation.tileGrid.get(tileX, tileY);
+    if (!tile) return;
+    this.handleBuildClick(tileX, tileY, tile);
   }
 
   private handleBuildClick(tileX: number, tileY: number, tile: any): void {
+    if (!tile) return;
     if (!this.simulation.tileGrid.isRevealed(tileX, tileY)) return;
     if (!tile.walkable) { this.uiManager.addLog(languageManager.ui.logCannotBuildHere); return; }
 
-    const entityAt = this.simulation.entityManager.getAt(tileX, tileY);
-    if (entityAt && entityAt.entityType === 'settler') {
-      const s = entityAt as Settler;
-      (this.scene as any).selectSettler(s);
-      this.uiManager.addLog(`${languageManager.ui.selected}: ${s.name} (${s.settlerClass})`);
+    const decGen = (this.scene as any).decorationGenerator;
+    if (decGen?.getTreeAt(tileX, tileY)) {
+      this.uiManager.addLog(languageManager.ui.logChopTreeFirst);
       return;
     }
-    if (entityAt) { this.uiManager.addLog(languageManager.ui.logTileOccupied); return; }
 
     const def = (buildingsData as any)[this.uiManager.buildMode!];
+    const bldSize = def.size ?? 1;
+
+    // Check full footprint for multi-tile buildings
+    for (let dy = 0; dy < bldSize; dy++) {
+      for (let dx = 0; dx < bldSize; dx++) {
+        const fx = tileX + dx;
+        const fy = tileY + dy;
+        const ft = this.simulation.tileGrid.get(fx, fy);
+        if (!ft || !ft.walkable) {
+          this.uiManager.addLog(languageManager.ui.logCannotBuildHere);
+          return;
+        }
+        if (ft.occupied || ft.building) {
+          this.uiManager.addLog(languageManager.ui.logTileOccupied);
+          return;
+        }
+        if (decGen?.getTreeAt(fx, fy)) {
+          this.uiManager.addLog(languageManager.ui.logChopTreeFirst);
+          return;
+        }
+        const entityAt = this.simulation.entityManager.getAt(fx, fy);
+        if (entityAt && entityAt.entityType === 'settler') {
+          const s = entityAt as Settler;
+          (this.scene as any).selectSettler(s);
+          this.uiManager.addLog(`${languageManager.ui.selected}: ${s.name} (${s.settlerClass})`);
+          return;
+        }
+        if (entityAt) {
+          this.uiManager.addLog(languageManager.ui.logTileOccupied);
+          return;
+        }
+      }
+    }
+
     const hasAll = Object.entries(def.requires).every(([res, qty]) => this.simulation.hasResource(res, qty as number));
     if (!hasAll) {
       const need = Object.entries(def.requires).map(([r, q]) => `${r}:${q}`).join(', ');
@@ -625,6 +917,7 @@ export class InputHandler {
 
     const building = new Building(tileX, tileY, this.uiManager.buildMode!, def.maxHp, def.buildTime,
       Object.entries(def.requires).map(([r, q]) => ({ resourceType: r, quantity: q as number })));
+    building.size = bldSize;
     building.storageCapacity = def.storageCapacity ? def.storageCapacity + this.artifactSystem.getStorageBonus() : 0;
     building.produceType = def.produceType ?? '';
     building.produceRate = def.produceRate ?? 0;
@@ -633,12 +926,18 @@ export class InputHandler {
     building.attackRange = def.attackRange ?? 0;
     building.attackInterval = def.attackInterval ?? 0;
     this.simulation.entityManager.add(building);
-    this.simulation.tileGrid.setBuilding(tileX, tileY, true);
-    if (def.isGate) {
-      this.simulation.tileGrid.setGate(tileX, tileY, true);
-      this.simulation.tileGrid.setDinoBlocked(tileX, tileY, true);
-    } else {
-      this.simulation.tileGrid.setOccupied(tileX, tileY, true);
+
+    // Mark all tiles in footprint
+    for (let dy = 0; dy < bldSize; dy++) {
+      for (let dx = 0; dx < bldSize; dx++) {
+        this.simulation.tileGrid.setBuilding(tileX + dx, tileY + dy, true);
+        if (def.isGate) {
+          this.simulation.tileGrid.setGate(tileX + dx, tileY + dy, true);
+          this.simulation.tileGrid.setDinoBlocked(tileX + dx, tileY + dy, true);
+        } else {
+          this.simulation.tileGrid.setOccupied(tileX + dx, tileY + dy, true);
+        }
+      }
     }
 
     const selected = (this.scene as any).getSelectedSettler() as Settler;
@@ -657,5 +956,25 @@ export class InputHandler {
     this.recorder?.record(ReplayActionType.MinimapClick, { x: tileX, y: tileY });
     if (this.scrollTo) this.scrollTo(tileX, tileY);
     this.uiManager.addLog(`${languageManager.ui.logAt} (${tileX},${tileY})`);
+  }
+
+  private findAdjacentWalkable(sx: number, sy: number, tx: number, ty: number): { x: number; y: number } | null {
+    const dirs = [
+      { x: tx - 1, y: ty }, { x: tx + 1, y: ty },
+      { x: tx, y: ty - 1 }, { x: tx, y: ty + 1 },
+    ];
+    let best: { x: number; y: number } | null = null;
+    let bestDist = Infinity;
+    for (const d of dirs) {
+      const tile = this.simulation.tileGrid.get(d.x, d.y);
+      if (!tile || !tile.walkable) continue;
+      if (this.simulation.tileGrid.get(d.x, d.y)?.occupied) continue;
+      const dist = Math.abs(d.x - sx) + Math.abs(d.y - sy);
+      if (dist < bestDist) {
+        bestDist = dist;
+        best = d;
+      }
+    }
+    return best;
   }
 }

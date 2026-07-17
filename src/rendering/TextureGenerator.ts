@@ -29,14 +29,50 @@ function adjustBrightness(color: number, factor: number): number {
 export function createBuildingIcons(scene: Phaser.Scene): void {
   const s = 40;
   const icons: [string, (g: Phaser.GameObjects.Graphics) => void][] = [
+    ['icon_wall', g => { g.fillStyle(0x8b5a2b); g.fillRect(4, 6, 32, 28); g.fillStyle(0xa0704a); g.fillRect(4, 6, 32, 6); g.lineStyle(1, 0x5a3a1a); g.strokeRect(4, 6, 32, 28); g.lineBetween(20, 6, 20, 34); g.lineBetween(4, 20, 36, 20); }],
+    ['icon_gate', g => {
+      // Outer frame
+      g.fillStyle(0x6b4226); g.fillRect(4, 4, 32, 32);
+      // Dark opening
+      g.fillStyle(0x2a1a0e); g.fillRect(8, 10, 24, 24);
+      // Door panels (two halves)
+      g.fillStyle(0x8b6b3d); g.fillRect(8, 10, 11, 24);
+      g.fillStyle(0x7a5c34); g.fillRect(21, 10, 11, 24);
+      // Horizontal planks
+      g.lineStyle(1, 0x5a4020, 0.5);
+      g.lineBetween(8, 16, 32, 16); g.lineBetween(8, 22, 32, 22); g.lineBetween(8, 28, 32, 28);
+      // Center gap
+      g.lineStyle(2, 0x2a1a0e); g.lineBetween(20, 10, 20, 34);
+      // Top beam
+      g.fillStyle(0x5a3a1a); g.fillRect(4, 4, 32, 6);
+      // Handle
+      g.fillStyle(0xccaa44); g.fillCircle(18, 24, 2); g.fillCircle(22, 24, 2);
+    }],
     ['icon_house', g => { g.fillStyle(0x8b4513); g.fillRect(6, 18, 28, 18); g.fillStyle(0xcc4444); g.fillTriangle(20, 4, 4, 20, 36, 20); g.fillStyle(0x654321); g.fillRect(16, 26, 8, 10); }],
     ['icon_warehouse', g => { g.fillStyle(0x778899); g.fillRect(4, 14, 32, 22); g.fillStyle(0x556677); g.fillRect(4, 12, 32, 4); g.lineStyle(1, 0x445566); g.strokeRect(4, 14, 32, 22); g.fillStyle(0x99aabb); g.fillRect(14, 22, 12, 14); }],
     ['icon_farm', g => { g.fillStyle(0x8b7355); g.fillRect(2, 28, 36, 8); g.fillStyle(0x44aa44); g.fillCircle(12, 18, 6); g.fillCircle(28, 18, 6); g.fillStyle(0x338833); g.fillRect(11, 18, 2, 12); g.fillRect(27, 18, 2, 12); g.fillStyle(0xffcc00); g.fillCircle(12, 14, 3); g.fillCircle(28, 14, 3); }],
     ['icon_workshop', g => { g.fillStyle(0x808080); g.fillRect(8, 8, 24, 24); g.fillStyle(0x606060); g.fillRect(8, 8, 24, 6); g.fillStyle(0xaaaaaa); g.fillRect(12, 20, 16, 8); g.lineStyle(2, 0xffd700); g.strokeCircle(20, 24, 4); }],
-    ['icon_wall', g => { g.fillStyle(0x808080); g.fillRect(4, 6, 32, 28); g.fillStyle(0x999999); g.fillRect(4, 6, 32, 6); g.lineStyle(1, 0x555555); g.strokeRect(4, 6, 32, 28); g.lineBetween(20, 6, 20, 34); g.lineBetween(4, 20, 36, 20); }],
     ['icon_turret', g => { g.fillStyle(0x884400); g.fillRect(14, 22, 12, 14); g.fillStyle(0x555555); g.fillCircle(20, 18, 8); g.fillStyle(0x333333); g.fillRect(18, 4, 4, 14); }],
-    ['icon_gate', g => { g.fillStyle(0x9b7653); g.fillRect(6, 8, 28, 26); g.fillStyle(0x7a5c3c); g.fillRect(6, 8, 28, 6); g.lineStyle(1, 0x4a3826); g.strokeRect(6, 8, 28, 26); g.lineBetween(20, 8, 20, 34); }],
     ['icon_radio', g => { g.fillStyle(0x888888); g.fillRect(10, 28, 20, 8); g.lineStyle(2, 0xffffff); g.strokeCircle(20, 18, 8); g.lineBetween(20, 10, 20, 2); g.lineBetween(20, 2, 26, 2); }],
+    ['icon_lab', g => {
+      // Building body
+      g.fillStyle(0x446688); g.fillRect(6, 14, 28, 20);
+      // Roof
+      g.fillStyle(0x335577); g.fillRect(6, 10, 28, 6);
+      g.fillStyle(0x556688); g.fillRect(6, 10, 28, 3);
+      // Window (shows interior glow)
+      g.fillStyle(0x88ccee, 0.7); g.fillRect(12, 18, 16, 10);
+      g.lineStyle(1, 0x224466); g.strokeRect(12, 18, 16, 10);
+      // Microscope silhouette in window
+      g.fillStyle(0x224466); g.fillRect(18, 20, 2, 6); g.fillRect(16, 20, 6, 2);
+      g.fillCircle(20, 19, 2);
+      // Door
+      g.fillStyle(0x334455); g.fillRect(17, 28, 6, 6);
+      // DNA helix hint on roof
+      g.lineStyle(1, 0x66aacc, 0.6);
+      g.lineBetween(20, 6, 22, 8); g.lineBetween(22, 8, 20, 10);
+      g.lineBetween(20, 6, 18, 8); g.lineBetween(18, 8, 20, 10);
+    }],
   ];
   for (const [key, draw] of icons) {
     const g = scene.add.graphics().setVisible(false);
@@ -572,7 +608,608 @@ export function createTrexSprite(scene: Phaser.Scene): void {
     ctx.restore();
   }
 
-  scene.textures.addSpriteSheet('trex', htmlCanvas as any, { frameWidth: fw, frameHeight: fh });
+  // Create canvas texture and manually add frames
+  const canvasTexture = scene.textures.createCanvas('trex', fw * totalFrames, fh);
+  if (canvasTexture) {
+    const ctx2 = canvasTexture.context;
+    ctx2.drawImage(htmlCanvas, 0, 0);
+    canvasTexture.refresh();
+
+    // Add frames manually
+    for (let i = 0; i < totalFrames; i++) {
+      canvasTexture.add(i, 0, i * fw, 0, fw, fh);
+    }
+  }
+}
+
+// ─── Raptor sprite ───────────────────────────────────────
+export function createRaptorSprite(scene: Phaser.Scene): void {
+  if (scene.textures.exists('raptor')) scene.textures.remove('raptor');
+
+  const fw = 64, fh = 64;
+  const idleFrames = 4, walkFrames = 6, attackFrames = 3;
+  const totalFrames = idleFrames + walkFrames + attackFrames;
+
+  const htmlCanvas = document.createElement('canvas');
+  htmlCanvas.width = fw * totalFrames;
+  htmlCanvas.height = fh;
+  const ctx = htmlCanvas.getContext('2d')!;
+
+  const BODY = '#9aa0a6';
+  const BODY_DARK = '#737880';
+  const BELLY = '#c2c6ca';
+  const OUTLINE = '#23262b';
+  const EYE_B = '#1a1a1a';
+  const MOUTH_IN = '#b03a2e';
+  const TOOTH = '#ffffff';
+
+  function drawRaptorAt(ox: number, jawOpen: number, legSwing: number, bob: number, tailSwing: number) {
+    const cx = ox + 32;
+    const cy = 34 + bob;
+
+    // TAIL
+    ctx.fillStyle = BODY;
+    ctx.beginPath();
+    ctx.moveTo(cx - 10, cy + 2);
+    ctx.quadraticCurveTo(cx - 26 + tailSwing, cy - 2, cx - 30 + tailSwing * 1.5, cy + 4);
+    ctx.quadraticCurveTo(cx - 22, cy + 7, cx - 10, cy + 6);
+    ctx.closePath(); ctx.fill();
+    ctx.fillStyle = BODY_DARK;
+    ctx.beginPath();
+    ctx.moveTo(cx - 24 + tailSwing, cy + 2);
+    ctx.quadraticCurveTo(cx - 20, cy + 5, cx - 10, cy + 5);
+    ctx.closePath(); ctx.fill();
+
+    // BODY
+    ctx.fillStyle = BODY;
+    ctx.beginPath(); ctx.ellipse(cx, cy, 13, 9, 0, 0, Math.PI * 2); ctx.fill();
+    ctx.fillStyle = BELLY;
+    ctx.beginPath(); ctx.ellipse(cx + 1, cy + 3, 8, 5, 0.1, 0, Math.PI * 2); ctx.fill();
+
+    // LEGS
+    function leg(side: number, off: number) {
+      const lx = cx + off;
+      const swing = legSwing * side * 6;
+      ctx.fillStyle = BODY_DARK;
+      ctx.beginPath();
+      ctx.moveTo(lx - 3, cy + 4); ctx.lineTo(lx + 3, cy + 4);
+      ctx.lineTo(lx + 2 + swing * 0.3, cy + 10); ctx.lineTo(lx - 2 + swing * 0.3, cy + 10);
+      ctx.closePath(); ctx.fill();
+      ctx.fillRect(lx - 2 + swing * 0.3, cy + 9, 4, 7);
+      ctx.beginPath();
+      ctx.moveTo(lx - 4 + swing, cy + 16); ctx.lineTo(lx + 6 + swing, cy + 16);
+      ctx.lineTo(lx + 6 + swing, cy + 18); ctx.lineTo(lx - 4 + swing, cy + 18);
+      ctx.closePath(); ctx.fill();
+    }
+    leg(-1, -4);
+    leg(1, 4);
+
+    // NECK + HEAD
+    ctx.fillStyle = BODY;
+    ctx.beginPath();
+    ctx.moveTo(cx + 8, cy - 4); ctx.lineTo(cx + 14, cy - 14); ctx.lineTo(cx + 11, cy - 2);
+    ctx.closePath(); ctx.fill();
+
+    const headX = cx + 16, headY = cy - 16;
+    ctx.fillStyle = BODY;
+    ctx.beginPath();
+    ctx.moveTo(headX - 7, headY); ctx.lineTo(headX + 9, headY - 3);
+    ctx.lineTo(headX + 12, headY + 4); ctx.lineTo(headX - 7, headY + 6);
+    ctx.closePath(); ctx.fill();
+
+    // JAW
+    ctx.fillStyle = BODY_DARK;
+    ctx.beginPath();
+    ctx.moveTo(headX - 3, headY + 5); ctx.lineTo(headX + 11, headY + 5);
+    ctx.lineTo(headX + 9, headY + 5 + jawOpen * 7); ctx.lineTo(headX - 3, headY + 7 + jawOpen * 4);
+    ctx.closePath(); ctx.fill();
+
+    if (jawOpen > 0.15) {
+      ctx.fillStyle = MOUTH_IN;
+      ctx.beginPath();
+      ctx.moveTo(headX + 2, headY + 5); ctx.lineTo(headX + 11, headY + 5);
+      ctx.lineTo(headX + 9, headY + 5 + jawOpen * 5); ctx.lineTo(headX + 2, headY + 6);
+      ctx.closePath(); ctx.fill();
+      ctx.fillStyle = TOOTH;
+      for (let i = 0; i < 4; i++) {
+        const tx = headX + 3 + i * 2.3;
+        ctx.beginPath(); ctx.moveTo(tx, headY + 5); ctx.lineTo(tx + 1.3, headY + 5); ctx.lineTo(tx + 0.65, headY + 7); ctx.closePath(); ctx.fill();
+      }
+    }
+
+    // EYE
+    ctx.fillStyle = '#ffffff';
+    ctx.beginPath(); ctx.arc(headX + 1, headY + 1, 2.4, 0, Math.PI * 2); ctx.fill();
+    ctx.fillStyle = EYE_B;
+    ctx.beginPath(); ctx.arc(headX + 1.5, headY + 1, 1.2, 0, Math.PI * 2); ctx.fill();
+
+    // ARM (sickle claw)
+    ctx.fillStyle = BODY_DARK;
+    ctx.beginPath();
+    ctx.moveTo(cx + 8, cy - 1); ctx.lineTo(cx + 12, cy + 2); ctx.lineTo(cx + 11, cy + 4); ctx.lineTo(cx + 8, cy + 1);
+    ctx.closePath(); ctx.fill();
+
+    // OUTLINE
+    ctx.strokeStyle = OUTLINE; ctx.lineWidth = 1;
+    ctx.beginPath(); ctx.ellipse(cx, cy, 13, 9, 0, 0, Math.PI * 2); ctx.stroke();
+  }
+
+  for (let f = 0; f < idleFrames; f++) {
+    const ox = f * fw; ctx.save();
+    const t = (f / idleFrames) * Math.PI * 2;
+    drawRaptorAt(ox, 0.05 + Math.sin(t * 0.5) * 0.05, Math.sin(t * 0.3) * 0.4, Math.sin(t) * 1.2, Math.sin(t * 0.4) * 2);
+    ctx.restore();
+  }
+  for (let f = 0; f < walkFrames; f++) {
+    const ox = (idleFrames + f) * fw; ctx.save();
+    const t = (f / walkFrames) * Math.PI * 2;
+    drawRaptorAt(ox, 0.05 + Math.sin(t * 2) * 0.03, Math.sin(t), Math.abs(Math.sin(t)) * -1.5, Math.sin(t * 2) * 3);
+    ctx.restore();
+  }
+  for (let f = 0; f < attackFrames; f++) {
+    const ox = (idleFrames + walkFrames + f) * fw; ctx.save();
+    const t = f / (attackFrames - 1);
+    const jawOpen = t < 0.5 ? t * 1.6 : (1 - t) * 1.6;
+    const lean = t < 0.5 ? -t * 3 : -(0.5 * 3) + (t - 0.5) * 4;
+    drawRaptorAt(ox, jawOpen, 0, lean, 0);
+    ctx.restore();
+  }
+
+  const canvasTexture = scene.textures.createCanvas('raptor', fw * totalFrames, fh);
+  if (canvasTexture) {
+    const ctx2 = canvasTexture.context;
+    ctx2.drawImage(htmlCanvas, 0, 0);
+    canvasTexture.refresh();
+    for (let i = 0; i < totalFrames; i++) canvasTexture.add(i, 0, i * fw, 0, fw, fh);
+  }
+}
+
+// ─── Brontosaur sprite ────────────────────────────────────
+export function createBrontosaurSprite(scene: Phaser.Scene): void {
+  if (scene.textures.exists('brontosaur')) scene.textures.remove('brontosaur');
+
+  const fw = 64, fh = 64;
+  const idleFrames = 4, walkFrames = 6, attackFrames = 3;
+  const totalFrames = idleFrames + walkFrames + attackFrames;
+
+  const htmlCanvas = document.createElement('canvas');
+  htmlCanvas.width = fw * totalFrames;
+  htmlCanvas.height = fh;
+  const ctx = htmlCanvas.getContext('2d')!;
+
+  const BODY = '#6fae3a';
+  const BODY_DARK = '#4f7d28';
+  const BELLY = '#9ccb66';
+  const OUTLINE = '#243016';
+  const EYE_B = '#1a1a1a';
+
+  function drawBrontosaurAt(ox: number, legSwing: number, neckBob: number, bob: number, jawOpen: number) {
+    const cx = ox + 30;
+    const cy = 38 + bob;
+
+    // TAIL
+    ctx.fillStyle = BODY;
+    ctx.beginPath();
+    ctx.moveTo(cx - 14, cy + 2);
+    ctx.quadraticCurveTo(cx - 28, cy, cx - 30, cy + 6);
+    ctx.quadraticCurveTo(cx - 22, cy + 6, cx - 14, cy + 6);
+    ctx.closePath(); ctx.fill();
+
+    // BODY
+    ctx.fillStyle = BODY;
+    ctx.beginPath(); ctx.ellipse(cx, cy, 16, 11, 0, 0, Math.PI * 2); ctx.fill();
+    ctx.fillStyle = BELLY;
+    ctx.beginPath(); ctx.ellipse(cx, cy + 4, 11, 6, 0, 0, Math.PI); ctx.fill();
+
+    // LEGS (4)
+    function leg(lx: number, sw: number) {
+      ctx.fillStyle = BODY_DARK;
+      ctx.beginPath();
+      ctx.moveTo(lx - 4, cy + 6); ctx.lineTo(lx + 4, cy + 6);
+      ctx.lineTo(lx + 3 + sw, cy + 18); ctx.lineTo(lx - 3 + sw, cy + 18);
+      ctx.closePath(); ctx.fill();
+    }
+    leg(cx - 10, -legSwing);
+    leg(cx + 10, legSwing);
+    leg(cx - 5, legSwing * 0.5);
+    leg(cx + 5, -legSwing * 0.5);
+
+    // NECK (opposite side from tail)
+    ctx.fillStyle = BODY;
+    ctx.beginPath();
+    ctx.moveTo(cx + 6, cy - 8);
+    ctx.quadraticCurveTo(cx + 12 + neckBob, cy - 20, cx + 16 + neckBob, cy - 28);
+    ctx.lineTo(cx + 22 + neckBob, cy - 26);
+    ctx.quadraticCurveTo(cx + 18, cy - 18, cx + 12, cy - 6);
+    ctx.closePath(); ctx.fill();
+
+    // HEAD
+    const hx = cx + 18 + neckBob, hy = cy - 29;
+    ctx.fillStyle = BODY;
+    ctx.beginPath(); ctx.ellipse(hx, hy, 4, 3, 0, 0, Math.PI * 2); ctx.fill();
+    ctx.fillStyle = BODY_DARK;
+    ctx.beginPath();
+    ctx.moveTo(hx + 2, hy - 1); ctx.lineTo(hx + 8, hy + jawOpen * 2 - 1); ctx.lineTo(hx + 8, hy + 2 + jawOpen * 2); ctx.lineTo(hx + 2, hy + 2);
+    ctx.closePath(); ctx.fill();
+    ctx.fillStyle = EYE_B;
+    ctx.beginPath(); ctx.arc(hx - 1, hy - 1, 1, 0, Math.PI * 2); ctx.fill();
+
+    // OUTLINE
+    ctx.strokeStyle = OUTLINE; ctx.lineWidth = 1;
+    ctx.beginPath(); ctx.ellipse(cx, cy, 16, 11, 0, 0, Math.PI * 2); ctx.stroke();
+  }
+
+  for (let f = 0; f < idleFrames; f++) {
+    const ox = f * fw; ctx.save();
+    const t = (f / idleFrames) * Math.PI * 2;
+    drawBrontosaurAt(ox, Math.sin(t * 0.3) * 0.6, Math.sin(t) * 1.5, Math.sin(t), 0.05);
+    ctx.restore();
+  }
+  for (let f = 0; f < walkFrames; f++) {
+    const ox = (idleFrames + f) * fw; ctx.save();
+    const t = (f / walkFrames) * Math.PI * 2;
+    drawBrontosaurAt(ox, Math.sin(t) * 5, Math.sin(t * 0.5) * 2, Math.abs(Math.sin(t)) * -1.5, 0.05);
+    ctx.restore();
+  }
+  for (let f = 0; f < attackFrames; f++) {
+    const ox = (idleFrames + walkFrames + f) * fw; ctx.save();
+    const t = f / (attackFrames - 1);
+    const jawOpen = t < 0.5 ? t * 1.5 : (1 - t) * 1.5;
+    drawBrontosaurAt(ox, 0, 0, -t * 2, jawOpen);
+    ctx.restore();
+  }
+
+  const canvasTexture = scene.textures.createCanvas('brontosaur', fw * totalFrames, fh);
+  if (canvasTexture) {
+    const ctx2 = canvasTexture.context;
+    ctx2.drawImage(htmlCanvas, 0, 0);
+    canvasTexture.refresh();
+    for (let i = 0; i < totalFrames; i++) canvasTexture.add(i, 0, i * fw, 0, fw, fh);
+  }
+}
+
+// ─── Pterodactyl sprite ───────────────────────────────────
+export function createPterodactylSprite(scene: Phaser.Scene): void {
+  if (scene.textures.exists('pterodactyl')) scene.textures.remove('pterodactyl');
+
+  const fw = 64, fh = 64;
+  const idleFrames = 4, walkFrames = 6, attackFrames = 3;
+  const totalFrames = idleFrames + walkFrames + attackFrames;
+
+  const htmlCanvas = document.createElement('canvas');
+  htmlCanvas.width = fw * totalFrames;
+  htmlCanvas.height = fh;
+  const ctx = htmlCanvas.getContext('2d')!;
+
+  const BODY = '#b58fd0';
+  const BODY_DARK = '#8a63aa';
+  const WING = '#caa9e0';
+  const OUTLINE = '#2e1d3a';
+  const BEAK = '#e0b94a';
+  const EYE_B = '#1a1a1a';
+
+  function drawPterodactylAt(ox: number, wingFlap: number, jawOpen: number, bob: number) {
+    const cx = ox + 32;
+    const cy = 32 + bob;
+
+    // WINGS
+    ctx.fillStyle = WING;
+    const lift = wingFlap * 10;
+    ctx.beginPath();
+    ctx.moveTo(cx - 4, cy - 2);
+    ctx.lineTo(cx - 28, cy - 8 - lift);
+    ctx.lineTo(cx - 22, cy + 2 - lift * 0.5);
+    ctx.lineTo(cx - 6, cy + 2);
+    ctx.closePath(); ctx.fill();
+    ctx.beginPath();
+    ctx.moveTo(cx + 4, cy - 2);
+    ctx.lineTo(cx + 28, cy - 8 - lift);
+    ctx.lineTo(cx + 22, cy + 2 - lift * 0.5);
+    ctx.lineTo(cx + 6, cy + 2);
+    ctx.closePath(); ctx.fill();
+
+    // BODY
+    ctx.fillStyle = BODY;
+    ctx.beginPath(); ctx.ellipse(cx, cy, 7, 9, 0, 0, Math.PI * 2); ctx.fill();
+
+    // HEAD + CREST
+    const hx = cx, hy = cy - 10;
+    ctx.fillStyle = BODY;
+    ctx.beginPath(); ctx.arc(hx, hy, 5, 0, Math.PI * 2); ctx.fill();
+    ctx.fillStyle = BODY_DARK;
+    ctx.beginPath();
+    ctx.moveTo(hx - 4, hy - 3); ctx.lineTo(hx - 12, hy - 8); ctx.lineTo(hx - 3, hy - 1);
+    ctx.closePath(); ctx.fill();
+    ctx.fillStyle = BEAK;
+    ctx.beginPath();
+    ctx.moveTo(hx + 3, hy - 1);
+    ctx.lineTo(hx + 14, hy + 1 + jawOpen * 3);
+    ctx.lineTo(hx + 14, hy + 3 + jawOpen * 3);
+    ctx.lineTo(hx + 3, hy + 3);
+    ctx.closePath(); ctx.fill();
+    ctx.fillStyle = EYE_B;
+    ctx.beginPath(); ctx.arc(hx + 1, hy - 1, 1.2, 0, Math.PI * 2); ctx.fill();
+
+    // FEET
+    ctx.fillStyle = BODY_DARK;
+    ctx.fillRect(cx - 3, cy + 8, 2, 5 + jawOpen * 2);
+    ctx.fillRect(cx + 1, cy + 8, 2, 5 + jawOpen * 2);
+
+    // OUTLINE
+    ctx.strokeStyle = OUTLINE; ctx.lineWidth = 1;
+    ctx.beginPath(); ctx.ellipse(cx, cy, 7, 9, 0, 0, Math.PI * 2); ctx.stroke();
+  }
+
+  for (let f = 0; f < idleFrames; f++) {
+    const ox = f * fw; ctx.save();
+    const t = (f / idleFrames) * Math.PI * 2;
+    drawPterodactylAt(ox, Math.sin(t) * 0.8, 0.05, Math.sin(t) * 2);
+    ctx.restore();
+  }
+  for (let f = 0; f < walkFrames; f++) {
+    const ox = (idleFrames + f) * fw; ctx.save();
+    const t = (f / walkFrames) * Math.PI * 2;
+    drawPterodactylAt(ox, Math.sin(t), 0.05, Math.sin(t * 2) * 3);
+    ctx.restore();
+  }
+  for (let f = 0; f < attackFrames; f++) {
+    const ox = (idleFrames + walkFrames + f) * fw; ctx.save();
+    const t = f / (attackFrames - 1);
+    const jawOpen = t < 0.5 ? t * 1.4 : (1 - t) * 1.4;
+    drawPterodactylAt(ox, Math.sin(t * Math.PI) * -0.5, jawOpen, -t * 3);
+    ctx.restore();
+  }
+
+  const canvasTexture = scene.textures.createCanvas('pterodactyl', fw * totalFrames, fh);
+  if (canvasTexture) {
+    const ctx2 = canvasTexture.context;
+    ctx2.drawImage(htmlCanvas, 0, 0);
+    canvasTexture.refresh();
+    for (let i = 0; i < totalFrames; i++) canvasTexture.add(i, 0, i * fw, 0, fw, fh);
+  }
+}
+
+// ─── Colonist (settler) humanoid sprite ────────────────────
+// Draws a small humanoid colonist in a single tintable base colour.
+// A white base + black outline allows per-settler tinting via sprite.setTint.
+// Frame layout: [idle x4][walk x8][gather x6][attack x5]
+export function createSettlerSprite(scene: Phaser.Scene): void {
+  if (scene.textures.exists('settler')) {
+    scene.textures.remove('settler');
+  }
+
+  const fw = 64;
+  const fh = 64;
+  const idleFrames = 4;
+  const walkFrames = 8;
+  const gatherFrames = 6;
+  const attackFrames = 5;
+  const totalFrames = idleFrames + walkFrames + gatherFrames + attackFrames;
+
+  const htmlCanvas = document.createElement('canvas');
+  htmlCanvas.width = fw * totalFrames;
+  htmlCanvas.height = fh;
+  const ctx = htmlCanvas.getContext('2d')!;
+
+  // Tintable base colours (white so setTint recolours them)
+  const SUIT = '#ffffff';
+  const SUIT_DARK = '#dddddd'; // slightly darker for shading (still tintable)
+  const HELMET = '#f2f2f2';
+  const OUTLINE = '#161616';
+  const SKIN = '#c8a060'; // fixed skin tone (not tinted much because dark)
+  const SKIN_DARK = '#a07840';
+  const VISOR = '#3a6ea5';
+
+  // Draw one colonist at origin ox with a given pose.
+  // pose: { legSwing, armSwing, armRaise, bob, lean, lookAt }
+  function drawColonist(ox: number, pose: {
+    legSwing: number;   // -1..1 (forward/back)
+    armSwing: number;   // -1..1 (forward/back)
+    armRaise: number;   // 0..1 (how high arms are raised, for gather/attack)
+    bob: number;        // vertical bob offset (px)
+    lean: number;       // body lean (px)
+  }): void {
+    const cx = ox + 32;
+    const groundY = 56 + pose.bob;
+    const bodyCx = cx + pose.lean;
+
+    const outline = (path: () => void) => {
+      ctx.strokeStyle = OUTLINE;
+      ctx.lineWidth = 2;
+      ctx.lineJoin = 'round';
+      path();
+      ctx.stroke();
+    };
+
+    // ── LEGS ──
+    const legTopY = groundY - 18;
+    const legBotY = groundY;
+    const legSpread = 5;
+    const swing = pose.legSwing * 6;
+    function drawLeg(side: number) {
+      const topX = bodyCx + side * 4;
+      const botX = bodyCx + side * legSpread + side * swing;
+      ctx.fillStyle = SUIT_DARK;
+      ctx.beginPath();
+      ctx.moveTo(topX - 3, legTopY);
+      ctx.lineTo(topX + 3, legTopY);
+      ctx.lineTo(botX + 3, legBotY);
+      ctx.lineTo(botX - 3, legBotY);
+      ctx.closePath();
+      ctx.fill();
+      outline(ctx.beginPath.bind(ctx));
+      // foot
+      ctx.fillStyle = SUIT_DARK;
+      ctx.beginPath();
+      ctx.ellipse(botX, legBotY, 4, 2.5, 0, 0, Math.PI * 2);
+      ctx.fill();
+    }
+    drawLeg(-1);
+    drawLeg(1);
+
+    // ── TORSO (suit) ──
+    const torsoTopY = groundY - 40;
+    const torsoBotY = legTopY;
+    ctx.fillStyle = SUIT;
+    ctx.beginPath();
+    ctx.moveTo(bodyCx - 9, torsoTopY);
+    ctx.lineTo(bodyCx + 9, torsoTopY);
+    ctx.lineTo(bodyCx + 8, torsoBotY);
+    ctx.lineTo(bodyCx - 8, torsoBotY);
+    ctx.closePath();
+    ctx.fill();
+    // chest shading
+    ctx.fillStyle = SUIT_DARK;
+    ctx.beginPath();
+    ctx.moveTo(bodyCx + 2, torsoTopY + 2);
+    ctx.lineTo(bodyCx + 9, torsoTopY + 2);
+    ctx.lineTo(bodyCx + 8, torsoBotY);
+    ctx.lineTo(bodyCx + 2, torsoBotY);
+    ctx.closePath();
+    ctx.fill();
+    outline(() => {
+      ctx.beginPath();
+      ctx.moveTo(bodyCx - 9, torsoTopY);
+      ctx.lineTo(bodyCx + 9, torsoTopY);
+      ctx.lineTo(bodyCx + 8, torsoBotY);
+      ctx.lineTo(bodyCx - 8, torsoBotY);
+      ctx.closePath();
+    });
+
+    // ── ARMS ──
+    const shoulderY = torsoTopY + 4;
+    const armSwingPx = pose.armSwing * 5;
+    function drawArm(side: number) {
+      const sx = bodyCx + side * 9;
+      // raised arms (gather/attack) lift the hand up
+      const raise = pose.armRaise;
+      const handX = sx + side * (4 + armSwingPx);
+      const handY = shoulderY + 12 - raise * 14 + side * armSwingPx * 0.3;
+      ctx.lineWidth = 4;
+      ctx.strokeStyle = SUIT;
+      ctx.beginPath();
+      ctx.moveTo(sx, shoulderY);
+      ctx.lineTo(handX, handY);
+      ctx.stroke();
+      // outline the arm
+      ctx.lineWidth = 6;
+      ctx.strokeStyle = OUTLINE;
+      ctx.beginPath();
+      ctx.moveTo(sx, shoulderY);
+      ctx.lineTo(handX, handY);
+      ctx.stroke();
+      // redraw arm on top (so outline is behind)
+      ctx.lineWidth = 4;
+      ctx.strokeStyle = SUIT;
+      ctx.beginPath();
+      ctx.moveTo(sx, shoulderY);
+      ctx.lineTo(handX, handY);
+      ctx.stroke();
+      // hand
+      ctx.fillStyle = SKIN;
+      ctx.beginPath();
+      ctx.arc(handX, handY, 3, 0, Math.PI * 2);
+      ctx.fill();
+      outline(() => {
+        ctx.beginPath();
+        ctx.arc(handX, handY, 3, 0, Math.PI * 2);
+      });
+    }
+    drawArm(-1);
+    drawArm(1);
+
+    // ── HEAD + HELMET ──
+    const headR = 9;
+    const headCY = torsoTopY - 2;
+    // neck
+    ctx.fillStyle = SKIN;
+    ctx.fillRect(bodyCx - 3, torsoTopY - 4, 6, 5);
+    // head
+    ctx.fillStyle = SKIN;
+    ctx.beginPath();
+    ctx.arc(bodyCx, headCY, headR, 0, Math.PI * 2);
+    ctx.fill();
+    outline(() => {
+      ctx.beginPath();
+      ctx.arc(bodyCx, headCY, headR, 0, Math.PI * 2);
+    });
+    // helmet (tintable)
+    ctx.fillStyle = HELMET;
+    ctx.beginPath();
+    ctx.arc(bodyCx, headCY - 1, headR + 1, Math.PI, Math.PI * 2);
+    ctx.closePath();
+    ctx.fill();
+    ctx.fillRect(bodyCx - headR - 1, headCY - 1, (headR + 1) * 2, 2);
+    // visor
+    ctx.fillStyle = VISOR;
+    ctx.fillRect(bodyCx - 5, headCY - 1, 10, 3);
+    // helmet outline
+    outline(() => {
+      ctx.beginPath();
+      ctx.arc(bodyCx, headCY - 1, headR + 1, Math.PI, Math.PI * 2);
+      ctx.closePath();
+    });
+
+    // backpack hint
+    ctx.fillStyle = SUIT_DARK;
+    ctx.fillRect(bodyCx - 11, torsoTopY + 6, 3, 14);
+  }
+
+  // idle: gentle breathing bob
+  for (let f = 0; f < idleFrames; f++) {
+    const ox = f * fw;
+    const t = (f / idleFrames) * Math.PI * 2;
+    drawColonist(ox, { legSwing: 0, armSwing: Math.sin(t) * 0.2, armRaise: 0, bob: Math.sin(t) * 1.2, lean: 0 });
+  }
+  // walk: legs + arms alternate
+  for (let f = 0; f < walkFrames; f++) {
+    const ox = (idleFrames + f) * fw;
+    const t = (f / walkFrames) * Math.PI * 2;
+    drawColonist(ox, {
+      legSwing: Math.sin(t),
+      armSwing: -Math.sin(t),
+      armRaise: 0,
+      bob: Math.abs(Math.sin(t)) * -2,
+      lean: 1.5,
+    });
+  }
+  // gather: arms swing forward/down (mining/chopping motion)
+  for (let f = 0; f < gatherFrames; f++) {
+    const ox = (idleFrames + walkFrames + f) * fw;
+    const t = (f / gatherFrames) * Math.PI * 2;
+    const swing = Math.sin(t);
+    drawColonist(ox, {
+      legSwing: 0,
+      armSwing: swing * 0.5,
+      armRaise: 0.4 + Math.max(0, swing) * 0.5,
+      bob: Math.sin(t * 2) * 1.5,
+      lean: -1,
+    });
+  }
+  // attack: one big overhead swing
+  for (let f = 0; f < attackFrames; f++) {
+    const ox = (idleFrames + walkFrames + gatherFrames + f) * fw;
+    const t = f / (attackFrames - 1);
+    // 0 -> raise high, 1 -> swing down
+    const raise = 1 - t;
+    drawColonist(ox, {
+      legSwing: 0,
+      armSwing: (t - 0.5) * 1.2,
+      armRaise: raise,
+      bob: t > 0.6 ? (t - 0.6) * -6 : 0,
+      lean: -1.5 + t * 2,
+    });
+  }
+
+  const canvasTexture = scene.textures.createCanvas('settler', fw * totalFrames, fh);
+  if (canvasTexture) {
+    const ctx2 = canvasTexture.context;
+    ctx2.drawImage(htmlCanvas, 0, 0);
+    canvasTexture.refresh();
+    for (let i = 0; i < totalFrames; i++) {
+      canvasTexture.add(i, 0, i * fw, 0, fw, fh);
+    }
+  }
 }
 
 // ─── Decoration textures ────────────────────────────────────
@@ -883,6 +1520,12 @@ export function createDecorationTextures(scene: Phaser.Scene): void {
     }
 
     // Lower canopy masses
+    // Dark outline layer behind lower canopy
+    gBot.fillStyle(0x0a0a0a, 0.7);
+    gBot.fillCircle(cx - 15, crownY + 8, 20);
+    gBot.fillCircle(cx + 12, crownY + 5, 18);
+    gBot.fillCircle(cx, crownY + 12, 16);
+
     drawLeafCluster(gBot, cx - 15, crownY + 8, 18, roundLeafColors, seed + 100, v, 0);
     drawLeafCluster(gBot, cx + 12, crownY + 5, 16, roundLeafColors, seed + 200, v, 1);
     drawLeafCluster(gBot, cx, crownY + 12, 14, roundLeafColors, seed + 300, v, 2);
@@ -892,6 +1535,15 @@ export function createDecorationTextures(scene: Phaser.Scene): void {
 
     // TOP — big round canopy
     const gTop = scene.add.graphics().setVisible(false);
+
+    // Dark outline layer (2px almost black) behind canopy
+    const outlineColor = 0x0a0a0a;
+    gTop.fillStyle(outlineColor, 0.7);
+    gTop.fillCircle(cx, crownY - 8, 30);
+    gTop.fillCircle(cx - 18, crownY - 2, 22);
+    gTop.fillCircle(cx + 16, crownY - 4, 24);
+    gTop.fillCircle(cx - 8, crownY - 18, 20);
+    gTop.fillCircle(cx + 10, crownY - 15, 18);
 
     // Main canopy dome
     drawLeafCluster(gTop, cx, crownY - 8, 28, roundLeafColors, seed + 400, v, 0);

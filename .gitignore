@@ -5,3 +5,5 @@ dist/
 .mimocode/
 .localdocs/
 .localassets/
+scripts
+docs/index.html

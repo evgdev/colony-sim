@@ -17,9 +17,13 @@ export class BootScene extends Phaser.Scene {
 
   preload(): void {
     this.load.image('startMenuBg', 'bg/start_menu_bg.jpg');
-    this.load.audio('intro', 'assets/audio/intro.wav');
+    this.load.audio('intro', 'assets/audio/intro.mp3');
     this.load.audio('trex_footstep', 'assets/audio/trex_footstep.wav');
     this.load.audio('music_level1', 'assets/audio/music_level1.wav');
+
+    this.load.image('hero_engineer', 'assets/heroes/engineer_160.png');
+    this.load.image('hero_biologist', 'assets/heroes/biologist_160.png');
+    this.load.image('hero_pilot', 'assets/heroes/pilot_160.png');
 
     const species = ['trex', 'raptor', 'brontosaur', 'pterodactyl'];
     for (const s of species) {
@@ -60,9 +64,16 @@ export class BootScene extends Phaser.Scene {
     }).setOrigin(0.5).setDepth(1);
 
     this.screenText = this.add.text(width / 2, height / 2 - 30, '', {
-      fontSize: '16px', color: '#c9d1d9', fontFamily: 'monospace',
-      align: 'center', wordWrap: { width: width * 0.7 }, lineSpacing: 8,
-    }).setOrigin(0.5).setDepth(1);
+      fontSize: '32px', // было 16px
+      color: '#c9d1d9',
+      fontFamily: 'monospace',
+      align: 'left',
+      wordWrap: { width: width * 0.7 },
+      lineSpacing: 8,
+    })
+      .setOrigin(0.5)
+      .setDepth(1)
+      .setScale(0.5); // масштаб вниз
 
     this.button = this.add.text(width / 2, height - 80, '', {
       fontSize: '18px', color: '#ffd700', fontFamily: 'monospace',
@@ -72,9 +83,9 @@ export class BootScene extends Phaser.Scene {
       .on('pointerover', () => this.button.setColor('#ffffff'))
       .on('pointerout', () => this.button.setColor('#ffd700'));
 
-    this.introSounds = [
-      this.sound.add('intro'),
-    ];
+    // this.introSounds = [
+    //   this.sound.add('intro'),
+    // ];
     this.showScreen(0);
   }
 

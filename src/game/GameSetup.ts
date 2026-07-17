@@ -39,9 +39,9 @@ export function createInitialWorld(simulation: Simulation): WorldConfig {
   const spawn = findSpawn(centerX, centerY);
 
   const settlers = [
-    new Settler(spawn.x - 1, spawn.y, 'Engineer', 0x4488ff, 'engineer'),
-    new Settler(spawn.x, spawn.y, 'Biologist', 0x44ff44, 'biologist'),
-    new Settler(spawn.x + 1, spawn.y, 'Pilot', 0xffaa00, 'pilot'),
+    new Settler(spawn.x - 1, spawn.y, 'Алексей', 0x4488ff, 'engineer'),
+    new Settler(spawn.x, spawn.y, 'Марина', 0x44ff44, 'biologist'),
+    new Settler(spawn.x + 1, spawn.y, 'Дмитрий', 0xffaa00, 'pilot'),
   ];
 
   // Ensure all settlers are on walkable tiles

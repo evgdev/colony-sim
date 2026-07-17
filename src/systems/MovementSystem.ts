@@ -50,7 +50,8 @@ export class MovementSystem {
         if (!tile || !tile.walkable) continue;
 
         const isEnd = neighbor.x === endX && neighbor.y === endY;
-        if (!isEnd && tile.occupied && !tile.gate) continue;
+        if (!isEnd && (tile.occupied || tile.building) && !tile.gate) continue;
+        if (isEnd && tile.building) continue;
 
         const tileDef = (tilesData as Record<string, any>)[tile.type];
         const moveCost = tileDef ? tileDef.walkCost : 1;
@@ -110,20 +111,21 @@ export class MovementSystem {
     if (pathIndex >= path.length) return pathIndex;
 
     const target = path[pathIndex];
-    const isLastStep = pathIndex === path.length - 1;
-    const walkable = this.tileGrid.get(target.x, target.y)?.walkable ?? false;
+    const tx = Math.floor(target.x);
+    const ty = Math.floor(target.y);
+    const walkable = this.tileGrid.get(tx, ty)?.walkable ?? false;
     if (!walkable) return pathIndex;
 
     const oldTile = this.tileGrid.get(entity.x, entity.y);
     if (!oldTile?.building) {
       this.tileGrid.setOccupied(entity.x, entity.y, false);
     }
-    entity.moveTo(target.x, target.y);
+    entity.moveTo(tx, ty);
     const fogBonus = (entity as any).getFogRadiusBonus?.() ?? 0;
-    this.tileGrid.reveal(target.x, target.y, FOG_REVEAL_RADIUS + fogBonus);
-    const targetTile = this.tileGrid.get(target.x, target.y);
-    if (!isLastStep && !targetTile?.gate && !targetTile?.building) {
-      this.tileGrid.setOccupied(target.x, target.y, true);
+    this.tileGrid.reveal(tx, ty, FOG_REVEAL_RADIUS + fogBonus);
+    const targetTile = this.tileGrid.get(tx, ty);
+    if (!targetTile?.gate && !targetTile?.building) {
+      this.tileGrid.setOccupied(tx, ty, true);
     }
     return pathIndex + 1;
   }

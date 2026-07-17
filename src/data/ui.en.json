@@ -66,6 +66,7 @@
   "logBuild": "Build",
   "logClickTile": "click a tile",
   "logBuildingAt": "Building",
+  "logChopTreeFirst": "Chop the tree first.",
 
   "infoResource": "Resource",
   "infoType": "Type",
@@ -89,5 +90,17 @@
   "hard": "HARD",
   "easyDesc": "Wall and gate",
   "hardDesc": "No protection",
-  "repair": "REPAIR"
+  "repair": "REPAIR",
+
+  "menuSelect": "Select",
+  "menuMoveHere": "Move here",
+  "menuCollect": "Collect",
+  "menuAttack": "Attack",
+  "menuDemolish": "Demolish",
+  "menuContinue": "Continue building",
+  "menuRepair": "Repair",
+  "menuResume": "Resume task",
+  "menuQueueMove": "Queue move",
+  "menuQueueCollect": "Queue collect",
+  "menuQueueAttack": "Queue attack"
 }

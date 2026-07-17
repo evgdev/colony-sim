@@ -19,6 +19,7 @@ export class Building extends Entity {
   buildTime: number;
   requires: BuildRequirement[];
   requiresConsumed: boolean = false;
+  size: number = 1;
 
   storage: StorageItem[] = [];
   storageCapacity: number = 0;

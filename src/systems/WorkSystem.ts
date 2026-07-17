@@ -2,6 +2,7 @@ import { EntityManager } from '../core/EntityManager';
 import { TileGrid } from '../core/TileGrid';
 import { MovementSystem } from './MovementSystem';
 import { ArtifactSystem } from './ArtifactSystem';
+import { DecorationGenerator } from '../rendering/DecorationGenerator';
 import { Settler } from '../entities/Settler';
 import { Resource } from '../entities/Resource';
 import { Building } from '../entities/Building';
@@ -19,6 +20,7 @@ export class WorkSystem {
   private simulation: Simulation;
   artifactSystem: ArtifactSystem | null = null;
   questSystem: QuestSystem | null = null;
+  decorationGenerator: DecorationGenerator | null = null;
 
   constructor(
     movementSystem: MovementSystem,
@@ -44,6 +46,9 @@ export class WorkSystem {
       if (settler.currentTaskId) {
         this.executeCurrentTask(settler, tickDelta);
       } else {
+        if (settler.activity !== 'attack' && !this.isSettlerMoving(settler)) {
+          settler.activity = 'idle';
+        }
         this.assignNextTask(settler);
       }
     }
@@ -106,15 +111,56 @@ export class WorkSystem {
       case TaskType.Repair:
         this.executeRepair(settler, task, tickDelta);
         break;
+      case TaskType.Chop:
+        this.executeChop(settler, task, tickDelta);
+        break;
+      case TaskType.DeliverArtifact:
+        this.executeDeliverArtifact(settler, task, tickDelta);
+        break;
       default:
         task.completed = true;
         break;
     }
 
+    this.updateSettlerActivity(settler, task);
+
     if (task.completed) {
       this.taskQueue.remove(settler.currentTaskId!);
       settler.currentTaskId = null;
     }
+  }
+
+  private updateSettlerActivity(settler: Settler, task: Task): void {
+    if (settler.activity === 'attack') return; // combat overrides task activity
+    if (this.isSettlerMoving(settler)) {
+      settler.activity = 'walk';
+      return;
+    }
+    let activity: 'idle' | 'walk' | 'gather' = 'idle';
+    switch (task.type) {
+      case TaskType.PickUp:
+      case TaskType.Harvest:
+      case TaskType.Build:
+      case TaskType.Repair:
+      case TaskType.PickUpArtifact:
+        activity = 'gather';
+        break;
+      default:
+        activity = 'idle';
+    }
+    settler.activity = activity;
+  }
+
+  /** A settler is "moving" if it has logical path left, or is still
+   *  visually gliding between tiles (interpolation not finished yet).
+   *  Checking visual position prevents fast movers (e.g. Pilot, who
+   *  advances 2 tiles/tick) from clearing their path before a render
+   *  frame and thus never showing the walk animation. */
+  private isSettlerMoving(settler: Settler): boolean {
+    if (settler.path.length > 0 && settler.pathIndex < settler.path.length) return true;
+    const dx = settler.visualX - settler.x;
+    const dy = settler.visualY - settler.y;
+    return (Math.abs(dx) + Math.abs(dy)) > 0.05;
   }
 
   private executeMoveTo(settler: Settler, task: Task, tickDelta: number): void {
@@ -195,54 +241,30 @@ export class WorkSystem {
     const building = this.findBuildingAt(task.targetX, task.targetY);
 
     if (!building || building.built) {
-      if (building && building.built) {
-        const neighbors = this.getAdjacentFreeTiles(settler.x, settler.y);
-        if (neighbors.length > 0) {
-          const target = neighbors[0];
-          if (settler.x !== target.x || settler.y !== target.y) {
-            if (settler.path.length === 0 || settler.pathIndex === 0) {
-              const path = this.movementSystem.findPath(settler.x, settler.y, target.x, target.y);
-              if (path.length <= 1) {
-                task.completed = true;
-                return;
-              }
-              settler.path = path;
-              settler.pathIndex = 1;
-            }
-
-            settler.pathIndex = this.movementSystem.stepAlongPath(settler, settler.path, settler.pathIndex);
-
-            if (settler.pathIndex < settler.path.length) return;
-            settler.path = [];
-            settler.pathIndex = 0;
-          }
-        }
-      } else if (task.returnX !== undefined && task.returnY !== undefined) {
-        if (settler.x !== task.returnX || settler.y !== task.returnY) {
-          if (settler.path.length === 0 || settler.pathIndex === 0) {
-            const path = this.movementSystem.findPath(settler.x, settler.y, task.returnX, task.returnY);
-            if (path.length <= 1) {
-              task.completed = true;
-              return;
-            }
-            settler.path = path;
-            settler.pathIndex = 1;
-          }
-
-          settler.pathIndex = this.movementSystem.stepAlongPath(settler, settler.path, settler.pathIndex);
-
-          if (settler.pathIndex < settler.path.length) return;
-          settler.path = [];
-          settler.pathIndex = 0;
-        }
-      }
       task.completed = true;
       return;
     }
 
-    if (settler.x !== task.targetX || settler.y !== task.targetY) {
+    const bldSize = building.size ?? 1;
+
+    // Check if settler is adjacent to ANY tile in the footprint
+    let isAdjacent = false;
+    for (let dy = 0; dy < bldSize && !isAdjacent; dy++) {
+      for (let dx = 0; dx < bldSize && !isAdjacent; dx++) {
+        const d = Math.abs(settler.x - (task.targetX + dx)) + Math.abs(settler.y - (task.targetY + dy));
+        if (d <= 1) isAdjacent = true;
+      }
+    }
+
+    if (!isAdjacent) {
+      const adjTarget = this.findBuildPosition(settler, task.targetX, task.targetY);
+      if (!adjTarget) {
+        task.completed = true;
+        return;
+      }
+
       if (settler.path.length === 0 || settler.pathIndex === 0) {
-        const path = this.movementSystem.findPath(settler.x, settler.y, task.targetX, task.targetY);
+        const path = this.movementSystem.findPath(settler.x, settler.y, adjTarget.x, adjTarget.y);
         if (path.length <= 1) {
           task.completed = true;
           return;
@@ -258,6 +280,7 @@ export class WorkSystem {
       settler.pathIndex = 0;
     }
 
+    // Consume resources
     if (!building.requiresConsumed) {
       const hasAll = building.requires.every(r => this.simulation.hasResource(r.resourceType, r.quantity));
       if (!hasAll) {
@@ -270,6 +293,43 @@ export class WorkSystem {
 
     const buildBonus = settler.getBuildSpeedBonus();
     building.work(buildBonus);
+  }
+
+  private findBuildPosition(settler: Settler, bx: number, by: number): { x: number; y: number } | null {
+    // Find the building to get its size
+    const buildings = this.entityManager.getByType('building') as Building[];
+    const building = buildings.find(b => b.x === bx && b.y === by);
+    const bldSize = building?.size ?? 1;
+
+    // Collect all adjacent tiles to the full footprint
+    const candidates: { x: number; y: number }[] = [];
+    for (let dy = 0; dy < bldSize; dy++) {
+      for (let dx = 0; dx < bldSize; dx++) {
+        const dirs = [
+          { dx: 0, dy: -1 }, { dx: 0, dy: 1 },
+          { dx: -1, dy: 0 }, { dx: 1, dy: 0 },
+        ];
+        for (const d of dirs) {
+          const nx = bx + dx + d.dx;
+          const ny = by + dy + d.dy;
+          const tile = this.tileGrid.get(nx, ny);
+          if (tile && tile.walkable && !tile.building && !tile.occupied) {
+            candidates.push({ x: nx, y: ny });
+          }
+        }
+      }
+    }
+
+    let best: { x: number; y: number } | null = null;
+    let bestDist = Infinity;
+    for (const c of candidates) {
+      const dist = Math.abs(settler.x - c.x) + Math.abs(settler.y - c.y);
+      if (dist < bestDist) {
+        bestDist = dist;
+        best = c;
+      }
+    }
+    return best;
   }
 
   private getAdjacentFreeTiles(x: number, y: number): { x: number; y: number }[] {
@@ -443,9 +503,18 @@ export class WorkSystem {
       return;
     }
 
-    if (settler.x !== task.targetX || settler.y !== task.targetY) {
+    // Move to building site
+    // Move to adjacent tile of building
+    const dist = Math.abs(settler.x - task.targetX) + Math.abs(settler.y - task.targetY);
+    if (dist > 1) {
+      const adjTarget = this.findBuildPosition(settler, task.targetX, task.targetY);
+      if (!adjTarget) {
+        task.completed = true;
+        return;
+      }
+
       if (settler.path.length === 0 || settler.pathIndex === 0) {
-        const path = this.movementSystem.findPath(settler.x, settler.y, task.targetX, task.targetY);
+        const path = this.movementSystem.findPath(settler.x, settler.y, adjTarget.x, adjTarget.y);
         if (path.length <= 1) {
           task.completed = true;
           return;
@@ -497,6 +566,138 @@ export class WorkSystem {
       settler.currentTaskId = task.id;
       this.executeRepair(settler, task, 0);
     }
+    return task;
+  }
+
+  private executeChop(settler: Settler, task: Task, tickDelta: number): void {
+    if (!this.decorationGenerator) { task.completed = true; return; }
+    const tree = this.decorationGenerator.getTreeAt(task.targetX, task.targetY);
+    if (!tree) { task.completed = true; return; }
+
+    const dist = Math.abs(settler.x - task.targetX) + Math.abs(settler.y - task.targetY);
+    if (dist > 1) {
+      // For single-tile targets, find adjacent walkable tile
+      const dirs = [
+        { dx: 0, dy: -1 }, { dx: 0, dy: 1 },
+        { dx: -1, dy: 0 }, { dx: 1, dy: 0 },
+      ];
+      let adjTarget: { x: number; y: number } | null = null;
+      let bestDist = Infinity;
+      for (const d of dirs) {
+        const nx = task.targetX + d.dx;
+        const ny = task.targetY + d.dy;
+        const tile = this.tileGrid.get(nx, ny);
+        if (tile && tile.walkable && !tile.building && !tile.occupied) {
+          const d2 = Math.abs(settler.x - nx) + Math.abs(settler.y - ny);
+          if (d2 < bestDist) { bestDist = d2; adjTarget = { x: nx, y: ny }; }
+        }
+      }
+      if (!adjTarget) { task.completed = true; return; }
+
+      if (settler.path.length === 0 || settler.pathIndex === 0) {
+        const path = this.movementSystem.findPath(settler.x, settler.y, adjTarget.x, adjTarget.y);
+        if (path.length <= 1) { task.completed = true; return; }
+        settler.path = path;
+        settler.pathIndex = 1;
+      }
+
+      settler.pathIndex = this.movementSystem.stepAlongPath(settler, settler.path, settler.pathIndex);
+      if (settler.pathIndex < settler.path.length) return;
+      settler.path = [];
+      settler.pathIndex = 0;
+    }
+
+    tree.isChopping = true;
+    tree.chopProgress++;
+    settler.activity = 'gather';
+
+    if (tree.chopProgress >= tree.chopTime) {
+      this.decorationGenerator.removeAt(task.targetX, task.targetY);
+      this.tileGrid.setOccupied(task.targetX, task.targetY, false);
+      const woodQty = Math.floor(Math.random() * 8) + 5;
+      const wood = new Resource(task.targetX, task.targetY, 'wood', woodQty);
+      this.entityManager.add(wood);
+      this.tileGrid.setOccupied(task.targetX, task.targetY, true);
+      task.completed = true;
+    }
+  }
+
+  createChopTask(tileX: number, tileY: number, priority: TaskPriority = TaskPriority.Normal, settler?: Settler): Task {
+    if (settler) {
+      this.interruptSettler(settler);
+    } else {
+      const settlers = this.entityManager.getByType('settler') as Settler[];
+      for (const s of settlers) this.interruptSettler(s);
+    }
+    const task = new Task({
+      type: TaskType.Chop,
+      priority,
+      targetX: tileX,
+      targetY: tileY,
+      assignedSettlerId: settler?.id,
+    });
+    this.taskQueue.add(task);
+    if (settler && settler.isAlive && !settler.currentTaskId) {
+      settler.currentTaskId = task.id;
+      this.executeChop(settler, task, 0);
+    }
+    return task;
+  }
+
+  private executeDeliverArtifact(settler: Settler, task: Task, tickDelta: number): void {
+    // Find the lab building
+    const buildings = this.entityManager.getByType('building') as Building[];
+    const lab = buildings.find(b => b.buildingType === 'lab' && b.built);
+    if (!lab) { task.completed = true; return; }
+
+    // Check settler still has artifact
+    const artifactItem = settler.inventory.find(i => i.resourceType === 'artifact');
+    if (!artifactItem) { task.completed = true; return; }
+
+    // Move to adjacent tile of lab
+    const dist = Math.abs(settler.x - lab.x) + Math.abs(settler.y - lab.y);
+    if (dist > 1) {
+      const adjTarget = this.findBuildPosition(settler, lab.x, lab.y);
+      if (!adjTarget) { task.completed = true; return; }
+
+      if (settler.path.length === 0 || settler.pathIndex === 0) {
+        const path = this.movementSystem.findPath(settler.x, settler.y, adjTarget.x, adjTarget.y);
+        if (path.length <= 1) { task.completed = true; return; }
+        settler.path = path;
+        settler.pathIndex = 1;
+      }
+
+      settler.pathIndex = this.movementSystem.stepAlongPath(settler, settler.path, settler.pathIndex);
+      if (settler.pathIndex < settler.path.length) return;
+      settler.path = [];
+      settler.pathIndex = 0;
+    }
+
+    // Deliver: remove artifact from settler inventory, add to lab storage
+    const artifactName = artifactItem.name;
+    settler.removeFromInventory('artifact', 1);
+    lab.addToStorage('artifact', 1);
+
+    // Store the artifact name in lab's custom data for the journal
+    if (!(lab as any).analyzedArtifacts) (lab as any).analyzedArtifacts = new Map<string, number>();
+    const analyzed = (lab as any).analyzedArtifacts as Map<string, number>;
+    analyzed.set(artifactName, (analyzed.get(artifactName) || 0) + 1);
+
+    task.completed = true;
+  }
+
+  createDeliverArtifactTask(settler: Settler, priority: TaskPriority = TaskPriority.Normal): Task {
+    this.interruptSettler(settler);
+    const task = new Task({
+      type: TaskType.DeliverArtifact,
+      priority,
+      targetX: settler.x,
+      targetY: settler.y,
+      assignedSettlerId: settler.id,
+    });
+    this.taskQueue.add(task);
+    settler.currentTaskId = task.id;
+    this.executeDeliverArtifact(settler, task, 0);
     return task;
   }
 }

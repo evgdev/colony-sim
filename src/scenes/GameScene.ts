@@ -17,24 +17,28 @@ import { DinosaurSystem } from '../systems/DinosaurSystem';
 import { CombatSystem } from '../systems/CombatSystem';
 import { ArtifactSystem } from '../systems/ArtifactSystem';
 import { QuestSystem } from '../systems/QuestSystem';
+import { QuestManager } from '../systems/QuestManager';
+import { DialogueBox } from '../ui/DialogueBox';
+import { LabJournal } from '../ui/LabJournal';
 import { TaskPriority } from '../core/Task';
 import { SaveManager } from '../core/SaveManager';
 import { DebugPanel } from '../ui/DebugPanel';
 import { languageManager } from '../data/LanguageManager';
 import dinosaursData from '../data/dinosaurs.json';
 
-import { createBuildingIcons, createTileTextures, createDecorationTextures, createTrexSprite } from '../rendering/TextureGenerator';
+import { createBuildingIcons, createTileTextures, createDecorationTextures, createTrexSprite, createRaptorSprite, createBrontosaurSprite, createPterodactylSprite, createSettlerSprite } from '../rendering/TextureGenerator';
 import { AnimatedMapRenderer } from '../rendering/AnimatedMapRenderer';
 import { EntityRenderer } from '../rendering/EntityRenderer';
 import { DecorationGenerator } from '../rendering/DecorationGenerator';
 import { UIManager } from '../ui/UIManager';
 import { InputHandler } from '../ui/InputHandler';
+import { MenuSystem } from '../ui/MenuSystem';
 import { ToastManager } from '../ui/ToastManager';
 import { ReplayRecorder } from '../replay/ReplayRecorder';
 import { ReplayActionType } from '../replay/ReplayTypes';
 
-import { createInitialWorld, buildStartingPerimeter } from '../game/GameSetup';
-import { StartMenu } from '../game/StartMenu';
+import { createInitialWorld } from '../game/GameSetup';
+import { StartMenu, GameMode } from '../game/StartMenu';
 import { GameOverScreen } from '../game/GameOverScreen';
 
 export class GameScene extends Phaser.Scene {
@@ -47,6 +51,9 @@ export class GameScene extends Phaser.Scene {
   combatSystem!: CombatSystem;
   artifactSystem!: ArtifactSystem;
   questSystem!: QuestSystem;
+  questManager!: QuestManager;
+  dialogueBox!: DialogueBox;
+  labJournal!: LabJournal;
   debugPanel!: DebugPanel;
   replayRecorder!: ReplayRecorder;
   toastManager!: ToastManager;
@@ -59,17 +66,25 @@ export class GameScene extends Phaser.Scene {
   private decorationGenerator!: DecorationGenerator;
   private uiManager!: UIManager;
   private inputHandler!: InputHandler;
+  private menuSystem!: MenuSystem;
 
   private gameOver: boolean = false;
   private worldReady: boolean = false;
+  private gameMode: GameMode = 'story';
+  private dialoguePaused: boolean = false;
 
   private startMenu!: StartMenu;
   private gameOverScreen!: GameOverScreen;
+  private wallOverlay!: Phaser.GameObjects.Graphics;
+  private exploreOverlay!: Phaser.GameObjects.Graphics;
 
   private scrollX: number = 0;
   private scrollY: number = 0;
   private resourceSpawnTimer: number = 0;
   private resourceSpawnInterval: number = 50;
+  private defenseWaveTimer: number = 0;
+  private defenseWaveInterval: number = 40;
+  private defenseWaveCount: number = 0;
   private keys!: {
     W: Phaser.Input.Keyboard.Key;
     A: Phaser.Input.Keyboard.Key;
@@ -86,7 +101,7 @@ export class GameScene extends Phaser.Scene {
     super({ key: 'GameScene' });
   }
 
-  preload(): void {}
+  preload(): void { }
 
   create(): void {
     this.children.removeAll(true);
@@ -116,9 +131,19 @@ export class GameScene extends Phaser.Scene {
     this.input.keyboard!.on('keydown-THREE', () => this.selectSettlerByIndex(2));
 
     this.input.keyboard!.on('keydown-SPACE', () => {
+      if (this.dialogueBox?.isVisible) {
+        this.dialogueBox.nextLine();
+        return;
+      }
       if (this.attackedSettler && this.attackedSettler.isAlive) {
         this.selectSettler(this.attackedSettler);
         this.attackedSettler = null;
+      }
+    });
+
+    this.input.keyboard!.on('keydown-ENTER', () => {
+      if (this.dialogueBox?.isVisible) {
+        this.dialogueBox.nextLine();
       }
     });
 
@@ -129,14 +154,19 @@ export class GameScene extends Phaser.Scene {
     createBuildingIcons(this);
     createDecorationTextures(this);
     createTrexSprite(this);
+    createRaptorSprite(this);
+    createBrontosaurSprite(this);
+    createPterodactylSprite(this);
+    createSettlerSprite(this);
     this.createDinosaurAnims();
+    this.createSettlerAnims();
 
     this.mapRenderer = new AnimatedMapRenderer(this, this.simulation);
     this.mapRenderer.drawMap();
     this.mapRenderer.updateScroll(this.scrollX, this.scrollY);
 
     this.decorationGenerator = new DecorationGenerator(this);
-    this.decorationGenerator.generateDecorations(this.simulation.tileGrid, this.simulation.entityManager);
+    this.workSystem.decorationGenerator = this.decorationGenerator;
 
     this.uiManager = new UIManager(this, this.simulation);
     this.uiManager.setArtifactSystem(this.artifactSystem);
@@ -150,6 +180,7 @@ export class GameScene extends Phaser.Scene {
     this.uiManager.onDemolishCallback = (entity) => this.handleDemolish(entity);
     this.uiManager.onContinueCallback = (entity) => this.handleContinue(entity);
     this.uiManager.onRepairCallback = (entity) => this.handleRepair(entity);
+    this.uiManager.onJournalCallback = (building) => this.showLabJournal(building);
     this.uiManager.createSettlerIcons((index) => this.selectSettlerByIndex(index));
     this.uiManager.updateScroll(this.scrollX, this.scrollY);
 
@@ -157,8 +188,12 @@ export class GameScene extends Phaser.Scene {
     this.entityRenderer.updateScroll(this.scrollX, this.scrollY);
     this.entityRenderer.drawEntities();
 
-    this.inputHandler = new InputHandler(this, this.simulation, this.uiManager, this.workSystem, this.artifactSystem);
+    this.menuSystem = new MenuSystem(this);
+
+    this.inputHandler = new InputHandler(this, this.simulation, this.uiManager, this.menuSystem, this.workSystem, this.artifactSystem);
     this.inputHandler.scrollTo = (tileX: number, tileY: number) => this.scrollTo(tileX, tileY);
+    this.inputHandler.onMoveHere = (x, y, queue) => this.handleMoveHere(x, y, queue);
+    this.inputHandler.onAttackEntity = (entity, queue) => this.handleAttackEntity(entity, queue);
     this.inputHandler.createHoverRect();
     this.inputHandler.createSelectionRect();
     this.inputHandler.setupInputHandlers();
@@ -168,6 +203,10 @@ export class GameScene extends Phaser.Scene {
 
     this.debugPanel = new DebugPanel(this);
     this.toastManager = new ToastManager(this);
+    this.dialogueBox = new DialogueBox(this);
+    this.labJournal = new LabJournal(this);
+    this.wallOverlay = this.add.graphics().setDepth(6);
+    this.exploreOverlay = this.add.graphics().setDepth(6);
     this.startMenu = new StartMenu(this);
     this.gameOverScreen = new GameOverScreen(this);
 
@@ -213,11 +252,54 @@ export class GameScene extends Phaser.Scene {
       this.uiManager?.addEvent(event.message);
     });
     this.workSystem.questSystem = this.questSystem;
+    this.workSystem.decorationGenerator = this.decorationGenerator ?? null;
+
+    // QuestManager — full quest tree
+    this.questManager = new QuestManager();
+    this.questManager.onEvent((event) => {
+      if (event.type === 'dialogue' && event.dialogue) {
+        this.dialoguePaused = true;
+        this.inputHandler?.hideHover();
+        this.dialogueBox?.show(event.dialogue, () => {
+          this.dialoguePaused = false;
+          this.questManager?.onDialogueComplete();
+        });
+      } else if (event.message) {
+        this.uiManager?.addLog(event.message);
+        this.uiManager?.addEvent(event.message);
+        if (event.type !== 'quest_objective_progress') {
+          this.toastManager?.show(event.message);
+        }
+      }
+    });
+    // Emit act1 intro dialogue now that callback is registered
+    if (this.gameMode === 'story') {
+      this.questManager!.flushPendingIntro();
+    }
+    // Start the first quest after short delay — decorations already generated
+    // To skip to a specific quest, change SKIP_TO_QUEST (e.g. 'q2_2')
+    const SKIP_TO_QUEST: string | null = null; // set to null for normal start
+    //const SKIP_TO_QUEST: string | null = 'q2_2'; // set to null for normal start
+    this.time.delayedCall(2000, () => {
+      if (this.gameMode === 'story') {
+        if (SKIP_TO_QUEST) {
+          this.skipToQuest(SKIP_TO_QUEST);
+        } else if (this.dialogueBox?.isVisible) {
+          // Act intro dialogue still showing — start first quest after it finishes
+          this.questManager!.requestAutoStart();
+        } else {
+          this.questManager!.autoStartNextQuest();
+        }
+      }
+    });
     this.buildingSystem = new BuildingSystem(
       this.simulation.entityManager,
       this.simulation.tileGrid
     );
-    this.buildingSystem.onDinoKilled = (dino) => this.dropArtifact(dino);
+    this.buildingSystem.onDinoKilled = (dino) => {
+      this.dropArtifact(dino);
+      this.questManager?.onDinoKilled(dino.species);
+    };
     this.dinosaurSystem = new DinosaurSystem(
       this.simulation.entityManager,
       this.simulation.tileGrid,
@@ -247,7 +329,7 @@ export class GameScene extends Phaser.Scene {
   private showStartMenu(): void {
     this.worldReady = false;
     this.startMenu.show({
-      onStart: (difficulty) => this.startGame(difficulty),
+      onStart: (mode, difficulty) => this.startGame(mode, difficulty),
       onLoadReplay: () => this.loadReplay(),
     });
     this.uiManager.setBuildButtonsEnabled(false);
@@ -259,8 +341,9 @@ export class GameScene extends Phaser.Scene {
     this.input.setDefaultCursor('default');
   }
 
-  private startGame(difficulty: 'easy' | 'hard'): void {
+  private startGame(mode: GameMode, difficulty: 'easy' | 'hard'): void {
     this.startMenu.destroy();
+    this.gameMode = mode;
     this.worldReady = true;
     this.uiManager.setBuildButtonsEnabled(true);
     this.uiManager.setDayNightDimmed(false);
@@ -278,31 +361,17 @@ export class GameScene extends Phaser.Scene {
       this.scrollY = Math.max(0, world.centerY - Math.floor(VIEWPORT_TILES / 2));
       this.clampScroll();
 
-      if (difficulty === 'easy') {
-        buildStartingPerimeter(this.simulation, this.artifactSystem);
-        this.uiManager?.addLog(`${languageManager.ui.logBuildingAt} perimeter wall + gate`);
-      } else {
-        this.uiManager.addLog(`${languageManager.ui.hard}: ${languageManager.ui.hardDesc}`);
+      if (mode === 'defense') {
+        // Defense mode: spawn initial dinosaurs immediately
+        this.spawnDefenseModeDinos(world);
+        this.uiManager?.addLog('Режим обороны: динозавры атакуют!');
       }
-
-      // TEST: spawn T-Rex near settlers
-      const trexDef = (dinosaursData as any).trex;
-      const trex = new Dinosaur(
-        world.centerX + 5, world.centerY,
-        'trex', trexDef.hp, trexDef.speed, trexDef.aggroRange,
-        trexDef.size, trexDef.attackDamage, trexDef.wallDamage ?? 30, trexDef.footprint ?? 1
-      );
-      this.simulation.entityManager.add(trex);
-      this.simulation.tileGrid.setOccupiedArea(trex.x, trex.y, trex.footprint, true);
-      this.uiManager?.addLog('TEST: T-Rex (1x1) spawned at ' + trex.x + ',' + trex.y);
-
-      // Play T-Rex footstep sound (once)
-      if (this.cache.audio.exists('trex_footstep')) {
-        this.sound.play('trex_footstep', { volume: 0.5 });
-      }
+      // Story mode: no dinosaurs at start — QuestManager controls spawning
 
       this.mapRenderer.drawMap();
       this.mapRenderer.updateScroll(this.scrollX, this.scrollY);
+      this.decorationGenerator.generateDecorations(this.simulation.tileGrid, this.simulation.entityManager);
+      this.decorationGenerator.updateScroll(this.scrollX, this.scrollY);
       this.entityRenderer.updateScroll(this.scrollX, this.scrollY);
       this.entityRenderer.drawEntities();
       this.uiManager.updateScroll(this.scrollX, this.scrollY);
@@ -314,11 +383,72 @@ export class GameScene extends Phaser.Scene {
     }
   }
 
+  private skipToQuest(targetQuestId: string): void {
+    const qm = this.questManager;
+    if (!qm) return;
+
+    // Auto-complete all quests before the target
+    const allQuestIds = ['q1_1', 'q1_2'];
+    for (const qid of allQuestIds) {
+      if (qid === targetQuestId) break;
+      const state = qm.getQuestState(qid);
+      if (state && (state.status === 'active' || state.status === 'available')) {
+        (state as any).status = 'completed';
+        qm['completedQuests'].add(qid);
+        const quest = qm.getQuest(qid);
+        if (quest?.unlocks) {
+          for (const uid of quest.unlocks) {
+            const s = qm.getQuestState(uid);
+            if (s && s.status === 'locked') (s as any).status = 'available';
+          }
+        }
+      }
+    }
+
+    // Start the target quest
+    qm['currentAct'] = 'act1_crash';
+    qm.startQuest(targetQuestId, this.simulation.tickCount);
+    this.uiManager?.addLog(`[SKIP] Квест: ${qm.getQuest(targetQuestId)?.title}`);
+  }
+
+  private spawnDefenseModeDinos(world: { centerX: number; centerY: number }): void {
+    const speciesList = ['raptor', 'raptor', 'brontosaur'];
+    const spawnOffsets = [
+      { dx: 8, dy: 0 },
+      { dx: -8, dy: 0 },
+      { dx: 0, dy: 8 },
+    ];
+    speciesList.forEach((species, i) => {
+      const def = (dinosaursData as any)[species];
+      if (!def) return;
+      const footprint = def.footprint ?? 1;
+      const off = spawnOffsets[i] ?? { dx: i + 5, dy: 0 };
+      let sx = world.centerX + off.dx;
+      let sy = world.centerY + off.dy;
+      for (let attempt = 0; attempt < 30; attempt++) {
+        if (this.simulation.tileGrid.isAreaWalkableForDino(sx, sy, footprint)) break;
+        sx += 1;
+        if (sx >= this.simulation.tileGrid.width - footprint) {
+          sx = world.centerX + off.dx;
+          sy += 1;
+        }
+      }
+      const dino = new Dinosaur(
+        sx, sy, species,
+        def.hp, def.speed, def.aggroRange,
+        def.size, def.attackDamage, def.wallDamage ?? 5, footprint
+      );
+      this.simulation.entityManager.add(dino);
+      this.simulation.tileGrid.setOccupiedArea(dino.x, dino.y, footprint, true);
+    });
+  }
+
   update(time: number, delta: number): void {
     if (this.gameOver) return;
     if (!this.worldReady) return;
 
     try {
+      this.dialogueBox?.update(delta);
       this.handleScrollInput();
 
       if (Phaser.Input.Keyboard.JustDown(this.keys.TAB)) {
@@ -337,6 +467,9 @@ export class GameScene extends Phaser.Scene {
   }
 
   private runSystems(delta: number): void {
+    // Pause during dialogue
+    if (this.dialoguePaused || this.dialogueBox?.isVisible) return;
+
     const adjustedDelta = delta * this.debugPanel.speed;
     const ticked = this.simulation.update(adjustedDelta);
     if (!ticked) return;
@@ -351,11 +484,15 @@ export class GameScene extends Phaser.Scene {
     this.needsSystem.update(
       this.simulation.entityManager.getByType('settler') as Settler[],
       td,
-      this.simulation.tickCount
+      this.simulation.tickCount,
+      this.hasFarm()
     );
     this.workSystem.update(td);
     this.buildingSystem.update(td);
-    this.dinosaurSystem.update(td, this.simulation.tickCount);
+    this.dinosaurSystem.update(td, this.simulation.tickCount, this.gameMode === 'defense');
+    if (this.gameMode === 'story') {
+      this.spawnQuestDinos();
+    }
     this.processCombat(this.combatSystem.update(td));
 
     for (const s of this.simulation.entityManager.getByType('settler') as Settler[]) {
@@ -367,6 +504,10 @@ export class GameScene extends Phaser.Scene {
     }
 
     this.spawnResources();
+    if (this.gameMode === 'defense') {
+      this.spawnDefenseWave();
+    }
+    this.questManager?.update(this.simulation.tickCount, this.simulation);
     this.uiManager.updateThoughts(ticked);
     this.checkGameOver();
     this.uiManager.updateBuildButtonStates();
@@ -375,24 +516,149 @@ export class GameScene extends Phaser.Scene {
 
   private spawnResources(): void {
     this.resourceSpawnTimer++;
-    if (this.resourceSpawnTimer < this.resourceSpawnInterval) return;
+    const interval = this.questManager?.isQuestActive('q1_2') ? 25 : this.resourceSpawnInterval;
+    if (this.resourceSpawnTimer < interval) return;
     this.resourceSpawnTimer = 0;
 
     const existing = this.simulation.entityManager.getByType('resource').length;
-    if (existing >= 20) return;
+    if (existing >= 25) return;
 
-    for (let i = 0; i < 10; i++) {
-      const x = Math.floor(Math.random() * MAP_WIDTH);
-      const y = Math.floor(Math.random() * MAP_HEIGHT);
-      const tile = this.simulation.tileGrid.get(x, y);
-      if (!tile || !tile.walkable || tile.type === 'water' || tile.occupied) continue;
+    // During q1_2: more stone, spawn near base
+    const isWallQuest = this.questManager?.isQuestActive('q1_2');
+    const spawnCount = isWallQuest ? 3 : 1;
 
-      const type = Math.random() < 0.5 ? 'wood' : 'stone';
-      const qty = Math.floor(Math.random() * 15) + 5;
-      const res = new Resource(x, y, type, qty);
-      this.simulation.entityManager.add(res);
-      this.simulation.tileGrid.setOccupied(x, y, true);
-      break;
+    for (let i = 0; i < spawnCount; i++) {
+      for (let attempt = 0; attempt < 10; attempt++) {
+        let x: number, y: number;
+        if (isWallQuest) {
+          // Spawn near center (within 12 tiles)
+          x = Math.floor(MAP_WIDTH / 2 + (Math.random() - 0.5) * 24);
+          y = Math.floor(MAP_HEIGHT / 2 + (Math.random() - 0.5) * 24);
+        } else {
+          x = Math.floor(Math.random() * MAP_WIDTH);
+          y = Math.floor(Math.random() * MAP_HEIGHT);
+        }
+        const tile = this.simulation.tileGrid.get(x, y);
+        if (!tile || !tile.walkable || tile.type === 'water' || tile.occupied) continue;
+
+        const type = isWallQuest ? 'stone' : 'wood';
+        const qty = Math.floor(Math.random() * 12) + 5;
+        const res = new Resource(x, y, type, qty);
+        this.simulation.entityManager.add(res);
+        this.simulation.tileGrid.setOccupied(x, y, true);
+        break;
+      }
+    }
+  }
+
+  private isDinosEnabled(): boolean { return false; }
+
+  private dinoSpawnTimer: number = 0;
+
+  private spawnQuestDinos(): void {
+    const qm = this.questManager;
+    if (!qm) return;
+
+    this.dinoSpawnTimer++;
+    if (this.dinoSpawnTimer < 30) return; // spawn every 30 ticks
+    this.dinoSpawnTimer = 0;
+
+    const dinoCount = this.simulation.entityManager.getByType('dinosaur').length;
+    if (dinoCount >= 4) return;
+
+    // Default dino spawning (exploration focus)
+    if (Math.random() < 0.3) {
+      const species = Math.random() < 0.6 ? 'brontosaur' : 'raptor';
+      this.spawnDinoAtEdge(species, ['east', 'west', 'north', 'south'][Math.floor(Math.random() * 4)] as any);
+    }
+  }
+
+  private spawnDinoAtEdge(species: string, edge: string): void {
+    const def = (dinosaursData as any)[species];
+    if (!def) return;
+    const footprint = def.footprint ?? 1;
+
+    let sx = 0, sy = 0;
+    switch (edge) {
+      case 'east': sx = MAP_WIDTH - 2; sy = Math.floor(Math.random() * MAP_HEIGHT); break;
+      case 'west': sx = 1; sy = Math.floor(Math.random() * MAP_HEIGHT); break;
+      case 'north': sx = Math.floor(Math.random() * MAP_WIDTH); sy = 1; break;
+      case 'south': sx = Math.floor(Math.random() * MAP_WIDTH); sy = MAP_HEIGHT - 2; break;
+    }
+
+    // Find walkable spot
+    for (let attempt = 0; attempt < 20; attempt++) {
+      if (this.simulation.tileGrid.isAreaWalkableForDino(sx, sy, footprint)) break;
+      sx = Math.floor(Math.random() * (MAP_WIDTH - footprint));
+      sy = Math.floor(Math.random() * (MAP_HEIGHT - footprint));
+    }
+
+    const dino = new Dinosaur(
+      sx, sy, species,
+      def.hp, def.speed, def.aggroRange,
+      def.size, def.attackDamage, def.wallDamage ?? 5, footprint
+    );
+    this.simulation.entityManager.add(dino);
+    this.simulation.tileGrid.setOccupiedArea(dino.x, dino.y, footprint, true);
+
+    const msg = `${def.name} появился на ${edge === 'east' ? 'востоке' : edge === 'west' ? 'западе' : edge === 'north' ? 'севере' : 'юге'}!`;
+    this.uiManager?.addLog(msg);
+    this.toastManager?.show(msg);
+  }
+
+  private spawnDefenseWave(): void {
+    this.defenseWaveTimer++;
+    if (this.defenseWaveTimer < this.defenseWaveInterval) return;
+    this.defenseWaveTimer = 0;
+    this.defenseWaveCount++;
+
+    // Escalating difficulty: more dinos, faster interval
+    const baseCount = 2 + Math.floor(this.defenseWaveCount / 3);
+    const speciesPool = this.defenseWaveCount < 5
+      ? ['raptor']
+      : ['raptor', 'trex'];
+
+    const settlers = this.simulation.entityManager.getByType('settler') as Settler[];
+    const aliveSettlers = settlers.filter(s => s.isAlive);
+    if (aliveSettlers.length === 0) return;
+
+    for (let i = 0; i < baseCount; i++) {
+      const species = speciesPool[Math.floor(Math.random() * speciesPool.length)];
+      const def = (dinosaursData as any)[species];
+      if (!def) continue;
+
+      const footprint = def.footprint ?? 1;
+      // Spawn at random edge of map
+      const edge = Math.floor(Math.random() * 4);
+      let sx = 0, sy = 0;
+      switch (edge) {
+        case 0: sx = 1; sy = Math.floor(Math.random() * MAP_HEIGHT); break;
+        case 1: sx = MAP_WIDTH - 1 - footprint; sy = Math.floor(Math.random() * MAP_HEIGHT); break;
+        case 2: sx = Math.floor(Math.random() * MAP_WIDTH); sy = 1; break;
+        case 3: sx = Math.floor(Math.random() * MAP_WIDTH); sy = MAP_HEIGHT - 1 - footprint; break;
+      }
+
+      // Find walkable spot
+      for (let attempt = 0; attempt < 20; attempt++) {
+        if (this.simulation.tileGrid.isAreaWalkableForDino(sx, sy, footprint)) break;
+        sx = Math.floor(Math.random() * (MAP_WIDTH - footprint));
+        sy = Math.floor(Math.random() * (MAP_HEIGHT - footprint));
+      }
+
+      const dino = new Dinosaur(
+        sx, sy, species,
+        def.hp, def.speed, def.aggroRange,
+        def.size, def.attackDamage, def.wallDamage ?? 5, footprint
+      );
+      this.simulation.entityManager.add(dino);
+      this.simulation.tileGrid.setOccupiedArea(dino.x, dino.y, footprint, true);
+    }
+
+    // Notify
+    if (this.defenseWaveCount % 3 === 0) {
+      const msg = `Волна ${this.defenseWaveCount}: ${baseCount} динозавров приближаются!`;
+      this.uiManager?.addLog(msg);
+      this.toastManager?.show(msg);
     }
   }
 
@@ -440,11 +706,164 @@ export class GameScene extends Phaser.Scene {
     this.mapRenderer.updateNight(this.simulation.tickCount);
     this.entityRenderer.drawEntities();
     this.entityRenderer.drawPath();
+    this.decorationGenerator?.drawChopProgress(this.scrollX, this.scrollY);
+    this.updateWallOverlay();
+    this.updateExploreMarkers();
     this.uiManager.updateLeftPanel(this.gameOver, this.simulation.tickCount);
     this.uiManager.updateSelection();
     this.uiManager.updateInfoPanel();
     this.uiManager.updateMinimap();
     this.debugPanel.update(this.simulation);
+  }
+
+  private updateWallOverlay(): void {
+    this.wallOverlay.clear();
+    if (this.gameMode !== 'story') return;
+
+    const qm = this.questManager;
+    if (!qm) return;
+
+    // Show after q1_1 completed, hide after q1_2 completed
+    const q1_1Done = qm.getQuestState('q1_1')?.status === 'completed';
+    const q1_2Done = qm.getQuestState('q1_2')?.status === 'completed' || qm.getQuestState('q1_2')?.status === 'failed';
+    if (!q1_1Done || q1_2Done) return;
+
+    // Fixed 10x10 area centered on spawn point
+    const centerX = Math.floor(this.simulation.tileGrid.width / 2);
+    const centerY = Math.floor(this.simulation.tileGrid.height / 2);
+    const halfSize = 5;
+    const minX = Math.max(0, centerX - halfSize);
+    const maxX = Math.min(MAP_WIDTH - 1, centerX + halfSize - 1);
+    const minY = Math.max(0, centerY - halfSize);
+    const maxY = Math.min(MAP_HEIGHT - 1, centerY + halfSize - 1);
+
+    const tileSize = 50;
+    const fieldX = 250;
+    const fieldY = 50;
+    const fieldMaxX = fieldX + VIEWPORT_TILES * tileSize;
+    const fieldMaxY = fieldY + VIEWPORT_TILES * tileSize;
+    const sx = this.scrollX;
+    const sy = this.scrollY;
+    const g = this.wallOverlay;
+
+    // Helper: draw rect only if inside field
+    const safeRect = (px: number, py: number, w: number, h: number) => {
+      if (px + w > fieldX && px < fieldMaxX && py + h > fieldY && py < fieldMaxY) {
+        g.fillRect(px, py, w, h);
+      }
+    };
+    const safeStrokeRect = (px: number, py: number, w: number, h: number) => {
+      if (px + w > fieldX && px < fieldMaxX && py + h > fieldY && py < fieldMaxY) {
+        g.strokeRect(px, py, w, h);
+      }
+    };
+
+    // Semi-transparent fill
+    g.fillStyle(0xffd700, 0.06);
+    safeRect(
+      fieldX + (minX - sx) * tileSize,
+      fieldY + (minY - sy) * tileSize,
+      (maxX - minX + 1) * tileSize,
+      (maxY - minY + 1) * tileSize
+    );
+
+    // Wall outline — skip water tiles
+    g.lineStyle(2, 0xffd700, 0.7);
+
+    for (let x = minX; x <= maxX; x++) {
+      const tileTop = this.simulation.tileGrid.get(x, minY);
+      const tileBot = this.simulation.tileGrid.get(x, maxY);
+      const px = fieldX + (x - sx) * tileSize;
+      if (tileTop && tileTop.type !== 'water') {
+        safeStrokeRect(px + 4, fieldY + (minY - sy) * tileSize + 4, tileSize - 8, tileSize - 8);
+      }
+      if (tileBot && tileBot.type !== 'water') {
+        safeStrokeRect(px + 4, fieldY + (maxY - sy) * tileSize + 4, tileSize - 8, tileSize - 8);
+      }
+    }
+    for (let y = minY + 1; y < maxY; y++) {
+      const tileLeft = this.simulation.tileGrid.get(minX, y);
+      const tileRight = this.simulation.tileGrid.get(maxX, y);
+      const py = fieldY + (y - sy) * tileSize;
+      if (tileLeft && tileLeft.type !== 'water') {
+        safeStrokeRect(fieldX + (minX - sx) * tileSize + 4, py + 4, tileSize - 8, tileSize - 8);
+      }
+      if (tileRight && tileRight.type !== 'water') {
+        safeStrokeRect(fieldX + (maxX - sx) * tileSize + 4, py + 4, tileSize - 8, tileSize - 8);
+      }
+    }
+
+    // Gate at bottom center (green)
+    const gateX = Math.floor((minX + maxX) / 2);
+    const gateTile = this.simulation.tileGrid.get(gateX, maxY);
+    if (gateTile && gateTile.type !== 'water') {
+      g.lineStyle(2, 0x44ff44, 0.9);
+      safeStrokeRect(
+        fieldX + (gateX - sx) * tileSize + 2,
+        fieldY + (maxY - sy) * tileSize + 2,
+        tileSize - 4, tileSize - 4
+      );
+    }
+  }
+
+  private updateExploreMarkers(): void {
+    this.exploreOverlay.clear();
+    if (this.gameMode !== 'story') return;
+
+    const qm = this.questManager;
+    if (!qm) return;
+
+    // Show markers for active explore quests
+    const active = qm.getActiveQuests();
+    const exploreQuest = active.find(q => q.quest.type === 'explore');
+    if (!exploreQuest) return;
+
+    const tileSize = 50;
+    const fieldX = 250;
+    const fieldY = 50;
+    const fieldMaxX = fieldX + VIEWPORT_TILES * tileSize;
+    const fieldMaxY = fieldY + VIEWPORT_TILES * tileSize;
+    const sx = this.scrollX;
+    const sy = this.scrollY;
+    const centerX = Math.floor(this.simulation.tileGrid.width / 2);
+    const centerY = Math.floor(this.simulation.tileGrid.height / 2);
+    const g = this.exploreOverlay;
+
+    const pulse = Math.sin(Date.now() / 300) * 0.3 + 0.7;
+
+    for (const obj of exploreQuest.state.objectives) {
+      if (obj.type !== 'reach_tile' || obj.found) continue;
+      if (obj.x === undefined || obj.y === undefined) continue;
+
+      const tileX = centerX + obj.x;
+      const tileY = centerY + obj.y;
+
+      // Skip water tiles — natural barrier
+      const tile = this.simulation.tileGrid.get(tileX, tileY);
+      if (!tile || tile.type === 'water') continue;
+
+      const px = fieldX + (tileX - sx) * tileSize + tileSize / 2;
+      const py = fieldY + (tileY - sy) * tileSize + tileSize / 2;
+
+      // Skip if outside viewport
+      if (px < fieldX - tileSize || px > fieldMaxX + tileSize) continue;
+      if (py < fieldY - tileSize || py > fieldMaxY + tileSize) continue;
+
+      // Pulsing diamond marker
+      g.lineStyle(2, 0xff8800, pulse);
+      const r = 14;
+      g.beginPath();
+      g.moveTo(px, py - r);
+      g.lineTo(px + r, py);
+      g.lineTo(px, py + r);
+      g.lineTo(px - r, py);
+      g.closePath();
+      g.strokePath();
+
+      // Inner dot
+      g.fillStyle(0xff8800, pulse * 0.5);
+      g.fillCircle(px, py, 4);
+    }
   }
 
   private handleScrollInput(): void {
@@ -514,6 +933,10 @@ export class GameScene extends Phaser.Scene {
     this.uiManager.updateSettlerIcons(this.getAllSettlers().indexOf(settler));
   }
 
+  showLabJournal(lab: Building): void {
+    this.labJournal.show(lab);
+  }
+
   cycleSettler(): void {
     const alive = this.getAllSettlers().filter(s => s.isAlive);
     if (alive.length <= 1) return;
@@ -547,6 +970,11 @@ export class GameScene extends Phaser.Scene {
     return this.simulation.entityManager.getByType('settler') as Settler[];
   }
 
+  private hasFarm(): boolean {
+    const buildings = this.simulation.entityManager.getByType('building') as Building[];
+    return buildings.some(b => b.buildingType === 'farm' && b.built);
+  }
+
   private handleCollect(entity: import('../core/Entity').Entity, queue: boolean = false): void {
     const settler = this.selectedSettler;
     if (entity.entityType === 'resource') {
@@ -567,12 +995,18 @@ export class GameScene extends Phaser.Scene {
   private handleDemolish(entity: import('../core/Entity').Entity): void {
     if (entity.entityType !== 'building') return;
     const bld = entity as Building;
+    const bldSize = bld.size ?? 1;
     this.simulation.entityManager.remove(bld.id);
-    this.simulation.tileGrid.setOccupied(bld.x, bld.y, false);
-    this.simulation.tileGrid.setBuilding(bld.x, bld.y, false);
-    if (bld.buildingType === 'gate') {
-      this.simulation.tileGrid.setGate(bld.x, bld.y, false);
-      this.simulation.tileGrid.setDinoBlocked(bld.x, bld.y, false);
+    // Clear all tiles in footprint
+    for (let dy = 0; dy < bldSize; dy++) {
+      for (let dx = 0; dx < bldSize; dx++) {
+        this.simulation.tileGrid.setOccupied(bld.x + dx, bld.y + dy, false);
+        this.simulation.tileGrid.setBuilding(bld.x + dx, bld.y + dy, false);
+        if (bld.buildingType === 'gate') {
+          this.simulation.tileGrid.setGate(bld.x + dx, bld.y + dy, false);
+          this.simulation.tileGrid.setDinoBlocked(bld.x + dx, bld.y + dy, false);
+        }
+      }
     }
     this.uiManager.addLog(`Demolished ${bld.buildingType}`);
     this.uiManager.deselectAll();
@@ -600,6 +1034,45 @@ export class GameScene extends Phaser.Scene {
     }
   }
 
+  private handleMoveHere(x: number, y: number, queue: boolean): void {
+    const settler = this.selectedSettler;
+    if (!settler || !settler.isAlive) return;
+    this.workSystem.createMoveTask(x, y, undefined, settler, queue);
+    this.uiManager.addLog(`${languageManager.ui.menuMoveHere} (${x},${y})`);
+  }
+
+  private handleAttackEntity(entity: import('../core/Entity').Entity, queue: boolean): void {
+    const settler = this.selectedSettler;
+    if (!settler || !settler.isAlive) return;
+    const target = this.findAdjacentWalkable(settler.x, settler.y, entity.x, entity.y);
+    if (target) {
+      this.workSystem.createMoveTask(target.x, target.y, undefined, settler, queue);
+      this.uiManager.addLog(`Attack: moving to (${target.x},${target.y})`);
+    } else {
+      this.uiManager.addLog(`No path to target`);
+    }
+  }
+
+  private findAdjacentWalkable(sx: number, sy: number, tx: number, ty: number): { x: number; y: number } | null {
+    const dirs = [
+      { x: tx - 1, y: ty }, { x: tx + 1, y: ty },
+      { x: tx, y: ty - 1 }, { x: tx, y: ty + 1 },
+    ];
+    let best: { x: number; y: number } | null = null;
+    let bestDist = Infinity;
+    for (const d of dirs) {
+      const tile = this.simulation.tileGrid.get(d.x, d.y);
+      if (!tile || !tile.walkable) continue;
+      if (this.simulation.tileGrid.get(d.x, d.y)?.occupied) continue;
+      const dist = Math.abs(d.x - sx) + Math.abs(d.y - sy);
+      if (dist < bestDist) {
+        bestDist = dist;
+        best = d;
+      }
+    }
+    return best;
+  }
+
   private dropArtifact(dino: { x: number; y: number; species: string; attacker?: string }): void {
     const artifactName = dino.species === 'pterodactyl' ? 'pterodactyl wing' : `${dino.species} tooth`;
     const artifact = new Artifact(dino.x, dino.y, 'trophy', artifactName);
@@ -617,14 +1090,19 @@ export class GameScene extends Phaser.Scene {
     const settlers = this.simulation.entityManager.getByType('settler') as Settler[];
     const alive = settlers.filter(s => s.isAlive);
 
-    if (alive.length === 0) {
+    // Game over if any colonist dies (story requires all 3)
+    if (alive.length < 3) {
+      const dead = settlers.find(s => !s.isAlive);
+      if (dead) {
+        this.uiManager.addLog(`💀 ${dead.name} погиб. Колония не может функционировать без полного состава.`);
+      }
       this.showGameOver();
       return;
     }
 
     if (this.selectedSettler && !this.selectedSettler.isAlive) {
       this.selectedSettler = alive[0];
-      this.uiManager.addLog(`Selected: ${this.selectedSettler.name} (${this.selectedSettler.settlerClass})`);
+      this.uiManager.addLog(`${languageManager.ui.selected}: ${this.selectedSettler.name} (${this.selectedSettler.settlerClass})`);
     }
   }
 
@@ -647,13 +1125,35 @@ export class GameScene extends Phaser.Scene {
     }
   }
 
+  private createSettlerAnims(): void {
+    const defs: Record<string, { start: number; frames: number; rate: number }> = {
+      idle: { start: 0, frames: 4, rate: 4 },
+      walk: { start: 4, frames: 8, rate: 12 },
+      gather: { start: 12, frames: 6, rate: 10 },
+      attack: { start: 18, frames: 5, rate: 14 },
+    };
+    for (const [animName, cfg] of Object.entries(defs)) {
+      const key = `settler_${animName}`;
+      if (this.anims.exists(key)) continue;
+      this.anims.create({
+        key,
+        frames: this.anims.generateFrameNumbers('settler', {
+          start: cfg.start,
+          end: cfg.start + cfg.frames - 1,
+        }),
+        frameRate: cfg.rate,
+        repeat: animName === 'attack' ? 0 : -1,
+      });
+    }
+  }
+
   private showGameOver(): void {
     this.gameOver = true;
     this.debugPanel.paused = true;
     this.inputHandler.hideHover();
     this.replayRecorder.stop();
     this.replayRecorder.autoSave();
-    this.gameOverScreen.show(this.simulation.tickCount, () => this.scene.start('BootScene'));
+    this.gameOverScreen.show(this.simulation.tickCount, () => this.scene.start('BootScene'), this.questManager);
   }
 
   private onSave(): void {

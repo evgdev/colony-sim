@@ -36,14 +36,14 @@ export class DinosaurSystem {
     return isNight(tickCount);
   }
 
-  update(tickDelta: number, tickCount: number = 0): void {
+  update(tickDelta: number, tickCount: number = 0, dinosEnabled: boolean = false): void {
     const night = this.isNightPhase(tickCount);
     const spawnInterval = night ? Math.floor(this.spawnInterval / this.nightSpawnMultiplier) : this.spawnInterval;
 
-    // SPAWN DISABLED FOR TESTING
-    // if (tickCount > 0 && tickCount % spawnInterval === 0) {
-    //   this.trySpawn(night);
-    // }
+    // Spawn dinosaurs when enabled by quest system
+    if (dinosEnabled && tickCount > 0 && tickCount % spawnInterval === 0) {
+      this.trySpawn(night);
+    }
 
     const dinos = this.entityManager.getByType('dinosaur') as Dinosaur[];
     for (const dino of dinos) {

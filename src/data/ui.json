@@ -66,6 +66,7 @@
   "logBuild": "Строить",
   "logClickTile": "нажмите на клетку",
   "logBuildingAt": "Постройка",
+  "logChopTreeFirst": "Сначала срубите дерево.",
 
   "infoResource": "Ресурс",
   "infoType": "Тип",
@@ -89,5 +90,17 @@
   "hard": "СЛОЖНО",
   "easyDesc": "Стена и ворота",
   "hardDesc": "Без защиты",
-  "repair": "РЕМОНТ"
+  "repair": "РЕМОНТ",
+
+  "menuSelect": "Выбрать",
+  "menuMoveHere": "Отправить сюда",
+  "menuCollect": "Собрать",
+  "menuAttack": "Атаковать",
+  "menuDemolish": "Демонтировать",
+  "menuContinue": "Продолжить строительство",
+  "menuRepair": "Ремонт",
+  "menuResume": "Возобновить задачу",
+  "menuQueueMove": "Добавить в очередь",
+  "menuQueueCollect": "Собрать (очередь)",
+  "menuQueueAttack": "Атаковать (очередь)"
 }

@@ -13,29 +13,36 @@ const NIGHT_START = 18;
 const NIGHT_END = 6;
 const NIGHT_ENERGY_MULTIPLIER = 1.5;
 
+// Base hunger rate — slows down after building farm
+const HUNGER_RATE_BASE = 0.04;
+const HUNGER_RATE_AFTER_FARM = 0.015;
+
 export class NeedsSystem {
   private isNight(tickCount: number): boolean {
     const hour = tickCount % TICKS_PER_DAY;
     return hour >= NIGHT_START || hour < NIGHT_END;
   }
 
-  update(settlers: Settler[], tickDelta: number, tickCount: number = 0): void {
+  update(settlers: Settler[], tickDelta: number, tickCount: number = 0, hasFarm: boolean = false): void {
     if (!NEEDS_ENABLED) return;
     const isNight = this.isNight(tickCount);
     const energyMultiplier = isNight ? NIGHT_ENERGY_MULTIPLIER : 1;
 
+    // Hunger slows down after farm is built
+    const hungerRate = hasFarm ? HUNGER_RATE_AFTER_FARM : HUNGER_RATE_BASE;
+
     for (const settler of settlers) {
       if (!settler.isAlive) continue;
 
-      const hungerRate = settler.hunger <= HUNGER_STARVATION_THRESHOLD
-        ? 0.05 * HUNGER_STARVATION_MULTIPLIER
-        : 0.05;
-      settler.hunger = Math.max(0, settler.hunger - hungerRate * tickDelta);
+      const currentHungerRate = settler.hunger <= HUNGER_STARVATION_THRESHOLD
+        ? hungerRate * HUNGER_STARVATION_MULTIPLIER
+        : hungerRate;
+      settler.hunger = Math.max(0, settler.hunger - currentHungerRate * tickDelta);
 
-      settler.energy = Math.max(0, settler.energy - 0.03 * energyMultiplier * tickDelta);
+      settler.energy = Math.max(0, settler.energy - 0.02 * energyMultiplier * tickDelta);
 
       if (settler.hunger <= 0) {
-        settler.energy = Math.max(0, settler.energy - 0.3 * tickDelta);
+        settler.energy = Math.max(0, settler.energy - 0.2 * tickDelta);
       }
 
       settler.foodTimer += tickDelta;

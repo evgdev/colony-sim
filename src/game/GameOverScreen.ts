@@ -1,6 +1,7 @@
 import Phaser from 'phaser';
 import { CANVAS_WIDTH, CANVAS_HEIGHT } from '../config';
 import { languageManager } from '../data/LanguageManager';
+import { QuestManager } from '../systems/QuestManager';
 
 const TICKS_PER_DAY = 24;
 
@@ -12,7 +13,7 @@ export class GameOverScreen {
     this.scene = scene;
   }
 
-  show(tickCount: number, onRestart: () => void): void {
+  show(tickCount: number, onRestart: () => void, questManager?: QuestManager): void {
     this.destroy();
     const cx = CANVAS_WIDTH / 2;
     const cy = CANVAS_HEIGHT / 2;
@@ -47,7 +48,13 @@ export class GameOverScreen {
       fontSize: '20px', color: '#ffd700', fontFamily: 'monospace',
       backgroundColor: '#16213e', padding: { x: 24, y: 10 },
     }).setOrigin(0.5).setInteractive({ useHandCursor: true })
-      .on('pointerdown', onRestart)
+      .on('pointerdown', () => {
+        // Clear QuestManager state before restart to prevent stale dialogue emissions
+        if (questManager) {
+          questManager.clearPendingState();
+        }
+        onRestart();
+      })
       .on('pointerover', () => restartBtn.setColor('#ffffff'))
       .on('pointerout', () => restartBtn.setColor('#ffd700'));
     this.container.add(restartBtn);

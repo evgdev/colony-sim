@@ -29,6 +29,10 @@ export class Settler extends Entity {
   artifactAttackSpeedBonus: number = 0;
   collectedArtifacts: Map<string, number> = new Map();
 
+  // Visual animation state
+  activity: 'idle' | 'walk' | 'gather' | 'attack' = 'idle';
+  attackFlash: number = 0; // ms remaining of attack animation
+
   constructor(x: number, y: number, name: string = 'Settler', color: number = 0xffd700, settlerClass: SettlerClass = 'engineer') {
     super('settler', x, y);
     this.name = name;
@@ -97,6 +101,22 @@ export class Settler extends Entity {
 
   getArtifactCount(name: string): number {
     return this.collectedArtifacts.get(name) || 0;
+  }
+
+  /** Trigger the attack animation for a short duration. */
+  triggerAttack(): void {
+    this.activity = 'attack';
+    this.attackFlash = 350;
+  }
+
+  updateVisual(deltaMs: number, tilesPerMs: number): void {
+    if (this.attackFlash > 0) {
+      this.attackFlash = Math.max(0, this.attackFlash - deltaMs);
+      if (this.attackFlash === 0 && this.activity === 'attack') {
+        this.activity = 'idle';
+      }
+    }
+    super.updateVisual(deltaMs, tilesPerMs);
   }
 
   serialize(): object {

@@ -27,6 +27,9 @@ interface Decoration {
   tileX: number;
   tileY: number;
   isTree: boolean;
+  chopProgress: number;
+  chopTime: number;
+  isChopping: boolean;
 }
 
 export class DecorationGenerator {
@@ -35,6 +38,7 @@ export class DecorationGenerator {
   private bottomContainer!: Phaser.GameObjects.Container;
   private topContainer!: Phaser.GameObjects.Container;
   private shadowContainer!: Phaser.GameObjects.Container;
+  private chopGraphics!: Phaser.GameObjects.Graphics;
   private scrollX = 0;
   private scrollY = 0;
   private tileGrid: TileGrid | null = null;
@@ -58,6 +62,9 @@ export class DecorationGenerator {
     // Top layer (canopy, covers settlers)
     this.topContainer = scene.add.container(0, 0).setDepth(12);
     this.applyViewportMask(this.topContainer);
+
+    // Chop progress bar layer
+    this.chopGraphics = scene.add.graphics().setDepth(13);
   }
 
   private applyViewportMask(container: Phaser.GameObjects.Container): void {
@@ -130,7 +137,7 @@ export class DecorationGenerator {
             : null;
           if (topSprite) this.topContainer.add(topSprite);
 
-          this.decorations.push({ bottomSprite, topSprite, shadowSprite: shadowGfx, tileX: x, tileY: y, isTree: true });
+          this.decorations.push({ bottomSprite, topSprite, shadowSprite: shadowGfx, tileX: x, tileY: y, isTree: true, chopProgress: 0, chopTime: 3, isChopping: false });
 
           // Mark trunk tile as occupied (collision)
           tileGrid.setOccupied(x, y, true);
@@ -141,7 +148,7 @@ export class DecorationGenerator {
           const sprite = this.scene.add.image(0, 0, key).setOrigin(0.5, 0.5);
           this.bottomContainer.add(sprite);
 
-          this.decorations.push({ bottomSprite: sprite, topSprite: null, shadowSprite: null, tileX: x, tileY: y, isTree: false });
+          this.decorations.push({ bottomSprite: sprite, topSprite: null, shadowSprite: null, tileX: x, tileY: y, isTree: false, chopProgress: 0, chopTime: 0, isChopping: false });
         }
       }
     }
@@ -363,6 +370,27 @@ export class DecorationGenerator {
     }
   }
 
+  getTreeAt(tileX: number, tileY: number): Decoration | undefined {
+    return this.decorations.find(d => d.tileX === tileX && d.tileY === tileY && d.isTree);
+  }
+
+  drawChopProgress(scrollX: number, scrollY: number): void {
+    this.chopGraphics.clear();
+    for (const dec of this.decorations) {
+      if (!dec.isTree || !dec.isChopping || dec.chopProgress <= 0) continue;
+      const sx = FIELD_X + (dec.tileX - scrollX) * TILE_SIZE + TILE_SIZE / 2;
+      const sy = FIELD_Y + (dec.tileY - scrollY) * TILE_SIZE - TILE_SIZE / 2 - 8;
+      if (sx < FIELD_X || sx > FIELD_X + FIELD_W || sy < FIELD_Y || sy > FIELD_Y + FIELD_H) continue;
+      const barW = TILE_SIZE * 0.8;
+      const barH = 4;
+      const ratio = Math.min(1, dec.chopProgress / dec.chopTime);
+      this.chopGraphics.fillStyle(0x333333, 0.8);
+      this.chopGraphics.fillRect(sx - barW / 2, sy, barW, barH);
+      this.chopGraphics.fillStyle(0xffcc00, 1);
+      this.chopGraphics.fillRect(sx - barW / 2, sy, barW * ratio, barH);
+    }
+  }
+
   // ─── Clear ───────────────────────────────────────────────
   clear(): void {
     for (const dec of this.decorations) {
@@ -371,5 +399,20 @@ export class DecorationGenerator {
       if (dec.shadowSprite) dec.shadowSprite.destroy();
     }
     this.decorations = [];
+  }
+
+  removeAt(tileX: number, tileY: number): boolean {
+    const idx = this.decorations.findIndex(d => d.tileX === tileX && d.tileY === tileY && d.isTree);
+    if (idx === -1) return false;
+    const dec = this.decorations[idx];
+    dec.bottomSprite.destroy();
+    if (dec.topSprite) dec.topSprite.destroy();
+    if (dec.shadowSprite) dec.shadowSprite.destroy();
+    this.decorations.splice(idx, 1);
+    return true;
+  }
+
+  getDecorationAt(tileX: number, tileY: number): Decoration | undefined {
+    return this.decorations.find(d => d.tileX === tileX && d.tileY === tileY);
   }
 }

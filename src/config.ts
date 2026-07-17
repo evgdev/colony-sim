@@ -45,15 +45,15 @@ export function nightAlpha(tickCount: number): number {
   return ((NIGHT_TICKS - nightPhase) / DUSK_TICKS) * NIGHT_MAX_ALPHA;
 }
 
-export const FOOD_EAT_INTERVAL = 20;
-export const FOOD_HUNGER_RESTORE = 25;
+export const FOOD_EAT_INTERVAL = 30;
+export const FOOD_HUNGER_RESTORE = 20;
 export const FOOD_START_AMOUNT = 5;
-export const STARVATION_DAMAGE = 5;
-export const HUNGER_STARVATION_THRESHOLD = 0;
+export const STARVATION_DAMAGE = 3;
+export const HUNGER_STARVATION_THRESHOLD = 10;
 export const HUNGER_STARVATION_MULTIPLIER = 2;
 
-// Временно отключает голод и энергию (true = потребности работают, false = отключены)
-export const NEEDS_ENABLED = false;
+// Включает голод и энергию (true = потребности работают, false = отключены)
+export const NEEDS_ENABLED = true;
 
 export const COLORS = {
   grass: 0x3a5a2a,

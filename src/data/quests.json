@@ -1,0 +1,403 @@
+{
+  "acts": [
+    {
+      "id": "act1_crash",
+      "title": "Крушение",
+      "description": "Капсула разрушена. Выжившие на планете, не похожей ни на одну из каталога.",
+      "order": 1,
+      "quests": ["q1_1", "q1_2"],
+      "dialogue_intro": "act1_intro",
+      "dinosEnabled": false
+    }
+  ],
+
+  "quests": {
+    "q1_1": {
+      "id": "q1_1",
+      "title": "Собери обломки",
+      "description": "Найди ресурсы из разрушенной капсулы. Нам нужно строить укрытие.",
+      "type": "gather",
+      "act": "act1_crash",
+      "order": 1,
+      "objectives": [
+        { "type": "resource", "resource": "wood", "amount": 30, "current": 0 },
+        { "type": "resource", "resource": "stone", "amount": 20, "current": 0 }
+      ],
+      "timeLimit": null,
+      "rewards": [
+        { "type": "resource", "resource": "wood", "amount": 10 },
+        { "type": "resource", "resource": "stone", "amount": 5 }
+      ],
+      "unlocks": ["q1_2"],
+      "dialogue_start": "q1_1_start",
+      "dialogue_success": "q1_1_success",
+      "dialogue_fail": "q1_1_fail"
+    },
+
+    "q1_2": {
+      "id": "q1_2",
+      "title": "Первое укрытие",
+      "description": "Построй стены вокруг базы по контуру. Ворота — внизу по центру (отмечено зелёным).",
+      "type": "build",
+      "act": "act1_crash",
+      "order": 2,
+      "objectives": [
+        { "type": "building", "building": "wall", "amount": 4, "current": 0 },
+        { "type": "building", "building": "gate", "amount": 1, "current": 0 }
+      ],
+      "rewards": [
+        { "type": "unlock", "building": "farm" }
+      ],
+      "unlocks": ["q1_3"],
+      "dialogue_start": "q1_2_start",
+      "dialogue_success": "q1_2_success"
+    },
+
+    "q1_3": {
+      "id": "q1_3",
+      "title": "Продовольствие",
+      "description": "Построй ферму и собери еду для колонии.",
+      "type": "build",
+      "act": "act1_crash",
+      "order": 3,
+      "objectives": [
+        { "type": "building", "building": "farm", "amount": 1, "current": 0 },
+        { "type": "resource", "resource": "food", "amount": 10, "current": 0 }
+      ],
+      "rewards": [
+        { "type": "unlock", "building": "warehouse" },
+        { "type": "resource", "resource": "food", "amount": 15 }
+      ],
+      "unlocks": ["q2_1"],
+      "dialogue_start": "q1_3_start",
+      "dialogue_success": "q1_3_success"
+    },
+
+    "q2_1": {
+      "id": "q2_1",
+      "title": "Исследуй следы",
+      "description": "На карте отмечены оранжевые ромбы — это точки, где обнаружены следы. Отправь поселенца к каждой точке.",
+      "type": "explore",
+      "act": "act2_traces",
+      "order": 1,
+      "objectives": [
+        { "type": "reach_tile", "pointName": "tracks_1", "x": -6, "y": -2, "found": false },
+        { "type": "reach_tile", "pointName": "tracks_2", "x": 6, "y": -3, "found": false },
+        { "type": "reach_tile", "pointName": "tracks_3", "x": 4, "y": 5, "found": false }
+      ],
+      "rewards": [
+        { "type": "unlock", "building": "turret" },
+        { "type": "resource", "resource": "stone", "amount": 20 },
+        { "type": "resource", "resource": "wood", "amount": 10 }
+      ],
+      "unlocks": ["q2_2", "q2_plants"],
+      "dialogue_start": "q2_1_start",
+      "dialogue_checkpoint_1": "q2_1_cp1",
+      "dialogue_checkpoint_2": "q2_1_cp2",
+      "dialogue_checkpoint_3": "q2_1_cp3",
+      "dialogue_success": "q2_1_success"
+    },
+
+    "q2_plants": {
+      "id": "q2_plants",
+      "title": "Исследование растений",
+      "description": "Построй лабораторию и изучи местную растительность. Марина исследует деревья и травы через контекстное меню (два клика левой).",
+      "type": "research",
+      "act": "act2_traces",
+      "order": 1.5,
+      "objectives": [
+        { "type": "building", "building": "lab", "amount": 1, "current": 0 },
+        { "type": "research", "researchType": "plant", "amount": 3, "current": 0 }
+      ],
+      "rewards": [
+        { "type": "effect", "effect": "fogRadius", "value": 1 },
+        { "type": "resource", "resource": "wood", "amount": 15 }
+      ],
+      "unlocks": [],
+      "dialogue_start": "q2_plants_start",
+      "dialogue_success": "q2_plants_success"
+    },
+
+    "q2_2": {
+      "id": "q2_2",
+      "title": "Собери образцы",
+      "description": "Найди окаменелости и странные следы для анализа.",
+      "type": "gather_artifact",
+      "act": "act2_traces",
+      "order": 2,
+      "objectives": [
+        { "type": "artifact", "name": "fossil", "amount": 2, "current": 0 },
+        { "type": "artifact", "name": "strange_track", "amount": 1, "current": 0 }
+      ],
+      "rewards": [
+        { "type": "unlock", "building": "workshop" },
+        { "type": "effect", "effect": "fogRadius", "value": 1 }
+      ],
+      "unlocks": ["q2_3"],
+      "dialogue_start": "q2_2_start",
+      "dialogue_success": "q2_2_success"
+    },
+
+    "q2_3": {
+      "id": "q2_3",
+      "title": "Укрепи оборону",
+      "description": "Построй турели. Мы не знаем, что там. Но я не хочу узнать без защиты.",
+      "type": "build",
+      "act": "act2_traces",
+      "order": 3,
+      "objectives": [
+        { "type": "building", "building": "turret", "amount": 2, "current": 0 }
+      ],
+      "rewards": [
+        { "type": "resource", "resource": "wood", "amount": 30 },
+        { "type": "resource", "resource": "stone", "amount": 20 }
+      ],
+      "unlocks": ["q3_1"],
+      "dialogue_start": "q2_3_start",
+      "dialogue_success": "q2_3_success"
+    },
+
+    "q3_1": {
+      "id": "q3_1",
+      "title": "Первый контакт",
+      "description": "Подойди к бронтозавру. Не нападай. Наблюдай.",
+      "type": "observe",
+      "act": "act3_awakening",
+      "order": 1,
+      "objectives": [
+        { "type": "reach_dino", "species": "brontosaur", "distance": 3, "found": false }
+      ],
+      "timeLimit": 50,
+      "rewards": [
+        { "type": "effect", "effect": "fogRadius", "value": 1 }
+      ],
+      "unlocks": ["q3_2"],
+      "dialogue_start": "q3_1_start",
+      "dialogue_success": "q3_1_success",
+      "dialogue_fail": "q3_1_fail"
+    },
+
+    "q3_2": {
+      "id": "q3_2",
+      "title": "Добыча кости",
+      "description": "Найди окаменелости на карте. Мёртвые кости могут рассказать о живых.",
+      "type": "gather_artifact",
+      "act": "act3_awakening",
+      "order": 2,
+      "objectives": [
+        { "type": "artifact", "name": "fossil", "amount": 3, "current": 0 }
+      ],
+      "rewards": [
+        { "type": "effect", "effect": "maxHp", "value": 10 }
+      ],
+      "unlocks": ["q3_3"],
+      "dialogue_start": "q3_2_start",
+      "dialogue_success": "q3_2_success"
+    },
+
+    "q3_3": {
+      "id": "q3_3",
+      "title": "Стражи",
+      "description": "Если мирные гиганты здесь — хищники тоже. Готовимся.",
+      "type": "build",
+      "act": "act3_awakening",
+      "order": 3,
+      "objectives": [
+        { "type": "building", "building": "turret", "amount": 4, "current": 0 },
+        { "type": "building", "building": "wall", "amount": 2, "current": 0 }
+      ],
+      "rewards": [
+        { "type": "resource", "resource": "wood", "amount": 50 },
+        { "type": "resource", "resource": "stone", "amount": 30 }
+      ],
+      "unlocks": ["q4_1"],
+      "dialogue_start": "q3_3_start",
+      "dialogue_success": "q3_3_success"
+    },
+
+    "q4_1": {
+      "id": "q4_1",
+      "title": "Вымани врага",
+      "description": "Убей 3 рапторов. Турели работают. Убедимся, что справляются.",
+      "type": "kill",
+      "act": "act4_hunt",
+      "order": 1,
+      "objectives": [
+        { "type": "kill", "species": "raptor", "amount": 3, "current": 0 }
+      ],
+      "timeLimit": 80,
+      "rewards": [
+        { "type": "artifact_loot", "name": "raptor tooth", "amount": 3 },
+        { "type": "unlock", "building": "turret" }
+      ],
+      "unlocks": ["q4_2"],
+      "dialogue_start": "q4_1_start",
+      "dialogue_kill": "q4_1_kill",
+      "dialogue_success": "q4_1_success"
+    },
+
+    "q4_2": {
+      "id": "q4_2",
+      "title": "Раненый",
+      "description": "Раненый раптор вернётся с друзьями. Продержись.",
+      "type": "survive",
+      "act": "act4_hunt",
+      "order": 2,
+      "objectives": [
+        { "type": "survive_ticks", "amount": 50, "current": 0 }
+      ],
+      "rewards": [
+        { "type": "unlock", "building": "workshop" },
+        { "type": "heal_all" }
+      ],
+      "unlocks": ["q4_3"],
+      "dialogue_start": "q4_2_start",
+      "dialogue_success": "q4_2_success"
+    },
+
+    "q4_3": {
+      "id": "q4_3",
+      "title": "Трофей",
+      "description": "Убей раптора вручную. Не турелью. Поселенцем.",
+      "type": "kill_melee",
+      "act": "act4_hunt",
+      "order": 3,
+      "objectives": [
+        { "type": "kill_melee", "species": "raptor", "amount": 1, "current": 0 }
+      ],
+      "rewards": [
+        { "type": "artifact_loot", "name": "raptor tooth", "amount": 1 },
+        { "type": "effect", "effect": "attackSpeed", "value": 0.1 }
+      ],
+      "unlocks": ["q4_4"],
+      "dialogue_start": "q4_3_start",
+      "dialogue_success": "q4_3_success"
+    },
+
+    "q4_4": {
+      "id": "q4_4",
+      "title": "Первый Ти-Рекс",
+      "description": "Огромная тень на хребте. Продержись 30 тиков.",
+      "type": "survive",
+      "act": "act4_hunt",
+      "order": 4,
+      "objectives": [
+        { "type": "survive_ticks", "amount": 30, "current": 0 }
+      ],
+      "spawnOnStart": {
+        "species": "trex",
+        "count": 1
+      },
+      "rewards": [
+        { "type": "artifact_loot", "name": "trex tooth", "amount": 1 },
+        { "type": "effect", "effect": "maxHp", "value": 20 }
+      ],
+      "unlocks": ["q5_1"],
+      "dialogue_start": "q4_4_start",
+      "dialogue_success": "q4_4_success"
+    },
+
+    "q5_1": {
+      "id": "q5_1",
+      "title": "Собери фрагменты",
+      "description": "Обломки антенны разбросаны по карте. Найди все три.",
+      "type": "gather_artifact",
+      "act": "act5_rescue",
+      "order": 1,
+      "objectives": [
+        { "type": "artifact", "name": "radio_fragment", "amount": 3, "current": 0 }
+      ],
+      "rewards": [
+        { "type": "unlock", "building": "radio" }
+      ],
+      "unlocks": ["q5_2"],
+      "dialogue_start": "q5_1_start",
+      "dialogue_success": "q5_1_success"
+    },
+
+    "q5_2": {
+      "id": "q5_2",
+      "title": "Собери компоненты",
+      "description": "Нужен металл и камень. Всё, что превратится в компоненты.",
+      "type": "gather",
+      "act": "act5_rescue",
+      "order": 2,
+      "objectives": [
+        { "type": "resource", "resource": "stone", "amount": 50, "current": 0 },
+        { "type": "resource", "resource": "wood", "amount": 30, "current": 0 }
+      ],
+      "rewards": [
+        { "type": "resource", "resource": "stone", "amount": 20 }
+      ],
+      "unlocks": ["q5_3"],
+      "dialogue_start": "q5_2_start",
+      "dialogue_success": "q5_2_success"
+    },
+
+    "q5_3": {
+      "id": "q5_3",
+      "title": "Построй радио",
+      "description": "Это наш шанс. Строим радиостанцию.",
+      "type": "build",
+      "act": "act5_rescue",
+      "order": 3,
+      "objectives": [
+        { "type": "building", "building": "radio", "amount": 1, "current": 0 }
+      ],
+      "rewards": [
+        { "type": "unlock_quest", "quest": "q5_4" }
+      ],
+      "unlocks": ["q5_4"],
+      "dialogue_start": "q5_3_start",
+      "dialogue_success": "q5_3_success"
+    },
+
+    "q5_4": {
+      "id": "q5_4",
+      "title": "Активируй маяк",
+      "description": "Нажми кнопку. Сигнал послан. Спасение через 100 тиков.",
+      "type": "activate",
+      "act": "act5_rescue",
+      "order": 4,
+      "objectives": [
+        { "type": "activate_radio" }
+      ],
+      "timeLimit": null,
+      "rewards": [],
+      "unlocks": ["q5_5"],
+      "dialogue_start": "q5_4_start",
+      "dialogue_success": "q5_4_success"
+    },
+
+    "q5_5": {
+      "id": "q5_5",
+      "title": "Финальная оборона",
+      "description": "Выдержи 10 волн динозавров. 100 тиков. Спасение в пути.",
+      "type": "wave_defense",
+      "act": "act5_rescue",
+      "order": 5,
+      "objectives": [
+        { "type": "survive_ticks", "amount": 100, "current": 0 }
+      ],
+      "waves": [
+        { "wave": 1, "species": ["raptor"], "count": 3, "interval": 15 },
+        { "wave": 2, "species": ["raptor"], "count": 4, "interval": 12 },
+        { "wave": 3, "species": ["raptor", "brontosaur"], "count": 5, "interval": 10 },
+        { "wave": 4, "species": ["raptor", "trex"], "count": 6, "interval": 8 },
+        { "wave": 5, "species": ["raptor", "trex"], "count": 7, "interval": 7 },
+        { "wave": 6, "species": ["raptor", "trex", "pterodactyl"], "count": 8, "interval": 6 },
+        { "wave": 7, "species": ["raptor", "trex", "pterodactyl"], "count": 10, "interval": 5 },
+        { "wave": 8, "species": ["raptor", "trex", "pterodactyl"], "count": 12, "interval": 4 },
+        { "wave": 9, "species": ["trex", "pterodactyl"], "count": 10, "interval": 4 },
+        { "wave": 10, "species": ["trex", "raptor", "pterodactyl"], "count": 15, "interval": 3 }
+      ],
+      "rewards": [
+        { "type": "victory" }
+      ],
+      "unlocks": [],
+      "dialogue_start": "q5_5_start",
+      "dialogue_wave": "q5_5_wave",
+      "dialogue_success": "q5_5_success"
+    }
+  }
+}
