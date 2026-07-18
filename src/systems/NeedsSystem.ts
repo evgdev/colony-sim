@@ -1,4 +1,6 @@
 import { Settler } from '../entities/Settler';
+import { Building } from '../entities/Building';
+import { EntityManager } from '../core/EntityManager';
 import {
   FOOD_EAT_INTERVAL,
   FOOD_HUNGER_RESTORE,
@@ -18,6 +20,12 @@ const HUNGER_RATE_BASE = 0.04;
 const HUNGER_RATE_AFTER_FARM = 0.015;
 
 export class NeedsSystem {
+  private entityManager: EntityManager | null = null;
+
+  constructor(entityManager?: EntityManager) {
+    this.entityManager = entityManager ?? null;
+  }
+
   private isNight(tickCount: number): boolean {
     const hour = tickCount % TICKS_PER_DAY;
     return hour >= NIGHT_START || hour < NIGHT_END;
@@ -56,6 +64,30 @@ export class NeedsSystem {
 
       if (settler.hunger <= HUNGER_STARVATION_THRESHOLD) {
         settler.takeDamage(STARVATION_DAMAGE * tickDelta);
+      }
+
+      // Auto-collect food from nearby farm when hungry and low on personal food
+      if (settler.hunger < 50 && settler.food < 5 && this.entityManager) {
+        this.autoCollectFood(settler);
+      }
+    }
+  }
+
+  private autoCollectFood(settler: Settler): void {
+    const buildings = this.entityManager!.getByType('building') as Building[];
+    for (const bld of buildings) {
+      if (!bld.built || bld.produceType !== 'food') continue;
+      const dist = Math.abs(settler.x - bld.x) + Math.abs(settler.y - bld.y);
+      if (dist > 5) continue; // wider range for auto-collect
+
+      const foodInStorage = bld.getStorageAmount('food');
+      if (foodInStorage <= 0) continue;
+
+      const toCollect = Math.min(foodInStorage, 15 - settler.food);
+      const collected = bld.removeFromStorage('food', toCollect);
+      if (collected > 0) {
+        settler.food += collected;
+        break;
       }
     }
   }

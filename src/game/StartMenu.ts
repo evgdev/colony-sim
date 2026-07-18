@@ -63,14 +63,17 @@ export class StartMenu {
       .setStrokeStyle(2, 0x4488ff)
       .setInteractive({ useHandCursor: true });
     const storyIcon = this.scene.add.text(0, -20, '📖', {
-      fontSize: '24px',
-    }).setOrigin(0.5);
+      fontSize: '48px',
+    }).setOrigin(0.5).setDepth(1)
+      .setScale(0.5);
     const storyTitle = this.scene.add.text(0, 6, 'ИСТОРИЯ', {
-      fontSize: '16px', color: '#4488ff', fontFamily: 'monospace', fontStyle: 'bold',
-    }).setOrigin(0.5);
+      fontSize: '32px', color: '#4488ff', fontFamily: 'monospace', fontStyle: 'bold',
+    }).setOrigin(0.5).setDepth(1)
+      .setScale(0.5);
     const storyDesc = this.scene.add.text(0, 26, 'Квесты и сюжет', {
-      fontSize: '11px', color: '#8b949e', fontFamily: 'monospace',
-    }).setOrigin(0.5);
+      fontSize: '32px', color: '#8b949e', fontFamily: 'monospace',
+    }).setOrigin(0.5).setDepth(1)
+      .setScale(0.5);
     storyBtn.add([storyBg, storyIcon, storyTitle, storyDesc]);
     storyBtn.setSize(210, 80);
 
@@ -91,11 +94,13 @@ export class StartMenu {
       fontSize: '24px',
     }).setOrigin(0.5);
     const defenseTitle = this.scene.add.text(0, 6, 'ОБОРОНА', {
-      fontSize: '16px', color: '#ff4444', fontFamily: 'monospace', fontStyle: 'bold',
-    }).setOrigin(0.5);
+      fontSize: '32px', color: '#ff4444', fontFamily: 'monospace', fontStyle: 'bold',
+    }).setOrigin(0.5).setDepth(1)
+      .setScale(0.5);
     const defenseDesc = this.scene.add.text(0, 26, 'Волны динозавров', {
-      fontSize: '11px', color: '#8b949e', fontFamily: 'monospace',
-    }).setOrigin(0.5);
+      fontSize: '32px', color: '#8b949e', fontFamily: 'monospace',
+    }).setOrigin(0.5).setDepth(1)
+      .setScale(0.5);
     defenseBtn.add([defenseBg, defenseIcon, defenseTitle, defenseDesc]);
     defenseBtn.setSize(210, 80);
 

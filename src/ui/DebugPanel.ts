@@ -23,6 +23,7 @@ export class DebugPanel {
 
   paused: boolean = false;
   speed: number = 1;
+  projectileCount: number = 0;
 
   constructor(scene: Phaser.Scene) {
     this.scene = scene;
@@ -109,6 +110,7 @@ export class DebugPanel {
     y = this.addLine(`Rate: ${sim.tickRate}ms`, y);
     y = this.addLine(`${u.speed}: \u00d7${this.speed}`, y);
     y = this.addLine(`${u.paused}: ${this.paused ? u.yes : u.no}`, y);
+    y = this.addLine(`Projectiles: ${this.projectileCount}`, y);
 
     const settlers = sim.entityManager.getByType('settler') as Settler[];
     y = this.addSection(`${u.settlersSection} (${settlers.length})`, y);

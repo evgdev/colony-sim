@@ -14,6 +14,7 @@ import Phaser from 'phaser';
 import { TILE_SIZE, FIELD_X, FIELD_Y, FIELD_W, FIELD_H, VIEWPORT_TILES, MAP_WIDTH, MAP_HEIGHT } from '../config';
 import { TileGrid } from '../core/TileGrid';
 import { EntityManager } from '../core/EntityManager';
+import plantsData from '../data/plants.json';
 
 function seededRandom(x: number, y: number, seed: number): number {
   const n = Math.sin(x * 12.9898 + y * 78.233 + seed * 43.1234) * 43758.5453;
@@ -30,7 +31,35 @@ interface Decoration {
   chopProgress: number;
   chopTime: number;
   isChopping: boolean;
+  plantId?: string;
+  harvestProgress: number;
+  harvestTime: number;
+  isHarvesting: boolean;
+  depleted: boolean;
+  regrowTime: number;
+  regrowTimer: number;
 }
+
+interface PlantDef {
+  name: string;
+  rarity: string;
+  biomes: string[];
+  nearWater: boolean;
+  textureType: string;
+  variants: number;
+  height: string;
+  description: string;
+  harvestable?: boolean;
+  harvestTime?: number;
+  harvestDrop?: { resource: string; amount: number; chance: number };
+}
+
+const RARITY_WEIGHT: Record<string, number> = {
+  common: 10,
+  uncommon: 5,
+  rare: 2,
+  legendary: 1,
+};
 
 export class DecorationGenerator {
   private scene: Phaser.Scene;
@@ -98,6 +127,10 @@ export class DecorationGenerator {
         const variant = Math.floor(seededRandom(x + 50, y + 50, this.DECORATION_SEED) * 3);
         const isTree = decType === 'palm' || decType === 'coconut' || decType === 'palm_tall' || decType === 'round';
 
+        // Get plant ID for gameplay integration
+        const plant = this.pickPlantForTile(x, y, hasWaterNeighbor, isSand, isStone, isDirt);
+        const plantId = plant ? Object.entries(plantsData as Record<string, PlantDef>).find(([_, p]) => p.name === plant.name)?.[0] : undefined;
+
         if (isTree) {
           // Determine texture prefix
           let texPrefix: string;
@@ -137,7 +170,8 @@ export class DecorationGenerator {
             : null;
           if (topSprite) this.topContainer.add(topSprite);
 
-          this.decorations.push({ bottomSprite, topSprite, shadowSprite: shadowGfx, tileX: x, tileY: y, isTree: true, chopProgress: 0, chopTime: 3, isChopping: false });
+          const regrowTime = plant?.rarity === 'legendary' ? 2000 : plant?.rarity === 'rare' ? 1500 : plant?.rarity === 'uncommon' ? 1000 : 800;
+          this.decorations.push({ bottomSprite, topSprite, shadowSprite: shadowGfx, tileX: x, tileY: y, isTree: true, chopProgress: 0, chopTime: 3, isChopping: false, plantId, harvestProgress: 0, harvestTime: plant?.harvestTime ?? 0, isHarvesting: false, depleted: false, regrowTime, regrowTimer: 0 });
 
           // Mark trunk tile as occupied (collision)
           tileGrid.setOccupied(x, y, true);
@@ -148,7 +182,8 @@ export class DecorationGenerator {
           const sprite = this.scene.add.image(0, 0, key).setOrigin(0.5, 0.5);
           this.bottomContainer.add(sprite);
 
-          this.decorations.push({ bottomSprite: sprite, topSprite: null, shadowSprite: null, tileX: x, tileY: y, isTree: false, chopProgress: 0, chopTime: 0, isChopping: false });
+          const regrowTime = plant?.rarity === 'legendary' ? 2000 : plant?.rarity === 'rare' ? 1500 : plant?.rarity === 'uncommon' ? 1000 : 800;
+          this.decorations.push({ bottomSprite: sprite, topSprite: null, shadowSprite: null, tileX: x, tileY: y, isTree: false, chopProgress: 0, chopTime: 0, isChopping: false, plantId, harvestProgress: 0, harvestTime: plant?.harvestTime ?? 0, isHarvesting: false, depleted: false, regrowTime, regrowTimer: 0 });
         }
       }
     }
@@ -166,10 +201,14 @@ export class DecorationGenerator {
   }
 
   private pickDecorationType(x: number, y: number, nearWater: boolean, isSand: boolean, isStone: boolean, isDirt: boolean): string {
+    // Try to pick a plant from plants.json first
+    const plant = this.pickPlantForTile(x, y, nearWater, isSand, isStone, isDirt);
+    if (plant) return plant.textureType;
+
+    // Fallback to original logic for non-plant decorations (rocks, shells, etc.)
     const seed = this.DECORATION_SEED + 999;
     const r = seededRandom(x + 30, y + 30, seed);
 
-    // Stone biome decorations
     if (isStone) {
       if (nearWater) {
         if (r < 0.25) return 'rock_l';
@@ -185,7 +224,6 @@ export class DecorationGenerator {
       return 'grass_tall';
     }
 
-    // Dirt biome decorations
     if (isDirt) {
       if (nearWater) {
         if (r < 0.25) return 'palm';
@@ -202,7 +240,6 @@ export class DecorationGenerator {
       return 'grass_tall';
     }
 
-    // Sand biome decorations
     if (isSand) {
       if (nearWater) {
         if (r < 0.30) return 'palm';
@@ -218,24 +255,53 @@ export class DecorationGenerator {
       return 'grass_tall';
     }
 
-    // Grass biome decorations
+    // Grass biome — mix of plants and generic decorations
     if (nearWater) {
-      if (r < 0.25) return 'palm';
-      if (r < 0.45) return 'coconut';
-      if (r < 0.60) return 'fern';
-      return 'shore';
+      if (r < 0.15) return 'palm';
+      if (r < 0.25) return 'coconut';
+      if (r < 0.35) return 'fern';
+      if (r < 0.45) return 'shore';
+      return 'grass_tall';
     }
 
-    if (r < 0.14) return 'palm';
-    if (r < 0.24) return 'palm_tall';
-    if (r < 0.34) return 'coconut';
-    if (r < 0.44) return 'round';
-    if (r < 0.54) return 'fern';
-    if (r < 0.64) return 'bush';
-    if (r < 0.72) return 'flower';
-    if (r < 0.80) return 'rock_s';
-    if (r < 0.88) return 'rock_l';
+    if (r < 0.10) return 'palm';
+    if (r < 0.18) return 'palm_tall';
+    if (r < 0.26) return 'coconut';
+    if (r < 0.34) return 'round';
+    if (r < 0.42) return 'fern';
+    if (r < 0.50) return 'bush';
+    if (r < 0.56) return 'flower';
+    if (r < 0.64) return 'rock_s';
+    if (r < 0.72) return 'rock_l';
     return 'grass_tall';
+  }
+
+  private pickPlantForTile(
+    x: number, y: number, nearWater: boolean,
+    isSand: boolean, isStone: boolean, isDirt: boolean
+  ): (PlantDef & { textureType: string }) | null {
+    const biome = isSand ? 'sand' : isStone ? 'stone' : isDirt ? 'dirt' : 'grass';
+    const seed = this.DECORATION_SEED + x * 137 + y * 541;
+
+    // Filter plants that match this biome and water proximity
+    const candidates: { id: string; plant: PlantDef; weight: number }[] = [];
+    for (const [id, plant] of Object.entries(plantsData as Record<string, PlantDef>)) {
+      if (!plant.biomes.includes(biome)) continue;
+      if (plant.nearWater !== undefined && plant.nearWater !== nearWater) continue;
+      const weight = RARITY_WEIGHT[plant.rarity] ?? 1;
+      candidates.push({ id, plant, weight });
+    }
+
+    if (candidates.length === 0) return null;
+
+    // Weighted random selection
+    const totalWeight = candidates.reduce((sum, c) => sum + c.weight, 0);
+    let r = seededRandom(x + 77, y + 77, seed) * totalWeight;
+    for (const c of candidates) {
+      r -= c.weight;
+      if (r <= 0) return { ...c.plant, textureType: c.plant.textureType };
+    }
+    return { ...candidates[0].plant, textureType: candidates[0].plant.textureType };
   }
 
   private getTextureKey(type: string, variant: number): string {
@@ -260,6 +326,9 @@ export class DecorationGenerator {
       case 'rock_l': return `dec_rock_l_${variant % 2}`;
       case 'shore': return `dec_shore_${variant % 2}`;
       case 'grass_tall': return `dec_grass_tall_${variant % 2}`;
+      case 'cycas': return `dec_cycas_${variant % 3}_bottom`;
+      case 'treefern': return `dec_treefern_${variant % 3}_bottom`;
+      case 'ginkgo': return `dec_ginkgo_${variant % 2}_bottom`;
       default: return `dec_bush_0`;
     }
   }
@@ -269,6 +338,15 @@ export class DecorationGenerator {
     this.scrollX = sx;
     this.scrollY = sy;
     this.updateVisibility();
+  }
+
+  // ─── Plant queries ──────────────────────────────────────
+  getPlantAt(tileX: number, tileY: number): { id: string; plant: PlantDef } | null {
+    const dec = this.decorations.find(d => d.tileX === tileX && d.tileY === tileY);
+    if (!dec || !dec.plantId) return null;
+    const plant = (plantsData as Record<string, PlantDef>)[dec.plantId];
+    if (!plant) return null;
+    return { id: dec.plantId, plant };
   }
 
   // ─── Visibility + positioning ────────────────────────────
@@ -323,6 +401,52 @@ export class DecorationGenerator {
     }
   }
 
+  // ─── Regeneration ──────────────────────────────────────────
+  updateRegeneration(tickDelta: number): void {
+    for (const dec of this.decorations) {
+      if (!dec.depleted || !dec.plantId) continue;
+
+      dec.regrowTimer += tickDelta;
+      if (dec.regrowTimer >= dec.regrowTime) {
+        // Regenerate
+        dec.depleted = false;
+        dec.regrowTimer = 0;
+        dec.bottomSprite.setAlpha(1);
+        dec.bottomSprite.clearTint();
+        if (dec.topSprite) {
+          dec.topSprite.setAlpha(1);
+          dec.topSprite.clearTint();
+        }
+      } else {
+        // Dim while depleted (fade in as it regrows)
+        const progress = dec.regrowTimer / dec.regrowTime;
+        const alpha = 0.2 + progress * 0.8;
+        dec.bottomSprite.setAlpha(alpha);
+        if (dec.topSprite) dec.topSprite.setAlpha(alpha);
+      }
+    }
+  }
+
+  markDepleted(tileX: number, tileY: number): void {
+    const dec = this.decorations.find(d => d.tileX === tileX && d.tileY === tileY);
+    if (dec && dec.plantId) {
+      dec.depleted = true;
+      dec.regrowTimer = 0;
+      // Strong visual: desaturate + dim
+      dec.bottomSprite.setAlpha(0.35);
+      dec.bottomSprite.setTint(0x888888);
+      if (dec.topSprite) {
+        dec.topSprite.setAlpha(0.35);
+        dec.topSprite.setTint(0x888888);
+      }
+    }
+  }
+
+  isDepleted(tileX: number, tileY: number): boolean {
+    const dec = this.decorations.find(d => d.tileX === tileX && d.tileY === tileY);
+    return dec?.depleted ?? false;
+  }
+
   // ─── Tree animation (call each frame from GameScene) ─────
   updateTreeAnimation(delta: number): void {
     this.windTime += delta * 0.001;
@@ -372,6 +496,26 @@ export class DecorationGenerator {
 
   getTreeAt(tileX: number, tileY: number): Decoration | undefined {
     return this.decorations.find(d => d.tileX === tileX && d.tileY === tileY && d.isTree);
+  }
+
+  getAllTrees(): { tileX: number; tileY: number }[] {
+    return this.decorations
+      .filter(d => d.isTree && !d.isChopping)
+      .map(d => ({ tileX: d.tileX, tileY: d.tileY }));
+  }
+
+  findNearestTree(fromX: number, fromY: number): { tileX: number; tileY: number } | null {
+    let best: { tileX: number; tileY: number } | null = null;
+    let bestDist = Infinity;
+    for (const d of this.decorations) {
+      if (!d.isTree || d.isChopping) continue;
+      const dist = Math.abs(d.tileX - fromX) + Math.abs(d.tileY - fromY);
+      if (dist < bestDist) {
+        bestDist = dist;
+        best = { tileX: d.tileX, tileY: d.tileY };
+      }
+    }
+    return best;
   }
 
   drawChopProgress(scrollX: number, scrollY: number): void {

@@ -47,7 +47,7 @@ export function nightAlpha(tickCount: number): number {
 
 export const FOOD_EAT_INTERVAL = 30;
 export const FOOD_HUNGER_RESTORE = 20;
-export const FOOD_START_AMOUNT = 5;
+export const FOOD_START_AMOUNT = 15;
 export const STARVATION_DAMAGE = 3;
 export const HUNGER_STARVATION_THRESHOLD = 10;
 export const HUNGER_STARVATION_MULTIPLIER = 2;

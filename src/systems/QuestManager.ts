@@ -1,5 +1,6 @@
 import questsData from '../data/quests.json';
 import dialoguesData from '../data/dialogues.json';
+import plantsData from '../data/plants.json';
 import { EntityManager } from '../core/EntityManager';
 import { Settler } from '../entities/Settler';
 import { Building } from '../entities/Building';
@@ -7,8 +8,9 @@ import { Dinosaur } from '../entities/Dinosaur';
 import { Artifact } from '../entities/Artifact';
 import { Simulation } from '../core/Simulation';
 import { TileGrid } from '../core/TileGrid';
+import { StoryBranch, StoryBranchManager } from '../data/storyBranch';
 
-export type QuestType = 'gather' | 'build' | 'explore' | 'observe' | 'kill' | 'kill_melee' | 'survive' | 'gather_artifact' | 'activate' | 'wave_defense';
+export type QuestType = 'gather' | 'build' | 'explore' | 'observe' | 'kill' | 'kill_melee' | 'survive' | 'gather_artifact' | 'activate' | 'wave_defense' | 'gather_plants' | 'deliver' | 'choice' | 'observe_dino' | 'explore_territory' | 'build_craft';
 
 export interface QuestObjective {
   type: string;
@@ -16,6 +18,7 @@ export interface QuestObjective {
   building?: string;
   species?: string;
   name?: string;
+  plantId?: string;
   amount?: number;
   distance?: number;
   pointName?: string;
@@ -97,10 +100,20 @@ export class QuestManager {
   private checkpointShown: Map<string, Set<number>> = new Map();
   private pendingAutoStart: boolean = false;
   private pendingActIntro: string | null = null;
+  private branchManager: StoryBranchManager;
 
-  constructor() {
+  constructor(branchManager: StoryBranchManager) {
+    this.branchManager = branchManager;
     this.loadQuestData();
     this.loadDialogueData();
+  }
+
+  private getPlantDrop(plantId: string): { resource: string; amount: number } | null {
+    const plant = (plantsData as any)[plantId];
+    if (plant && plant.harvestDrop) {
+      return { resource: plant.harvestDrop.resource, amount: plant.harvestDrop.amount };
+    }
+    return null;
   }
 
   private loadQuestData(): void {
@@ -217,6 +230,10 @@ export class QuestManager {
   }
 
   autoStartNextQuest(): void {
+    // Don't start new quest if one is already active
+    const hasActive = Array.from(this.questStates.values()).some(s => s.status === 'active');
+    if (hasActive) return;
+
     // Find the next available quest in current act
     const act = this.actDefinitions.find(a => a.id === this.currentAct);
     if (!act) return;
@@ -267,11 +284,17 @@ export class QuestManager {
           if (obj.resource && obj.amount) {
             let total = simulation.getResourceAmount(obj.resource);
             if (obj.resource === 'food') {
+              // Count food in farm storage
               const buildings = simulation.entityManager.getByType('building') as Building[];
               for (const b of buildings) {
                 if (b.built && b.produceType === 'food') {
                   total += b.getStorageAmount('food');
                 }
+              }
+              // Count settler's personal food
+              const settlers = simulation.entityManager.getByType('settler') as Settler[];
+              for (const s of settlers) {
+                if (s.isAlive) total += s.food;
               }
             }
             obj.current = total;
@@ -281,6 +304,12 @@ export class QuestManager {
           if (obj.building && obj.amount) {
             const buildings = simulation.entityManager.getByType('building') as Building[];
             obj.current = buildings.filter(b => b.buildingType === obj.building && b.built).length;
+          }
+          break;
+        case 'building_any':
+          if (obj.amount) {
+            const allBuildings = simulation.entityManager.getByType('building') as Building[];
+            obj.current = allBuildings.filter(b => b.built).length;
           }
           break;
         case 'reach_tile':
@@ -319,6 +348,62 @@ export class QuestManager {
           break;
         case 'research':
           // Updated externally via onPlantResearched
+          break;
+        case 'harvest_plant':
+          // Track plant harvesting - check if we have the resource from the plant
+          if (obj.plantId && obj.amount) {
+            const plantDrop = this.getPlantDrop(obj.plantId);
+            if (plantDrop) {
+              obj.current = Math.min(obj.amount, Math.floor(simulation.getResourceAmount(plantDrop.resource) / plantDrop.amount));
+            }
+          }
+          break;
+        case 'observe_dino':
+          // Check if settler is near a dinosaur of specified species
+          if (obj.species && obj.distance !== undefined && !obj.found) {
+            const settlers = simulation.entityManager.getByType('settler') as Settler[];
+            const dinos = simulation.entityManager.getByType('dinosaur') as Dinosaur[];
+            const settler = settlers.find(s => s.isAlive);
+            if (settler) {
+              const nearDino = dinos.find(d => d.species === obj.species && d.isAlive &&
+                Math.abs(d.x - settler.x) + Math.abs(d.y - settler.y) >= obj.distance!);
+              if (nearDino) {
+                obj.found = true;
+                this.emit({ type: 'quest_objective_progress', questId, message: `Observed ${obj.species}` });
+              }
+            }
+          }
+          break;
+        case 'explore_territory':
+          // Same as reach_tile but for territory mapping
+          if (obj.x !== undefined && obj.y !== undefined && !obj.found) {
+            const settlers = simulation.entityManager.getByType('settler') as Settler[];
+            const settler = settlers.find(s => s.isAlive);
+            if (settler) {
+              const baseX = Math.floor(simulation.tileGrid.width / 2);
+              const baseY = Math.floor(simulation.tileGrid.height / 2);
+              const targetX = baseX + obj.x;
+              const targetY = baseY + obj.y;
+              const dist = Math.abs(settler.x - targetX) + Math.abs(settler.y - targetY);
+              if (dist <= 2) {
+                obj.found = true;
+                this.emit({ type: 'quest_objective_progress', questId, message: `Territory mapped: ${obj.pointName}` });
+              }
+            }
+          }
+          break;
+        case 'build_craft':
+          // Check building + craft completion
+          if (obj.building && obj.amount) {
+            const buildings = simulation.entityManager.getByType('building') as Building[];
+            obj.current = buildings.filter(b => b.buildingType === obj.building && b.built).length;
+          }
+          break;
+        case 'choice':
+          // Branch choice - auto-complete when branch is selected
+          if (this.branchManager.getBranch()) {
+            obj.current = obj.amount ?? 1;
+          }
           break;
       }
     }
@@ -472,6 +557,23 @@ export class QuestManager {
     } else {
       this.autoStartNextQuest();
     }
+  }
+
+  handleBranchChoice(branch: StoryBranch): void {
+    this.branchManager.setBranch(branch);
+
+    // Complete the choice quest
+    const choiceQuest = this.questStates.get('q_branch_choice');
+    if (choiceQuest && choiceQuest.status === 'active') {
+      this.completeQuest('q_branch_choice');
+    }
+
+    // Emit branch selection event
+    this.emit({
+      type: 'quest_completed',
+      questId: 'q_branch_choice',
+      message: `Path chosen: ${branch === 'scientist' ? 'Scientist' : 'Warrior'}`,
+    });
   }
 
   private failQuest(questId: string): void {
@@ -730,8 +832,8 @@ export class QuestManager {
     };
   }
 
-  static deserialize(data: any): QuestManager {
-    const qm = new QuestManager();
+  static deserialize(data: any, branchManager: StoryBranchManager): QuestManager {
+    const qm = new QuestManager(branchManager);
     if (data.currentAct) qm.currentAct = data.currentAct;
     if (data.completedQuests) qm.completedQuests = new Set(data.completedQuests);
     if (data.questStates) {

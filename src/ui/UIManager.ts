@@ -20,11 +20,13 @@ import { MovementSystem } from '../systems/MovementSystem';
 import { NeedsSystem } from '../systems/NeedsSystem';
 import { BuildingSystem } from '../systems/BuildingSystem';
 import { DinosaurSystem } from '../systems/DinosaurSystem';
-import { TaskPriority } from '../core/Task';
+import { TaskPriority, AutoTaskIcon } from '../core/Task';
+import { WorkMode } from '../entities/Settler';
 import { languageManager } from '../data/LanguageManager';
 import buildingsData from '../data/buildings.json';
 import { ReplayRecorder } from '../replay/ReplayRecorder';
 import { QuestModal } from './QuestModal';
+import { CraftPanel, CraftRecipe } from './CraftPanel';
 
 type BuildingType = keyof typeof buildingsData;
 
@@ -43,6 +45,10 @@ export class UIManager {
   colonistStatusText!: Phaser.GameObjects.Text;
   colonistTaskText!: Phaser.GameObjects.Text;
   colonistInvText!: Phaser.GameObjects.Text;
+  workModeBtns: Phaser.GameObjects.Text[] = [];
+  workModeLabels: string[] = ['[A]', '[G]', '[B]', '[-]'];
+  workModeModes: WorkMode[] = ['auto', 'gather', 'build', 'idle'];
+  workModeContainer!: Phaser.GameObjects.Container;
   questText!: Phaser.GameObjects.Text;
   private scrollUpBtn!: Phaser.GameObjects.Text;
   private scrollDownBtn!: Phaser.GameObjects.Text;
@@ -109,10 +115,16 @@ export class UIManager {
   private artifactSystem: import('../systems/ArtifactSystem').ArtifactSystem | null = null;
   private questModal!: QuestModal;
   private questBtn!: Phaser.GameObjects.Text;
+  craftPanel!: CraftPanel;
+  private craftBtn!: Phaser.GameObjects.Text;
+  private useCraftedBtn!: Phaser.GameObjects.Text;
+  onCraftCallback: ((recipeId: string, workshop: import('../entities/Building').Building) => void) | null = null;
+  onUseCraftedCallback: ((recipeId: string, workshop: import('../entities/Building').Building) => void) | null = null;
 
   constructor(scene: Phaser.Scene, simulation: Simulation) {
     this.scene = scene;
     this.simulation = simulation;
+    this.craftPanel = new CraftPanel(scene);
   }
 
   setArtifactSystem(artifactSystem: import('../systems/ArtifactSystem').ArtifactSystem): void {
@@ -186,6 +198,37 @@ export class UIManager {
       lineSpacing: 4,
     });
     this.leftPanelContainer.add(this.colonistTaskText);
+
+    // Work mode buttons
+    const wmY = 320;
+    const wmTitle = this.scene.add.text(14, wmY, `\u2500\u2500 Режим работы \u2500\u2500`, {
+      fontSize: '12px', color: '#58a6ff', fontFamily: 'monospace',
+    });
+    this.leftPanelContainer.add(wmTitle);
+
+    this.workModeContainer = this.scene.add.container(14, wmY + 18);
+    this.leftPanelContainer.add(this.workModeContainer);
+
+    const modeLabels = ['Авто', 'Сбор', 'Стройка', 'Стоп'];
+    const modeColors = ['#44ff44', '#ffaa00', '#4488ff', '#888888'];
+    for (let i = 0; i < 4; i++) {
+      const btn = this.scene.add.text(i * 56, 0, `[${modeLabels[i]}]`, {
+        fontSize: '11px', color: modeColors[i], fontFamily: 'monospace',
+        backgroundColor: '#0d1117', padding: { x: 3, y: 2 },
+      }).setInteractive({ useHandCursor: true });
+      const mode = this.workModeModes[i];
+      btn.on('pointerdown', () => {
+        const s = (this.scene as any).getSelectedSettler() as Settler;
+        if (s) {
+          s.workMode = mode;
+          this.updateWorkModeButtons(s);
+        }
+      });
+      btn.on('pointerover', () => btn.setColor('#ffffff'));
+      btn.on('pointerout', () => btn.setColor(modeColors[i]));
+      this.workModeContainer.add(btn);
+      this.workModeBtns.push(btn);
+    }
 
     this.colonistInvText = this.scene.add.text(14, 380, '', {
       fontSize: '14px', color: '#c9d1d9', fontFamily: 'monospace',
@@ -444,6 +487,20 @@ export class UIManager {
     }).setInteractive({ useHandCursor: true })
       .on('pointerdown', () => this.onJournal());
     this.infoPanel.add(this.journalBtn);
+
+    this.craftBtn = this.scene.add.text(120, 220, '[🔧 Craft]', {
+      fontSize: '14px', color: '#ffd700', fontFamily: 'monospace',
+      backgroundColor: '#16213e', padding: { x: 12, y: 4 },
+    }).setInteractive({ useHandCursor: true })
+      .on('pointerdown', () => this.onCraft());
+    this.infoPanel.add(this.craftBtn);
+
+    this.useCraftedBtn = this.scene.add.text(10, 250, '[✓ Use]', {
+      fontSize: '14px', color: '#44ff44', fontFamily: 'monospace',
+      backgroundColor: '#16213e', padding: { x: 12, y: 4 },
+    }).setInteractive({ useHandCursor: true })
+      .on('pointerdown', () => this.onUseCrafted());
+    this.infoPanel.add(this.useCraftedBtn);
   }
 
   private onDemolish(): void {
@@ -471,6 +528,27 @@ export class UIManager {
     if (!this.selectedBuilding) return;
     if (this.onJournalCallback) {
       this.onJournalCallback(this.selectedBuilding);
+    }
+  }
+
+  private onCraft(): void {
+    if (!this.selectedBuilding) return;
+    if (this.onCraftCallback) {
+      const bld = this.selectedBuilding;
+      const def = (buildingsData as any)[bld.buildingType];
+      const recipes: CraftRecipe[] = def?.craftRecipes ?? [];
+      this.craftPanel.show(bld, recipes, this.simulation, this.onCraftCallback, this.onUseCraftedCallback ?? undefined);
+    }
+  }
+
+  private onUseCrafted(): void {
+    if (!this.selectedBuilding) return;
+    const bld = this.selectedBuilding;
+    if (bld.buildingType !== 'workshop' || bld.craftedItems.length === 0) return;
+    // Use the first available crafted item
+    const item = bld.craftedItems.find(i => i.quantity > 0);
+    if (item && this.onUseCraftedCallback) {
+      this.onUseCraftedCallback(item.resourceType, bld);
     }
   }
 
@@ -533,6 +611,16 @@ export class UIManager {
       .setInteractive({ useHandCursor: true }).setDepth(btnDepth)
       .on('pointerdown', onClear);
     this.hudButtons.push(clearBtn);
+    btnX += clearBtn.width + 4;
+
+    const encycBtn = this.scene.add.text(btnX, btnsY, `[Encyclopedia]`, {
+      fontSize: '13px', color: '#44ddaa', fontFamily: 'monospace',
+      backgroundColor: '#16213e', padding: { x: 5, y: 2 },
+    }).setInteractive({ useHandCursor: true }).setDepth(btnDepth)
+      .on('pointerdown', () => {
+        (this.scene as any).encyclopediaModal?.show();
+      });
+    this.hudButtons.push(encycBtn);
 
     const replayBtn = this.scene.add.text(logX, btnsY + 20, `[Replay]`, topBtnStyle)
       .setInteractive({ useHandCursor: true }).setDepth(btnDepth)
@@ -885,12 +973,25 @@ export class UIManager {
         lines.push(`${languageManager.ui.inStorage}: ${storAmount}`);
       }
 
+      if (bld.crafting) {
+        const pct = Math.round((bld.craftingProgress / bld.craftingTime) * 100);
+        lines.push(`Crafting: ${bld.craftingRecipe} (${pct}%)`);
+      }
+
+      if (bld.craftedItems.length > 0) {
+        const items = bld.craftedItems.filter(i => i.quantity > 0)
+          .map(i => `${i.resourceType} x${i.quantity}`).join(', ');
+        if (items) lines.push(`Crafted: ${items}`);
+      }
+
       this.infoText.setText(lines.join('\n'));
       this.collectBtn.setVisible(false);
       this.demolishBtn.setVisible(true);
       this.continueBtn.setVisible(!bld.built);
       this.repairBtn.setVisible(bld.built && bld.hp < bld.maxHp);
       this.journalBtn.setVisible(bld.built && bld.buildingType === 'lab');
+      this.craftBtn.setVisible(bld.built && bld.buildingType === 'workshop');
+      this.useCraftedBtn.setVisible(bld.built && bld.buildingType === 'workshop' && bld.craftedItems.some(i => i.quantity > 0));
     } else if (this.selectedEntity) {
       const e = this.selectedEntity;
       let lines: string[] = [];
@@ -925,6 +1026,8 @@ export class UIManager {
       this.continueBtn.setVisible(false);
       this.repairBtn.setVisible(false);
       this.journalBtn.setVisible(false);
+      this.craftBtn.setVisible(false);
+      this.useCraftedBtn.setVisible(false);
     }
   }
 
@@ -938,7 +1041,7 @@ export class UIManager {
       this.selectionRect.setVisible(true);
     } else if (this.selectedEntity) {
       const { sx, sy } = this.tileToScreen(this.selectedEntity.x, this.selectedEntity.y);
-      this.selectionRect.setPosition(sx + TILE_SIZE / 2, sy + TILE_SIZE / 2);
+      this.selectionRect.setPosition(sx, sy);
       this.selectionRect.setSize(TILE_SIZE + 4, TILE_SIZE + 4);
       this.selectionRect.setVisible(true);
     } else {
@@ -953,6 +1056,24 @@ export class UIManager {
     if (!s) return;
 
     const taskStr = s.currentTaskId ? languageManager.ui.working : languageManager.ui.idle;
+    const modeLabels: Record<string, string> = { auto: 'Авто', gather: 'Сбор', build: 'Стройка', idle: 'Стоп' };
+    const modeLabel = modeLabels[s.workMode] ?? 'Авто';
+
+    // Show auto-task icon
+    let autoIcon = '';
+    if (s.currentTaskId) {
+      const taskQueue = (this.scene as any).simulation?.taskQueue;
+      if (taskQueue) {
+        const task = taskQueue.getAll().find((t: any) => t.id === s.currentTaskId);
+        if (task?.autoIcon) {
+          const icons: Record<string, string> = {
+            chop: '\uD83E\uDEB5', gather: '\uD83D\uDCE6', build: '\uD83D\uDD28',
+            repair: '\uD83D\uDD27', research: '\uD83D\uDD2C', scout: '\uD83D\uDDFA\uFE0F', food: '\uD83C\uDF56',
+          };
+          autoIcon = ' ' + (icons[task.autoIcon] ?? '');
+        }
+      }
+    }
     const buildStr = this.buildMode ? `\n${languageManager.ui.buildMode}: ${(buildingsData as any)[this.buildMode].name}` : '';
 
     const colorHex = '#' + s.color.toString(16).padStart(6, '0');
@@ -979,10 +1100,13 @@ export class UIManager {
 
     this.colonistTaskText.setText(
       `\u2500\u2500 ${languageManager.ui.taskSection} \u2500\u2500\n` +
-      `${languageManager.ui.status}: ${taskStr}\n` +
+      `Режим: ${modeLabel}\n` +
+      `${languageManager.ui.status}: ${taskStr}${autoIcon}\n` +
       `${languageManager.ui.taskId}: ${s.currentTaskId ?? languageManager.ui.none}\n` +
       `${languageManager.ui.pathLen}: ${s.path.length}`
     );
+
+    this.updateWorkModeButtons(s);
 
     this.colonistInvText.setText(
       `\u2500\u2500 ${languageManager.ui.inventorySection} \u2500\u2500`
@@ -1034,6 +1158,18 @@ export class UIManager {
           `${questSystem.getProgressText()}`
         );
       }
+    }
+  }
+
+  private updateWorkModeButtons(s: Settler): void {
+    const activeColors = ['#44ff44', '#ffaa00', '#4488ff', '#888888'];
+    const inactiveColor = '#333333';
+    for (let i = 0; i < 4; i++) {
+      const btn = this.workModeBtns[i];
+      if (!btn) continue;
+      const isActive = s.workMode === this.workModeModes[i];
+      btn.setColor(isActive ? activeColors[i] : inactiveColor);
+      btn.setBackgroundColor(isActive ? '#16213e' : '#0d1117');
     }
   }
 
@@ -1121,12 +1257,18 @@ export class UIManager {
       wood: 0x8B4513,
       stone: 0x808080,
       food: 0x228B22,
+      fiber: 0x9ACD32,
+      resin: 0xDAA520,
+      herb: 0x3CB371,
     };
 
     const resourceIcons: Record<string, string> = {
       wood: 'W',
       stone: 'S',
       food: 'F',
+      fiber: 'I',
+      resin: 'R',
+      herb: 'H',
     };
 
     const startX = 14;
@@ -1219,12 +1361,18 @@ export class UIManager {
       wood: 0x8B4513,
       stone: 0x808080,
       food: 0x228B22,
+      fiber: 0x9ACD32,
+      resin: 0xDAA520,
+      herb: 0x3CB371,
     };
 
     const resourceIcons: Record<string, string> = {
       wood: 'W',
       stone: 'S',
       food: 'F',
+      fiber: 'I',
+      resin: 'R',
+      herb: 'H',
     };
 
     const startX = 0;

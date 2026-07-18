@@ -2,6 +2,8 @@ import Phaser from 'phaser';
 import {
   MAP_WIDTH, MAP_HEIGHT, VIEWPORT_TILES,
   CANVAS_WIDTH, CANVAS_HEIGHT,
+  FIELD_X, FIELD_Y, FIELD_W, FIELD_H, TILE_SIZE,
+  FOG_REVEAL_RADIUS,
 } from '../config';
 import { Simulation } from '../core/Simulation';
 import { Settler } from '../entities/Settler';
@@ -15,6 +17,7 @@ import { NeedsSystem } from '../systems/NeedsSystem';
 import { BuildingSystem } from '../systems/BuildingSystem';
 import { DinosaurSystem } from '../systems/DinosaurSystem';
 import { CombatSystem } from '../systems/CombatSystem';
+import { AutoWorkSystem } from '../systems/AutoWorkSystem';
 import { ArtifactSystem } from '../systems/ArtifactSystem';
 import { QuestSystem } from '../systems/QuestSystem';
 import { QuestManager } from '../systems/QuestManager';
@@ -25,8 +28,13 @@ import { SaveManager } from '../core/SaveManager';
 import { DebugPanel } from '../ui/DebugPanel';
 import { languageManager } from '../data/LanguageManager';
 import dinosaursData from '../data/dinosaurs.json';
+import { Encyclopedia } from '../data/Encyclopedia';
+import { EncyclopediaModal } from '../ui/EncyclopediaModal';
+import { StoryBranchManager } from '../data/storyBranch';
+import { BranchChoiceModal } from '../ui/BranchChoiceModal';
+import buildingsData from '../data/buildings.json';
 
-import { createBuildingIcons, createTileTextures, createDecorationTextures, createTrexSprite, createRaptorSprite, createBrontosaurSprite, createPterodactylSprite, createSettlerSprite } from '../rendering/TextureGenerator';
+import { createBuildingIcons, createTileTextures, createDecorationTextures, createEncyclopediaTextures, createTrexSprite, createRaptorSprite, createBrontosaurSprite, createPterodactylSprite, createSettlerSprite } from '../rendering/TextureGenerator';
 import { AnimatedMapRenderer } from '../rendering/AnimatedMapRenderer';
 import { EntityRenderer } from '../rendering/EntityRenderer';
 import { DecorationGenerator } from '../rendering/DecorationGenerator';
@@ -49,6 +57,7 @@ export class GameScene extends Phaser.Scene {
   buildingSystem!: BuildingSystem;
   dinosaurSystem!: DinosaurSystem;
   combatSystem!: CombatSystem;
+  autoWorkSystem!: AutoWorkSystem;
   artifactSystem!: ArtifactSystem;
   questSystem!: QuestSystem;
   questManager!: QuestManager;
@@ -57,6 +66,10 @@ export class GameScene extends Phaser.Scene {
   debugPanel!: DebugPanel;
   replayRecorder!: ReplayRecorder;
   toastManager!: ToastManager;
+  encyclopedia!: import('../data/Encyclopedia').Encyclopedia;
+  private encyclopediaModal!: import('../ui/EncyclopediaModal').EncyclopediaModal;
+  storyBranchManager!: import('../data/storyBranch').StoryBranchManager;
+  private branchChoiceModal!: import('../ui/BranchChoiceModal').BranchChoiceModal;
 
   selectedSettler!: Settler;
   private attackedSettler: Settler | null = null;
@@ -95,6 +108,24 @@ export class GameScene extends Phaser.Scene {
     LEFT: Phaser.Input.Keyboard.Key;
     RIGHT: Phaser.Input.Keyboard.Key;
     TAB: Phaser.Input.Keyboard.Key;
+    Z: Phaser.Input.Keyboard.Key;
+  };
+
+  // Shooting mode
+  shootMode: boolean = false;
+  private projectiles: { x: number; y: number; vx: number; vy: number; life: number; prevX: number; prevY: number }[] = [];
+  private projectileGraphics!: Phaser.GameObjects.Graphics;
+  private shootModeBorder!: Phaser.GameObjects.Graphics;
+  private shootMoveTimer: number = 0;
+  private settlerMoveTarget: { x: number; y: number } | null = null;
+  private settlerVisualOffset: { x: number; y: number } = { x: 0, y: 0 };
+
+  // Build hotkey mode (StarCraft-style)
+  buildHotkeyMode: boolean = false;
+  private buildHotkeyOverlay!: Phaser.GameObjects.Container;
+  private static BUILD_HOTKEYS: Record<string, string> = {
+    W: 'wall', G: 'gate', H: 'house', D: 'warehouse',
+    F: 'farm', K: 'workshop', R: 'radio', T: 'turret', L: 'lab',
   };
 
   constructor() {
@@ -119,18 +150,25 @@ export class GameScene extends Phaser.Scene {
       LEFT: Phaser.Input.Keyboard.KeyCodes.LEFT,
       RIGHT: Phaser.Input.Keyboard.KeyCodes.RIGHT,
       TAB: Phaser.Input.Keyboard.KeyCodes.TAB,
+      Z: Phaser.Input.Keyboard.KeyCodes.Z,
     }) as any;
 
-    this.input.keyboard!.on('scroll-up', () => this.scrollBy(0, -1));
-    this.input.keyboard!.on('scroll-down', () => this.scrollBy(0, 1));
-    this.input.keyboard!.on('scroll-left', () => this.scrollBy(-1, 0));
-    this.input.keyboard!.on('scroll-right', () => this.scrollBy(1, 0));
+    // Helper to block keys when encyclopedia/dialogue is open
+    const keyGuard = (fn: () => void) => () => {
+      if (this.encyclopediaModal?.isVisible()) return;
+      fn();
+    };
 
-    this.input.keyboard!.on('keydown-ONE', () => this.selectSettlerByIndex(0));
-    this.input.keyboard!.on('keydown-TWO', () => this.selectSettlerByIndex(1));
-    this.input.keyboard!.on('keydown-THREE', () => this.selectSettlerByIndex(2));
+    this.input.keyboard!.on('scroll-up', keyGuard(() => this.scrollBy(0, -1)));
+    this.input.keyboard!.on('scroll-down', keyGuard(() => this.scrollBy(0, 1)));
+    this.input.keyboard!.on('scroll-left', keyGuard(() => this.scrollBy(-1, 0)));
+    this.input.keyboard!.on('scroll-right', keyGuard(() => this.scrollBy(1, 0)));
 
-    this.input.keyboard!.on('keydown-SPACE', () => {
+    this.input.keyboard!.on('keydown-ONE', keyGuard(() => this.selectSettlerByIndex(0)));
+    this.input.keyboard!.on('keydown-TWO', keyGuard(() => this.selectSettlerByIndex(1)));
+    this.input.keyboard!.on('keydown-THREE', keyGuard(() => this.selectSettlerByIndex(2)));
+
+    this.input.keyboard!.on('keydown-SPACE', keyGuard(() => {
       if (this.dialogueBox?.isVisible) {
         this.dialogueBox.nextLine();
         return;
@@ -139,13 +177,72 @@ export class GameScene extends Phaser.Scene {
         this.selectSettler(this.attackedSettler);
         this.attackedSettler = null;
       }
+    }));
+
+    // Work mode hotkeys: Q=auto, E=gather, R=build, F=idle
+    const setWorkMode = (mode: 'auto' | 'gather' | 'build' | 'idle') => {
+      const s = this.selectedSettler;
+      if (s && s.isAlive) {
+        s.workMode = mode;
+      }
+    };
+    this.input.keyboard!.on('keydown-Q', keyGuard(() => { if (!this.buildHotkeyMode) setWorkMode('auto'); }));
+    this.input.keyboard!.on('keydown-E', keyGuard(() => { if (!this.buildHotkeyMode) setWorkMode('gather'); }));
+    this.input.keyboard!.on('keydown-R', keyGuard(() => { if (!this.buildHotkeyMode) setWorkMode('build'); }));
+    this.input.keyboard!.on('keydown-F', keyGuard(() => { if (!this.buildHotkeyMode) setWorkMode('idle'); }));
+
+    // Z = toggle shoot mode
+    this.input.keyboard!.on('keydown-Z', keyGuard(() => {
+      this.shootMode = !this.shootMode;
+      this.uiManager?.addLog(this.shootMode ? 'Shoot mode ON (WASD=move, click=fire, Z=cancel)' : 'Shoot mode OFF');
+      this.inputHandler?.setShootMode(this.shootMode);
+      this.input.setDefaultCursor(this.shootMode ? 'crosshair' : 'default');
+      this.drawShootModeBorder();
+    }));
+
+    // B = build hotkey mode (StarCraft-style)
+    this.buildHotkeyOverlay = this.add.container(0, 0).setDepth(50).setVisible(false);
+    this.input.keyboard!.on('keydown-B', keyGuard(() => {
+      if (this.shootMode) return; // blocked in shoot mode
+      if (this.buildHotkeyMode) {
+        this.cancelBuildHotkeyMode();
+        return;
+      }
+      this.buildHotkeyMode = true;
+      this.showBuildHotkeyOverlay();
+      this.uiManager?.addLog('BUILD — press a key, ESC to cancel');
+    }));
+    // Second key = select building
+    for (const [key, type] of Object.entries(GameScene.BUILD_HOTKEYS)) {
+      this.input.keyboard!.on(`keydown-${key}`, () => {
+        if (!this.buildHotkeyMode) return;
+        this.cancelBuildHotkeyMode();
+        this.selectBuildType(type);
+      });
+    }
+    // Escape = cancel build/shoot mode OR close encyclopedia
+    this.input.keyboard!.on('keydown-ESC', () => {
+      if (this.encyclopediaModal?.isVisible()) {
+        this.encyclopediaModal.hide();
+        return;
+      }
+      if (this.buildHotkeyMode) {
+        this.cancelBuildHotkeyMode();
+        this.uiManager?.addLog('Build cancelled');
+      } else if (this.shootMode) {
+        this.shootMode = false;
+        this.inputHandler?.setShootMode(false);
+        this.input.setDefaultCursor('default');
+        this.drawShootModeBorder();
+        this.uiManager?.addLog('Shoot mode OFF');
+      }
     });
 
-    this.input.keyboard!.on('keydown-ENTER', () => {
+    this.input.keyboard!.on('keydown-ENTER', keyGuard(() => {
       if (this.dialogueBox?.isVisible) {
         this.dialogueBox.nextLine();
       }
-    });
+    }));
 
     this.simulation = new Simulation(MAP_WIDTH, MAP_HEIGHT);
     this.rebindSystems();
@@ -153,6 +250,7 @@ export class GameScene extends Phaser.Scene {
     createTileTextures(this);
     createBuildingIcons(this);
     createDecorationTextures(this);
+    createEncyclopediaTextures(this);
     createTrexSprite(this);
     createRaptorSprite(this);
     createBrontosaurSprite(this);
@@ -181,6 +279,8 @@ export class GameScene extends Phaser.Scene {
     this.uiManager.onContinueCallback = (entity) => this.handleContinue(entity);
     this.uiManager.onRepairCallback = (entity) => this.handleRepair(entity);
     this.uiManager.onJournalCallback = (building) => this.showLabJournal(building);
+    this.uiManager.onCraftCallback = (recipeId, workshop) => this.handleCraft(recipeId, workshop);
+    this.uiManager.onUseCraftedCallback = (recipeId, workshop) => this.handleUseCrafted(recipeId, workshop);
     this.uiManager.createSettlerIcons((index) => this.selectSettlerByIndex(index));
     this.uiManager.updateScroll(this.scrollX, this.scrollY);
 
@@ -194,6 +294,7 @@ export class GameScene extends Phaser.Scene {
     this.inputHandler.scrollTo = (tileX: number, tileY: number) => this.scrollTo(tileX, tileY);
     this.inputHandler.onMoveHere = (x, y, queue) => this.handleMoveHere(x, y, queue);
     this.inputHandler.onAttackEntity = (entity, queue) => this.handleAttackEntity(entity, queue);
+    this.inputHandler.onShootClick = (tileX, tileY) => this.handleShoot(tileX, tileY);
     this.inputHandler.createHoverRect();
     this.inputHandler.createSelectionRect();
     this.inputHandler.setupInputHandlers();
@@ -204,9 +305,15 @@ export class GameScene extends Phaser.Scene {
     this.debugPanel = new DebugPanel(this);
     this.toastManager = new ToastManager(this);
     this.dialogueBox = new DialogueBox(this);
+    this.encyclopedia = new Encyclopedia();
+    this.encyclopediaModal = new EncyclopediaModal(this, this.encyclopedia);
+    this.storyBranchManager = new StoryBranchManager();
+    this.branchChoiceModal = new BranchChoiceModal(this);
     this.labJournal = new LabJournal(this);
     this.wallOverlay = this.add.graphics().setDepth(6);
     this.exploreOverlay = this.add.graphics().setDepth(6);
+    this.projectileGraphics = this.add.graphics().setDepth(15);
+    this.shootModeBorder = this.add.graphics().setDepth(19);
     this.startMenu = new StartMenu(this);
     this.gameOverScreen = new GameOverScreen(this);
 
@@ -236,7 +343,7 @@ export class GameScene extends Phaser.Scene {
 
   private rebindSystems(): void {
     this.movementSystem = new MovementSystem(this.simulation.tileGrid);
-    this.needsSystem = new NeedsSystem();
+    this.needsSystem = new NeedsSystem(this.simulation.entityManager);
     this.workSystem = new WorkSystem(
       this.movementSystem,
       this.simulation.tileGrid,
@@ -254,8 +361,33 @@ export class GameScene extends Phaser.Scene {
     this.workSystem.questSystem = this.questSystem;
     this.workSystem.decorationGenerator = this.decorationGenerator ?? null;
 
+    // AutoWorkSystem — автоматическая генерация задач для idle колонистов
+    this.autoWorkSystem = new AutoWorkSystem(
+      this.simulation.entityManager,
+      this.simulation.tileGrid,
+      this.workSystem,
+      this.simulation.taskQueue,
+      this.simulation
+    );
+    if (this.decorationGenerator) {
+      this.autoWorkSystem.setDecorationGenerator(this.decorationGenerator);
+    }
+
+    this.workSystem.onSettlerSleep = (settler) => {
+      this.uiManager?.addLog(`${settler.name} is exhausted and sleeping!`);
+      this.toastManager?.show(`${settler.name} fell asleep from exhaustion!`);
+    };
+
+    this.workSystem.onPlantDiscovered = (plantId: string) => {
+      const info = this.encyclopedia.getPlantInfo(plantId);
+      if (info && this.encyclopedia.discover(plantId, this.simulation.tickCount)) {
+        this.uiManager?.addLog(`📖 Новое растение: ${info.name}`);
+        this.toastManager?.show(`Энциклопедия: ${info.name} открыта!`);
+      }
+    };
+
     // QuestManager — full quest tree
-    this.questManager = new QuestManager();
+    this.questManager = new QuestManager(this.storyBranchManager);
     this.questManager.onEvent((event) => {
       if (event.type === 'dialogue' && event.dialogue) {
         this.dialoguePaused = true;
@@ -266,8 +398,8 @@ export class GameScene extends Phaser.Scene {
         });
       } else if (event.message) {
         this.uiManager?.addLog(event.message);
-        this.uiManager?.addEvent(event.message);
-        if (event.type !== 'quest_objective_progress') {
+        // Only show toast for important events, not for every quest update
+        if (event.type === 'quest_started' || event.type === 'quest_completed') {
           this.toastManager?.show(event.message);
         }
       }
@@ -320,6 +452,7 @@ export class GameScene extends Phaser.Scene {
         this.uiManager?.addEvent(msg);
       }
     );
+    this.dinosaurSystem.setBranchManager(this.storyBranchManager);
     this.combatSystem = new CombatSystem(
       this.simulation.entityManager,
       this.simulation.tileGrid
@@ -449,15 +582,21 @@ export class GameScene extends Phaser.Scene {
 
     try {
       this.dialogueBox?.update(delta);
-      this.handleScrollInput();
+      const encycOpen = this.encyclopediaModal?.isVisible() ?? false;
+      if (!encycOpen) {
+        this.handleScrollInput();
 
-      if (Phaser.Input.Keyboard.JustDown(this.keys.TAB)) {
-        this.cycleSettler();
+        if (Phaser.Input.Keyboard.JustDown(this.keys.TAB)) {
+          this.cycleSettler();
+        }
       }
 
       if (!this.debugPanel.paused) {
         this.runSystems(delta);
       }
+
+      // Projectiles update every frame (not tied to tick rate)
+      this.updateProjectiles(delta);
 
       this.renderFrame(delta);
     } catch (err) {
@@ -487,6 +626,7 @@ export class GameScene extends Phaser.Scene {
       this.simulation.tickCount,
       this.hasFarm()
     );
+    this.autoWorkSystem.update(td);
     this.workSystem.update(td);
     this.buildingSystem.update(td);
     this.dinosaurSystem.update(td, this.simulation.tickCount, this.gameMode === 'defense');
@@ -545,7 +685,6 @@ export class GameScene extends Phaser.Scene {
         const qty = Math.floor(Math.random() * 12) + 5;
         const res = new Resource(x, y, type, qty);
         this.simulation.entityManager.add(res);
-        this.simulation.tileGrid.setOccupied(x, y, true);
         break;
       }
     }
@@ -558,6 +697,11 @@ export class GameScene extends Phaser.Scene {
   private spawnQuestDinos(): void {
     const qm = this.questManager;
     if (!qm) return;
+
+    // Only spawn dinos after certain quests are completed
+    const q2_1Done = qm.getQuestState('q2_1')?.status === 'completed';
+    const q_plants_2Done = qm.getQuestState('q_plants_2')?.status === 'completed';
+    if (!q2_1Done && !q_plants_2Done) return;
 
     this.dinoSpawnTimer++;
     if (this.dinoSpawnTimer < 30) return; // spawn every 30 ticks
@@ -702,10 +846,12 @@ export class GameScene extends Phaser.Scene {
     this.mapRenderer.redrawFog();
     this.decorationGenerator?.updateVisibility();
     this.decorationGenerator?.updateTreeAnimation(delta);
+    this.decorationGenerator?.updateRegeneration(1);
     this.simulation.tileGrid.updateFog(delta);
     this.mapRenderer.updateNight(this.simulation.tickCount);
     this.entityRenderer.drawEntities();
     this.entityRenderer.drawPath();
+    this.drawProjectiles();
     this.decorationGenerator?.drawChopProgress(this.scrollX, this.scrollY);
     this.updateWallOverlay();
     this.updateExploreMarkers();
@@ -714,6 +860,7 @@ export class GameScene extends Phaser.Scene {
     this.uiManager.updateInfoPanel();
     this.uiManager.updateMinimap();
     this.debugPanel.update(this.simulation);
+    this.debugPanel.projectileCount = this.projectiles.length;
   }
 
   private updateWallOverlay(): void {
@@ -867,6 +1014,11 @@ export class GameScene extends Phaser.Scene {
   }
 
   private handleScrollInput(): void {
+    if (this.encyclopediaModal?.isVisible()) return;
+    if (this.shootMode) {
+      this.handleShootModeMovement();
+      return;
+    }
     let dx = 0;
     let dy = 0;
 
@@ -886,6 +1038,115 @@ export class GameScene extends Phaser.Scene {
       }
       this.updateScrollPosition();
     }
+  }
+
+  private handleShootModeMovement(): void {
+    const settler = this.selectedSettler;
+    if (!settler || !settler.isAlive) return;
+
+    // Move every 6 frames for smooth movement
+    this.shootMoveTimer++;
+    if (this.shootMoveTimer < 6) return;
+    this.shootMoveTimer = 0;
+
+    let dx = 0;
+    let dy = 0;
+    if (this.keys.A.isDown) dx -= 1;
+    if (this.keys.D.isDown) dx += 1;
+    if (this.keys.W.isDown) dy -= 1;
+    if (this.keys.S.isDown) dy += 1;
+
+    if (dx === 0 && dy === 0) {
+      settler.activity = 'idle';
+      return;
+    }
+
+    const newX = settler.x + dx;
+    const newY = settler.y + dy;
+
+    // Check bounds
+    if (newX < 0 || newX >= MAP_WIDTH || newY < 0 || newY >= MAP_HEIGHT) return;
+
+    // Check tile walkability (allow walking through non-tree decorations)
+    const tile = this.simulation.tileGrid.get(newX, newY);
+    if (!tile || !tile.walkable) return;
+    // Allow walking through occupied tiles that are just decorations (not buildings/dinos)
+    if (tile.occupied) {
+      const hasBuilding = this.simulation.entityManager.getByType('building') as any[];
+      const blockingEntity = hasBuilding.find((b: any) => b.x === newX && b.y === newY);
+      if (blockingEntity) return;
+      // Check for dinosaurs
+      const dinos = this.simulation.entityManager.getByType('dinosaur') as any[];
+      const blockingDino = dinos.find((d: any) => d.x === newX && d.y === newY && d.isAlive);
+      if (blockingDino) return;
+    }
+
+    // Set walk direction for animation
+    if (dx !== 0 || dy !== 0) {
+      settler.walkDirection = { x: dx, y: dy };
+    }
+
+    // Move settler
+    settler.x = newX;
+    settler.y = newY;
+    settler.activity = 'walk';
+
+    // Reveal fog around settler
+    const fogBonus = (settler as any).getFogRadiusBonus?.() ?? 0;
+    this.simulation.tileGrid.reveal(newX, newY, FOG_REVEAL_RADIUS + fogBonus);
+
+    // Auto-scroll to keep settler near center
+    this.autoScrollToSettler(settler);
+  }
+
+  private autoScrollToSettler(settler: Settler): void {
+    const halfView = Math.floor(VIEWPORT_TILES / 2);
+    const centerX = this.scrollX + halfView;
+    const centerY = this.scrollY + halfView;
+
+    // Scroll when settler is within 3 tiles of screen edge
+    const edgeMargin = 3;
+    let newScrollX = this.scrollX;
+    let newScrollY = this.scrollY;
+
+    if (settler.x < centerX - edgeMargin) {
+      newScrollX = settler.x - halfView + edgeMargin;
+    } else if (settler.x > centerX + edgeMargin) {
+      newScrollX = settler.x - halfView - edgeMargin;
+    }
+
+    if (settler.y < centerY - edgeMargin) {
+      newScrollY = settler.y - halfView + edgeMargin;
+    } else if (settler.y > centerY + edgeMargin) {
+      newScrollY = settler.y - halfView - edgeMargin;
+    }
+
+    // Clamp
+    newScrollX = Math.max(0, Math.min(newScrollX, MAP_WIDTH - VIEWPORT_TILES));
+    newScrollY = Math.max(0, Math.min(newScrollY, MAP_HEIGHT - VIEWPORT_TILES));
+
+    if (newScrollX !== this.scrollX || newScrollY !== this.scrollY) {
+      this.scrollX = newScrollX;
+      this.scrollY = newScrollY;
+      this.updateScrollPosition();
+    }
+  }
+
+  private drawShootModeBorder(): void {
+    this.shootModeBorder.clear();
+    if (!this.shootMode) return;
+
+    const borderWidth = 3;
+    const color = 0xff4444; // Red border
+    const alpha = 0.8;
+
+    // Top border
+    this.shootModeBorder.lineStyle(borderWidth, color, alpha);
+    this.shootModeBorder.strokeRect(FIELD_X, FIELD_Y, FIELD_W, FIELD_H);
+
+    // Inner glow
+    this.shootModeBorder.lineStyle(1, 0xffaa00, 0.4);
+    this.shootModeBorder.strokeRect(FIELD_X + 2, FIELD_Y + 2, FIELD_W - 4, FIELD_H - 4);
   }
 
   private scrollBy(dx: number, dy: number): void {
@@ -1034,6 +1295,24 @@ export class GameScene extends Phaser.Scene {
     }
   }
 
+  private handleCraft(recipeId: string, workshop: Building): void {
+    const settler = this.selectedSettler;
+    if (settler && settler.isAlive) {
+      this.workSystem.createCraftTask(workshop, recipeId, TaskPriority.High, settler);
+      this.uiManager.addLog(`Crafting ${recipeId} at Workshop...`);
+    }
+  }
+
+  private handleUseCrafted(recipeId: string, workshop: Building): void {
+    const settler = this.selectedSettler;
+    if (settler && settler.isAlive) {
+      const used = this.workSystem.useCraftedItem(settler, workshop, recipeId);
+      if (used) {
+        this.uiManager.addLog(`${settler.name} used ${recipeId}`);
+      }
+    }
+  }
+
   private handleMoveHere(x: number, y: number, queue: boolean): void {
     const settler = this.selectedSettler;
     if (!settler || !settler.isAlive) return;
@@ -1050,6 +1329,154 @@ export class GameScene extends Phaser.Scene {
       this.uiManager.addLog(`Attack: moving to (${target.x},${target.y})`);
     } else {
       this.uiManager.addLog(`No path to target`);
+    }
+  }
+
+  private showBuildHotkeyOverlay(): void {
+    this.buildHotkeyOverlay.removeAll(true);
+    const cx = FIELD_X + FIELD_W / 2;
+    const cy = FIELD_Y + FIELD_H / 2;
+    const bg = this.add.rectangle(cx, cy, 260, 220, 0x0d1117, 0.95)
+      .setOrigin(0.5).setStrokeStyle(2, 0x58a6ff);
+    this.buildHotkeyOverlay.add(bg);
+
+    const title = this.add.text(cx, cy - 95, '── BUILD ──', {
+      fontSize: '14px', color: '#58a6ff', fontFamily: 'monospace', fontStyle: 'bold',
+    }).setOrigin(0.5);
+    this.buildHotkeyOverlay.add(title);
+
+    let y = cy - 70;
+    for (const [key, type] of Object.entries(GameScene.BUILD_HOTKEYS)) {
+      const def = (buildingsData as any)[type];
+      const name = def?.name ?? type;
+      const line = this.add.text(cx - 100, y, `[${key}] ${name}`, {
+        fontSize: '12px', color: '#c9d1d9', fontFamily: 'monospace',
+      });
+      this.buildHotkeyOverlay.add(line);
+      y += 18;
+    }
+
+    const cancel = this.add.text(cx, y + 8, 'ESC to cancel', {
+      fontSize: '11px', color: '#8b949e', fontFamily: 'monospace',
+    }).setOrigin(0.5);
+    this.buildHotkeyOverlay.add(cancel);
+  }
+
+  private cancelBuildHotkeyMode(): void {
+    this.buildHotkeyMode = false;
+    this.buildHotkeyOverlay.setVisible(false);
+  }
+
+  private selectBuildType(type: string): void {
+    const def = (buildingsData as any)[type];
+    if (!def) return;
+    if (!this.uiManager.canAfford(type as any)) {
+      this.uiManager.addLog(`${def.name} — not enough resources`);
+      return;
+    }
+    this.uiManager.buildMode = type as any;
+    this.uiManager.updateBuildButtonStates();
+    this.uiManager.addLog(`Build: ${def.name} — click a tile`);
+  }
+
+  private handleShoot(tileX: number, tileY: number): void {
+    const settler = this.selectedSettler;
+    if (!settler || !settler.isAlive) return;
+
+    // Direction from settler to target
+    const dx = tileX - settler.x;
+    const dy = tileY - settler.y;
+    const dist = Math.sqrt(dx * dx + dy * dy);
+    if (dist < 0.1) return;
+
+    const speed = 1.5; // tiles per frame — cross 15-tile screen in ~10 frames
+    this.projectiles.push({
+      x: settler.x,
+      y: settler.y,
+      prevX: settler.x,
+      prevY: settler.y,
+      vx: (dx / dist) * speed,
+      vy: (dy / dist) * speed,
+      life: 40,
+    });
+    this.uiManager?.addLog(`${settler.name} fires!`);
+  }
+
+  private updateProjectiles(delta: number): void {
+    if (this.debugPanel.paused) return;
+    for (let i = this.projectiles.length - 1; i >= 0; i--) {
+      const p = this.projectiles[i];
+      p.prevX = p.x;
+      p.prevY = p.y;
+      p.x += p.vx;
+      p.y += p.vy;
+      p.life--;
+
+      // Check collision with dinosaurs
+      const dinos = this.simulation.entityManager.getByType('dinosaur') as Dinosaur[];
+      for (const dino of dinos) {
+        if (!dino.isAlive) continue;
+        const d = Math.abs(p.x - dino.x) + Math.abs(p.y - dino.y);
+        if (d < 1.0) {
+          dino.takeDamage(25);
+          this.uiManager?.addLog(`Hit ${dino.species} for 25 damage!`);
+          if (!dino.isAlive) {
+            this.uiManager?.addLog(`${dino.species} killed by shot!`);
+            this.simulation.entityManager.remove(dino.id);
+            this.simulation.tileGrid.setOccupiedArea(dino.x, dino.y, dino.footprint ?? 1, false);
+            this.dropArtifact({ x: dino.x, y: dino.y, species: dino.species, attacker: 'Shot' });
+          }
+          p.life = 0;
+          break;
+        }
+      }
+
+      // Check collision with buildings, trees, settlers
+      if (p.life > 0) {
+        const tileX = Math.round(p.x);
+        const tileY = Math.round(p.y);
+        const tile = this.simulation.tileGrid.get(tileX, tileY);
+        if (tile && (tile.building || tile.occupied)) {
+          p.life = 0;
+        }
+        // Check settlers
+        const settlers = this.simulation.entityManager.getByType('settler') as any[];
+        for (const s of settlers) {
+          if (!s.isAlive) continue;
+          const sd = Math.abs(p.x - s.x) + Math.abs(p.y - s.y);
+          if (sd < 0.8) {
+            p.life = 0;
+            break;
+          }
+        }
+      }
+
+      // Remove expired or out-of-bounds
+      if (p.life <= 0 || p.x < -1 || p.x >= MAP_WIDTH + 1 || p.y < -1 || p.y >= MAP_HEIGHT + 1) {
+        this.projectiles.splice(i, 1);
+      }
+    }
+  }
+
+  private drawProjectiles(): void {
+    this.projectileGraphics.clear();
+    for (const p of this.projectiles) {
+      const sx = FIELD_X + (p.x - this.scrollX) * TILE_SIZE + TILE_SIZE / 2;
+      const sy = FIELD_Y + (p.y - this.scrollY) * TILE_SIZE + TILE_SIZE / 2;
+      const psx = FIELD_X + (p.prevX - this.scrollX) * TILE_SIZE + TILE_SIZE / 2;
+      const psy = FIELD_Y + (p.prevY - this.scrollY) * TILE_SIZE + TILE_SIZE / 2;
+
+      // Elongated projectile (line from previous to current position)
+      this.projectileGraphics.lineStyle(2, 0xffff00, 0.9);
+      this.projectileGraphics.lineBetween(psx, psy, sx, sy);
+
+      // Bright head
+      this.projectileGraphics.fillStyle(0xffffff, 1);
+      this.projectileGraphics.fillCircle(sx, sy, 2);
+
+      // Dim tail
+      this.projectileGraphics.fillStyle(0xffff00, 0.4);
+      this.projectileGraphics.fillCircle(psx, psy, 1);
     }
   }
 

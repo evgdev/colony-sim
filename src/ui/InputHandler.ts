@@ -52,6 +52,9 @@ export class InputHandler {
   scrollTo: ((tileX: number, tileY: number) => void) | null = null;
   onMoveHere: ((x: number, y: number, queue: boolean) => void) | null = null;
   onAttackEntity: ((entity: import('../core/Entity').Entity, queue: boolean) => void) | null = null;
+  onShootClick: ((tileX: number, tileY: number) => void) | null = null;
+  private shootMode: boolean = false;
+  encyclopediaOpen: boolean = false;
 
   // Selection indicators
   private selectionIndicator!: Phaser.GameObjects.Graphics;
@@ -86,6 +89,7 @@ export class InputHandler {
 
   setSimulation(simulation: Simulation): void { this.simulation = simulation; }
   setWorkSystem(workSystem: WorkSystem): void { this.workSystem = workSystem; }
+  setShootMode(enabled: boolean): void { this.shootMode = enabled; }
   updateScroll(sx: number, sy: number): void { this.scrollX = sx; this.scrollY = sy; }
 
   private screenToTile(px: number, py: number): { tileX: number; tileY: number } | null {
@@ -148,6 +152,7 @@ export class InputHandler {
       if (ctx && ctx.state === 'suspended') ctx.resume();
       if (this.uiManager.startMenuOpen) return;
       if ((this.scene as any).dialoguePaused) return;
+      if (this.encyclopediaOpen) return;
 
       // Right-click
       if (pointer.rightButtonDown()) {
@@ -183,6 +188,13 @@ export class InputHandler {
       }
       this.lastPointerWasRight = false;
 
+      // Shoot mode — left-click fires projectile, block everything else
+      if (this.shootMode) {
+        const coords = this.screenToTile(pointer.x, pointer.y);
+        if (coords) this.onShootClick?.(coords.tileX, coords.tileY);
+        return;
+      }
+
       // Left-click
       const minimapCoords = this.screenToMinimapTile(pointer.x, pointer.y);
       if (minimapCoords) {
@@ -207,7 +219,7 @@ export class InputHandler {
 
     // ── Pointer MOVE ──
     this.scene.input.on('pointermove', (pointer: Phaser.Input.Pointer) => {
-      if (this.uiManager.startMenuOpen || (this.scene as any).dialoguePaused) {
+      if (this.uiManager.startMenuOpen || (this.scene as any).dialoguePaused || this.encyclopediaOpen) {
         this.hoverRect.setVisible(false);
         this.menuSystem.hideTooltip();
         return;
@@ -297,7 +309,7 @@ export class InputHandler {
       }
 
       // ── Drag-select rectangle ──
-      if (pointer.leftButtonDown() && !this.uiManager.buildMode) {
+      if (pointer.leftButtonDown() && !this.uiManager.buildMode && !this.shootMode) {
         const dx = pointer.x - this.dragStartX;
         const dy = pointer.y - this.dragStartY;
 
@@ -316,6 +328,7 @@ export class InputHandler {
     // ── Pointer UP ──
     this.scene.input.on('pointerup', (pointer: Phaser.Input.Pointer) => {
       if (this.lastPointerWasRight) return;
+      if (this.encyclopediaOpen) return;
 
       // End paint
       this.isPainting = false;
@@ -327,12 +340,13 @@ export class InputHandler {
         this.isDragging = false;
         this.dragGfx.clear();
         this.dragGfx.setVisible(false);
-        this.handleDragSelect(this.dragStartX, this.dragStartY, pointer.x, pointer.y);
+        if (!this.shootMode) this.handleDragSelect(this.dragStartX, this.dragStartY, pointer.x, pointer.y);
         return;
       }
 
       // ── Single click select ──
       if (this.uiManager.startMenuOpen || (this.scene as any).dialoguePaused) return;
+      if (this.shootMode) return; // no selection in shoot mode
       const coords = this.screenToTile(pointer.x, pointer.y);
       if (!coords) return;
 
@@ -655,7 +669,7 @@ export class InputHandler {
       return;
     }
 
-    // Check for tree at this tile
+    // Check for tree or harvestable plant at this tile
     const decGen = (this.scene as any).decorationGenerator;
     if (decGen) {
       const dec = decGen.getDecorationAt(tileX, tileY);
@@ -669,6 +683,25 @@ export class InputHandler {
         this.selectedTreeTile = { x: tileX, y: tileY };
         this.showSelectionRing(tileX, tileY, 0x88cc44);
         this.uiManager.addLog('Дерево выделено');
+        return;
+      }
+      // Check for harvestable plant
+      const plantInfo = decGen.getPlantAt(tileX, tileY);
+      if (plantInfo && plantInfo.plant.harvestable) {
+        // Check if depleted
+        if (decGen.isDepleted(tileX, tileY)) {
+          this.uiManager.addLog(`${plantInfo.plant.name} — нужно время для восстановления`);
+          return;
+        }
+        if (this.selectedTreeTile && this.selectedTreeTile.x === tileX && this.selectedTreeTile.y === tileY) {
+          // Second click — show harvest context menu
+          this.showPlantContextMenu(tileX, tileY, plantInfo);
+          return;
+        }
+        // First click — select plant
+        this.selectedTreeTile = { x: tileX, y: tileY };
+        this.showSelectionRing(tileX, tileY, 0x44cc88);
+        this.uiManager.addLog(`${plantInfo.plant.name} выделено`);
         return;
       }
     }
@@ -768,6 +801,41 @@ export class InputHandler {
           // Notify quest system
           const qm = (this.scene as any).questManager;
           if (qm) qm.onPlantResearched();
+        }
+      });
+    }
+
+    this.menuSystem.showContextMenu(items, screenX, screenY);
+  }
+
+  private showPlantContextMenu(tileX: number, tileY: number, plantInfo: { id: string; plant: any }): void {
+    const { sx, sy } = this.tileToScreen(tileX, tileY);
+    const screenX = sx + TILE_SIZE;
+    const screenY = sy;
+
+    const settler = (this.scene as any).getSelectedSettler() as Settler;
+    const drop = plantInfo.plant.harvestDrop;
+    const dropText = drop ? `${drop.resource} x${drop.amount}` : '';
+
+    const decGen = (this.scene as any).decorationGenerator;
+    const isDepleted = decGen?.isDepleted(tileX, tileY) ?? false;
+
+    const items: import('./menu/MenuItem').MenuItem[] = [];
+
+    if (isDepleted) {
+      items.push({
+        icon: '⏳',
+        label: 'Восстанавливается...',
+        disabled: true,
+      });
+    } else {
+      items.push({
+        icon: '🌿',
+        label: `Собрать${dropText ? ` (${dropText})` : ''}`,
+        action: () => {
+          this.selectedTreeTile = null;
+          this.workSystem.createHarvestPlantTask(tileX, tileY, TaskPriority.High, settler);
+          this.uiManager.addLog(`${settler ? settler.name : 'Поселенец'} направляется собирать ${plantInfo.plant.name}`);
         }
       });
     }

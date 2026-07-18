@@ -11,6 +11,7 @@ import { Task, TaskType, TaskPriority } from '../core/Task';
 import { TaskQueue } from '../core/TaskQueue';
 import { QuestSystem } from './QuestSystem';
 import { Simulation } from '../core/Simulation';
+import buildingsData from '../data/buildings.json';
 
 export class WorkSystem {
   private movementSystem: MovementSystem;
@@ -21,6 +22,8 @@ export class WorkSystem {
   artifactSystem: ArtifactSystem | null = null;
   questSystem: QuestSystem | null = null;
   decorationGenerator: DecorationGenerator | null = null;
+  onSettlerSleep?: (settler: Settler) => void;
+  onPlantDiscovered?: (plantId: string) => void;
 
   constructor(
     movementSystem: MovementSystem,
@@ -43,6 +46,32 @@ export class WorkSystem {
 
     for (const settler of settlers) {
       if (!settler.isAlive) continue;
+
+      // Energy == 0: settler sleeps (restores energy, does no work)
+      if (settler.energy <= 0) {
+        if (settler.activity !== 'idle' || settler.currentTaskId) {
+          // Just fell asleep — log once
+          (this as any)._sleepLog = (this as any)._sleepLog || new Set<number>();
+          if (!(this as any)._sleepLog.has(settler.id)) {
+            (this as any)._sleepLog.add(settler.id);
+            this.onSettlerSleep?.(settler);
+          }
+        }
+        settler.energy = Math.min(100, settler.energy + 0.5 * tickDelta);
+        if (settler.currentTaskId) {
+          const task = this.findTaskById(settler.currentTaskId);
+          if (task) this.taskQueue.remove(task.id);
+          settler.currentTaskId = null;
+          settler.path = [];
+          settler.pathIndex = 0;
+        }
+        settler.activity = 'idle';
+        continue;
+      } else {
+        // Awake — clear sleep log so it can re-log next sleep
+        (this as any)._sleepLog?.delete(settler.id);
+      }
+
       if (settler.currentTaskId) {
         this.executeCurrentTask(settler, tickDelta);
       } else {
@@ -116,6 +145,12 @@ export class WorkSystem {
         break;
       case TaskType.DeliverArtifact:
         this.executeDeliverArtifact(settler, task, tickDelta);
+        break;
+      case TaskType.Craft:
+        this.executeCraft(settler, task, tickDelta);
+        break;
+      case TaskType.HarvestPlant:
+        this.executeHarvestPlant(settler, task, tickDelta);
         break;
       default:
         task.completed = true;
@@ -461,7 +496,15 @@ export class WorkSystem {
     return task;
   }
 
-  createBuildTask(building: Building, priority: TaskPriority = TaskPriority.Normal, settler?: Settler): Task {
+  createBuildTask(building: Building, priority: TaskPriority = TaskPriority.Normal, settler?: Settler, queue: boolean = false): Task {
+    if (!queue) {
+      if (settler) {
+        this.interruptSettler(settler);
+      } else {
+        const settlers = this.entityManager.getByType('settler') as Settler[];
+        for (const s of settlers) this.interruptSettler(s);
+      }
+    }
     const task = new Task({
       type: TaskType.Build,
       priority,
@@ -478,12 +521,14 @@ export class WorkSystem {
     return task;
   }
 
-  createPickUpArtifactTask(artifact: Artifact, priority: TaskPriority = TaskPriority.Normal, settler?: Settler): Task {
-    if (settler) {
-      this.interruptSettler(settler);
-    } else {
-      const settlers = this.entityManager.getByType('settler') as Settler[];
-      for (const s of settlers) this.interruptSettler(s);
+  createPickUpArtifactTask(artifact: Artifact, priority: TaskPriority = TaskPriority.Normal, settler?: Settler, queue: boolean = false): Task {
+    if (!queue) {
+      if (settler) {
+        this.interruptSettler(settler);
+      } else {
+        const settlers = this.entityManager.getByType('settler') as Settler[];
+        for (const s of settlers) this.interruptSettler(s);
+      }
     }
     const task = new Task({
       type: TaskType.PickUpArtifact,
@@ -546,12 +591,14 @@ export class WorkSystem {
     building.repair(healAmount);
   }
 
-  createRepairTask(building: Building, priority: TaskPriority = TaskPriority.Normal, settler?: Settler): Task {
-    if (settler) {
-      this.interruptSettler(settler);
-    } else {
-      const settlers = this.entityManager.getByType('settler') as Settler[];
-      for (const s of settlers) this.interruptSettler(s);
+  createRepairTask(building: Building, priority: TaskPriority = TaskPriority.Normal, settler?: Settler, queue: boolean = false): Task {
+    if (!queue) {
+      if (settler) {
+        this.interruptSettler(settler);
+      } else {
+        const settlers = this.entityManager.getByType('settler') as Settler[];
+        for (const s of settlers) this.interruptSettler(s);
+      }
     }
     const task = new Task({
       type: TaskType.Repair,
@@ -617,17 +664,18 @@ export class WorkSystem {
       const woodQty = Math.floor(Math.random() * 8) + 5;
       const wood = new Resource(task.targetX, task.targetY, 'wood', woodQty);
       this.entityManager.add(wood);
-      this.tileGrid.setOccupied(task.targetX, task.targetY, true);
       task.completed = true;
     }
   }
 
-  createChopTask(tileX: number, tileY: number, priority: TaskPriority = TaskPriority.Normal, settler?: Settler): Task {
-    if (settler) {
-      this.interruptSettler(settler);
-    } else {
-      const settlers = this.entityManager.getByType('settler') as Settler[];
-      for (const s of settlers) this.interruptSettler(s);
+  createChopTask(tileX: number, tileY: number, priority: TaskPriority = TaskPriority.Normal, settler?: Settler, queue: boolean = false): Task {
+    if (!queue) {
+      if (settler) {
+        this.interruptSettler(settler);
+      } else {
+        const settlers = this.entityManager.getByType('settler') as Settler[];
+        for (const s of settlers) this.interruptSettler(s);
+      }
     }
     const task = new Task({
       type: TaskType.Chop,
@@ -640,6 +688,99 @@ export class WorkSystem {
     if (settler && settler.isAlive && !settler.currentTaskId) {
       settler.currentTaskId = task.id;
       this.executeChop(settler, task, 0);
+    }
+    return task;
+  }
+
+  private executeHarvestPlant(settler: Settler, task: Task, tickDelta: number): void {
+    if (!this.decorationGenerator) { task.completed = true; return; }
+    const dec = this.decorationGenerator.getDecorationAt(task.targetX, task.targetY);
+    if (!dec || !dec.plantId) { task.completed = true; return; }
+
+    // Don't harvest if depleted
+    if (dec.depleted) { task.completed = true; return; }
+
+    const plantData = this.decorationGenerator.getPlantAt(task.targetX, task.targetY);
+    if (!plantData || !plantData.plant.harvestable || !plantData.plant.harvestDrop) {
+      task.completed = true;
+      return;
+    }
+
+    // Move to adjacent tile
+    const dist = Math.abs(settler.x - task.targetX) + Math.abs(settler.y - task.targetY);
+    if (dist > 1) {
+      const dirs = [
+        { dx: 0, dy: -1 }, { dx: 0, dy: 1 },
+        { dx: -1, dy: 0 }, { dx: 1, dy: 0 },
+      ];
+      let adjTarget: { x: number; y: number } | null = null;
+      let bestDist = Infinity;
+      for (const d of dirs) {
+        const nx = task.targetX + d.dx;
+        const ny = task.targetY + d.dy;
+        const tile = this.tileGrid.get(nx, ny);
+        if (tile && tile.walkable && !tile.building && !tile.occupied) {
+          const d2 = Math.abs(settler.x - nx) + Math.abs(settler.y - ny);
+          if (d2 < bestDist) { bestDist = d2; adjTarget = { x: nx, y: ny }; }
+        }
+      }
+      if (!adjTarget) { task.completed = true; return; }
+
+      if (settler.path.length === 0 || settler.pathIndex === 0) {
+        const path = this.movementSystem.findPath(settler.x, settler.y, adjTarget.x, adjTarget.y);
+        if (path.length <= 1) { task.completed = true; return; }
+        settler.path = path;
+        settler.pathIndex = 1;
+      }
+
+      settler.pathIndex = this.movementSystem.stepAlongPath(settler, settler.path, settler.pathIndex);
+      if (settler.pathIndex < settler.path.length) return;
+      settler.path = [];
+      settler.pathIndex = 0;
+    }
+
+    // Harvesting
+    dec.isHarvesting = true;
+    dec.harvestProgress++;
+    settler.activity = 'gather';
+
+    if (dec.harvestProgress >= dec.harvestTime) {
+      const drop = plantData.plant.harvestDrop;
+      if (Math.random() < drop.chance) {
+        this.simulation.addToInventory(drop.resource, drop.amount, drop.resource);
+      }
+      // Mark as depleted instead of removing — plant will regenerate
+      this.decorationGenerator.markDepleted(task.targetX, task.targetY);
+      dec.harvestProgress = 0;
+      dec.isHarvesting = false;
+      // Notify encyclopedia of discovery
+      this.onPlantDiscovered?.(plantData.id);
+      task.completed = true;
+    }
+  }
+
+  createHarvestPlantTask(tileX: number, tileY: number, priority: TaskPriority = TaskPriority.Normal, settler?: Settler, queue: boolean = false): Task {
+    if (!queue) {
+      if (settler) {
+        this.interruptSettler(settler);
+      } else {
+        const settlers = this.entityManager.getByType('settler') as Settler[];
+        for (const s of settlers) this.interruptSettler(s);
+      }
+    }
+    const plantData = this.decorationGenerator?.getPlantAt(tileX, tileY);
+    const harvestTime = plantData?.plant.harvestTime ?? 3;
+    const task = new Task({
+      type: TaskType.HarvestPlant,
+      priority,
+      targetX: tileX,
+      targetY: tileY,
+      assignedSettlerId: settler?.id,
+    });
+    this.taskQueue.add(task);
+    if (settler && settler.isAlive && !settler.currentTaskId) {
+      settler.currentTaskId = task.id;
+      this.executeHarvestPlant(settler, task, 0);
     }
     return task;
   }
@@ -699,5 +840,137 @@ export class WorkSystem {
     settler.currentTaskId = task.id;
     this.executeDeliverArtifact(settler, task, 0);
     return task;
+  }
+
+  private executeCraft(settler: Settler, task: Task, tickDelta: number): void {
+    const building = this.findBuildingAt(task.targetX, task.targetY);
+    if (!building || !building.built || building.buildingType !== 'workshop') {
+      task.completed = true;
+      return;
+    }
+
+    // Find workshop definition
+    const workshopDef = (buildingsData as any).workshop;
+    if (!workshopDef || !workshopDef.craftRecipes) {
+      task.completed = true;
+      return;
+    }
+
+    const recipe = workshopDef.craftRecipes.find((r: any) => r.id === task.recipeId);
+    if (!recipe) {
+      task.completed = true;
+      return;
+    }
+
+    // If workshop isn't crafting yet, start crafting
+    if (!building.crafting) {
+      // Move to adjacent tile of workshop
+      const dist = Math.abs(settler.x - building.x) + Math.abs(settler.y - building.y);
+      if (dist > 1) {
+        const adjTarget = this.findBuildPosition(settler, building.x, building.y);
+        if (!adjTarget) {
+          task.completed = true;
+          return;
+        }
+
+        if (settler.path.length === 0 || settler.pathIndex === 0) {
+          const path = this.movementSystem.findPath(settler.x, settler.y, adjTarget.x, adjTarget.y);
+          if (path.length <= 1) {
+            task.completed = true;
+            return;
+          }
+          settler.path = path;
+          settler.pathIndex = 1;
+        }
+
+        settler.pathIndex = this.movementSystem.stepAlongPath(settler, settler.path, settler.pathIndex);
+        if (settler.pathIndex < settler.path.length) return;
+        settler.path = [];
+        settler.pathIndex = 0;
+      }
+
+      // Deduct resources
+      for (const [resourceType, qty] of Object.entries(recipe.cost)) {
+        if (!this.simulation.hasResource(resourceType, qty as number)) {
+          task.completed = true;
+          return;
+        }
+      }
+      for (const [resourceType, qty] of Object.entries(recipe.cost)) {
+        this.simulation.removeFromInventory(resourceType, qty as number);
+      }
+
+      // Start crafting
+      building.crafting = true;
+      building.craftingRecipe = recipe.id;
+      building.craftingProgress = 0;
+      building.craftingTime = recipe.craftTime;
+    }
+
+    // Progress crafting
+    building.craftingProgress++;
+
+    if (building.craftingProgress >= building.craftingTime) {
+      // Crafting complete — add item to workshop storage
+      building.addCraftedItem(recipe.id, 1);
+      building.crafting = false;
+      building.craftingRecipe = null;
+      building.craftingProgress = 0;
+      building.craftingTime = 0;
+      task.completed = true;
+    }
+  }
+
+  createCraftTask(
+    workshop: Building,
+    recipeId: string,
+    priority: TaskPriority = TaskPriority.Normal,
+    settler?: Settler
+  ): Task {
+    if (settler) {
+      this.interruptSettler(settler);
+    } else {
+      const settlers = this.entityManager.getByType('settler') as Settler[];
+      for (const s of settlers) this.interruptSettler(s);
+    }
+    const task = new Task({
+      type: TaskType.Craft,
+      priority,
+      targetX: workshop.x,
+      targetY: workshop.y,
+      buildingId: `${workshop.id}`,
+      recipeId,
+      assignedSettlerId: settler?.id,
+    });
+    this.taskQueue.add(task);
+    if (settler && settler.isAlive && !settler.currentTaskId) {
+      settler.currentTaskId = task.id;
+      this.executeCraft(settler, task, 0);
+    }
+    return task;
+  }
+
+  useCraftedItem(settler: Settler, workshop: Building, recipeId: string): boolean {
+    const amount = workshop.removeCraftedItem(recipeId, 1);
+    if (amount <= 0) return false;
+
+    // Find recipe to get effect
+    const workshopDef = (buildingsData as any).workshop;
+    const recipe = workshopDef?.craftRecipes?.find((r: any) => r.id === recipeId);
+    if (!recipe) return false;
+
+    switch (recipe.effect.type) {
+      case 'heal':
+        settler.hp = Math.min(settler.maxHp, settler.hp + recipe.effect.value);
+        break;
+      case 'maxHpBonus':
+        settler.maxHp += recipe.effect.value;
+        settler.hp += recipe.effect.value;
+        break;
+      case 'repel':
+        // Repel is handled elsewhere — just consume the item for now
+        break;
+    }
+    return true;
   }
 }

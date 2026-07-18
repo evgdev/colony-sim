@@ -5,8 +5,17 @@
       "title": "Крушение",
       "description": "Капсула разрушена. Выжившие на планете, не похожей ни на одну из каталога.",
       "order": 1,
-      "quests": ["q1_1", "q1_2"],
+      "quests": ["q1_1", "q1_2", "q1_3"],
       "dialogue_intro": "act1_intro",
+      "dinosEnabled": false
+    },
+    {
+      "id": "act_plants",
+      "title": "Ботаническая экспедиция",
+      "description": "Исследуй растительность планеты. Собери образцы для лаборатории.",
+      "order": 2,
+      "quests": ["q_plants_1", "q_plants_2", "q_plants_3", "q_plants_4"],
+      "dialogue_intro": "act_plants_intro",
       "dinosEnabled": false
     }
   ],
@@ -37,12 +46,12 @@
     "q1_2": {
       "id": "q1_2",
       "title": "Первое укрытие",
-      "description": "Построй стены вокруг базы по контуру. Ворота — внизу по центру (отмечено зелёным).",
+      "description": "Построй стены по периметру (жёлтые треугольники, ~35 штук) и ворота внизу по центру (зелёный квадрат).",
       "type": "build",
       "act": "act1_crash",
       "order": 2,
       "objectives": [
-        { "type": "building", "building": "wall", "amount": 4, "current": 0 },
+        { "type": "building", "building": "wall", "amount": 30, "current": 0 },
         { "type": "building", "building": "gate", "amount": 1, "current": 0 }
       ],
       "rewards": [
@@ -56,13 +65,12 @@
     "q1_3": {
       "id": "q1_3",
       "title": "Продовольствие",
-      "description": "Построй ферму и собери еду для колонии.",
+      "description": "Построй 2 фермы для обеспечения колонии едой.",
       "type": "build",
       "act": "act1_crash",
       "order": 3,
       "objectives": [
-        { "type": "building", "building": "farm", "amount": 1, "current": 0 },
-        { "type": "resource", "resource": "food", "amount": 10, "current": 0 }
+        { "type": "building", "building": "farm", "amount": 2, "current": 0 }
       ],
       "rewards": [
         { "type": "unlock", "building": "warehouse" },
@@ -398,6 +406,217 @@
       "dialogue_start": "q5_5_start",
       "dialogue_wave": "q5_5_wave",
       "dialogue_success": "q5_5_success"
+    },
+
+    "q_plants_1": {
+      "id": "q_plants_1",
+      "title": "Ботанический обзор",
+      "description": "Собери 5 растений разных видов. Начни с папоротников — они повсюду.",
+      "type": "gather_plants",
+      "act": "act_plants",
+      "order": 1,
+      "objectives": [
+        { "type": "harvest_plant", "plantId": "ostrichfern", "amount": 2, "current": 0 },
+        { "type": "harvest_plant", "plantId": "pteridium", "amount": 2, "current": 0 },
+        { "type": "harvest_plant", "plantId": "dryopteris", "amount": 1, "current": 0 }
+      ],
+      "rewards": [
+        { "type": "resource", "resource": "fiber", "amount": 10 }
+      ],
+      "unlocks": ["q_plants_2"],
+      "dialogue_start": "q_plants_1_start",
+      "dialogue_success": "q_plants_1_success"
+    },
+
+    "q_plants_2": {
+      "id": "q_plants_2",
+      "title": "Древовидные гиганты",
+      "description": "Найди и собери образцы древовидных папоротников и саговников.",
+      "type": "gather_plants",
+      "act": "act_plants",
+      "order": 2,
+      "objectives": [
+        { "type": "harvest_plant", "plantId": "treefern", "amount": 2, "current": 0 },
+        { "type": "harvest_plant", "plantId": "cycas", "amount": 2, "current": 0 }
+      ],
+      "rewards": [
+        { "type": "resource", "resource": "fiber", "amount": 15 },
+        { "type": "resource", "resource": "herb", "amount": 5 }
+      ],
+      "unlocks": ["q_plants_3"],
+      "dialogue_start": "q_plants_2_start",
+      "dialogue_success": "q_plants_2_success"
+    },
+
+    "q_plants_3": {
+      "id": "q_plants_3",
+      "title": "Редкие экземпляры",
+      "description": "Найди гинкго — реликтовое дерево с веерными листьями. Оно необычайно ценное.",
+      "type": "gather_plants",
+      "act": "act_plants",
+      "order": 3,
+      "objectives": [
+        { "type": "harvest_plant", "plantId": "ginkgo", "amount": 2, "current": 0 }
+      ],
+      "rewards": [
+        { "type": "resource", "resource": "herb", "amount": 10 },
+        { "type": "unlock", "building": "lab" }
+      ],
+      "unlocks": ["q_plants_4"],
+      "dialogue_start": "q_plants_3_start",
+      "dialogue_success": "q_plants_3_success"
+    },
+
+    "q_plants_4": {
+      "id": "q_plants_4",
+      "title": "Лабораторный анализ",
+      "description": "Принеси образцы растений в лабораторию для исследования.",
+      "type": "deliver",
+      "act": "act_plants",
+      "order": 4,
+      "objectives": [
+        { "type": "resource", "resource": "herb", "amount": 5, "current": 0 },
+        { "type": "resource", "resource": "fiber", "amount": 5, "current": 0 }
+      ],
+      "rewards": [
+        { "type": "fog_radius", "amount": 2 },
+        { "type": "resource", "resource": "resin", "amount": 10 }
+      ],
+      "unlocks": [],
+      "dialogue_start": "q_plants_4_start",
+      "dialogue_success": "q_plants_4_success"
+    },
+
+    "q_branch_choice": {
+      "id": "q_branch_choice",
+      "title": "Выбор пути",
+      "description": "На обломках антенны — два варианта инструкций. Какой путь ты выберешь?",
+      "type": "choice",
+      "act": "act1_crash",
+      "order": 4,
+      "objectives": [],
+      "rewards": [],
+      "unlocks": [],
+      "dialogue_start": "q_branch_choice_start",
+      "dialogue_success": "q_branch_choice_success"
+    },
+
+    "qs_1": {
+      "id": "qs_1",
+      "title": "Первые наблюдения",
+      "description": "Найди бронтозавра и понаблюдай за ним. Не подходи ближе 5 тайлов.",
+      "type": "observe_dino",
+      "act": "act_scientist_1",
+      "order": 1,
+      "objectives": [
+        { "type": "observe_dino", "species": "brontosaur", "distance": 5, "found": false }
+      ],
+      "rewards": [
+        { "type": "unlock", "building": "lab" },
+        { "type": "resource", "resource": "herb", "amount": 5 }
+      ],
+      "unlocks": ["qs_2"],
+      "dialogue_start": "qs_1_start",
+      "dialogue_success": "qs_1_success"
+    },
+
+    "qs_2": {
+      "id": "qs_2",
+      "title": "Карта territoriality",
+      "description": "Найди территории 3 видов динозавров. Отметь их на карте.",
+      "type": "explore_territory",
+      "act": "act_scientist_1",
+      "order": 2,
+      "objectives": [
+        { "type": "reach_tile", "pointName": "trex_territory", "x": 8, "y": -6, "found": false },
+        { "type": "reach_tile", "pointName": "raptor_territory", "x": -7, "y": 4, "found": false },
+        { "type": "reach_tile", "pointName": "bronto_territory", "x": 2, "y": 7, "found": false }
+      ],
+      "rewards": [
+        { "type": "fog_radius", "amount": 2 },
+        { "type": "resource", "resource": "fiber", "amount": 10 }
+      ],
+      "unlocks": ["qs_3"],
+      "dialogue_start": "qs_2_start",
+      "dialogue_success": "qs_2_success"
+    },
+
+    "qs_3": {
+      "id": "qs_3",
+      "title": "Артефакты прошлого",
+      "description": "Собери окаменелости и странные следы. Древние тоже жили рядом с динозаврами.",
+      "type": "gather_artifact",
+      "act": "act_scientist_2",
+      "order": 1,
+      "objectives": [
+        { "type": "artifact", "name": "fossil", "amount": 3, "current": 0 },
+        { "type": "artifact", "name": "strange_track", "amount": 2, "current": 0 }
+      ],
+      "rewards": [
+        { "type": "unlock", "building": "workshop" },
+        { "type": "effect", "effect": "fogRadius", "value": 1 }
+      ],
+      "unlocks": ["qs_4"],
+      "dialogue_start": "qs_3_start",
+      "dialogue_success": "qs_3_success"
+    },
+
+    "qs_4": {
+      "id": "qs_4",
+      "title": "Биосканер",
+      "description": "Построй workshop и создай биосканер для отслеживания динозавров.",
+      "type": "build_craft",
+      "act": "act_scientist_2",
+      "order": 2,
+      "objectives": [
+        { "type": "building", "building": "workshop", "amount": 1, "current": 0 },
+        { "type": "craft", "recipeId": "bio_scanner", "amount": 1, "current": 0 }
+      ],
+      "rewards": [
+        { "type": "effect", "effect": "fogRadius", "value": 2 }
+      ],
+      "unlocks": ["qs_5"],
+      "dialogue_start": "qs_4_start",
+      "dialogue_success": "qs_4_success"
+    },
+
+    "qs_5": {
+      "id": "qs_5",
+      "title": "Тайна руин",
+      "description": "Расшифруй символы на стенах руин. Собери все артефакты.",
+      "type": "gather_artifact",
+      "act": "act_scientist_3",
+      "order": 1,
+      "objectives": [
+        { "type": "artifact", "name": "radio_fragment", "amount": 3, "current": 0 },
+        { "type": "harvest_plant", "plantId": "sequoia", "amount": 1, "current": 0 },
+        { "type": "harvest_plant", "plantId": "wollemia", "amount": 1, "current": 0 }
+      ],
+      "rewards": [
+        { "type": "resource", "resource": "resin", "amount": 20 },
+        { "type": "effect", "effect": "maxHp", "value": 20 }
+      ],
+      "unlocks": ["qs_6"],
+      "dialogue_start": "qs_5_start",
+      "dialogue_success": "qs_5_success"
+    },
+
+    "qs_6": {
+      "id": "qs_6",
+      "title": "Отбытие",
+      "description": "Понимание достигнуто. Пора покинуть планету.",
+      "type": "activate",
+      "act": "act_scientist_4",
+      "order": 1,
+      "objectives": [
+        { "type": "activate_radio" }
+      ],
+      "rewards": [
+        { "type": "victory" }
+      ],
+      "unlocks": [],
+      "dialogue_start": "qs_6_start",
+      "dialogue_success": "qs_6_success"
     }
   }
 }

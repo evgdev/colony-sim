@@ -1,4 +1,5 @@
 import { Entity } from '../core/Entity';
+import { FOOD_START_AMOUNT } from '../config';
 
 export interface InventoryItem {
   id?: string;
@@ -8,6 +9,7 @@ export interface InventoryItem {
 }
 
 export type SettlerClass = 'engineer' | 'biologist' | 'pilot';
+export type WorkMode = 'auto' | 'gather' | 'build' | 'idle';
 
 export class Settler extends Entity {
   private static nextItemId = 1;
@@ -19,7 +21,7 @@ export class Settler extends Entity {
   energy: number = 100;
   hp: number = 100;
   maxHp: number = 100;
-  food: number = 5;
+  food: number = FOOD_START_AMOUNT;
   foodTimer: number = 0;
   currentTaskId: string | null = null;
   attackCooldown: number = 0;
@@ -28,16 +30,19 @@ export class Settler extends Entity {
   artifactFogBonus: number = 0;
   artifactAttackSpeedBonus: number = 0;
   collectedArtifacts: Map<string, number> = new Map();
+  workMode: WorkMode = 'idle';
 
   // Visual animation state
   activity: 'idle' | 'walk' | 'gather' | 'attack' = 'idle';
   attackFlash: number = 0; // ms remaining of attack animation
+  walkDirection: { x: number; y: number } | null = null;
 
   constructor(x: number, y: number, name: string = 'Settler', color: number = 0xffd700, settlerClass: SettlerClass = 'engineer') {
     super('settler', x, y);
     this.name = name;
     this.color = color;
     this.settlerClass = settlerClass;
+    this.workMode = 'idle';
   }
 
   takeDamage(amount: number): boolean {
@@ -78,7 +83,10 @@ export class Settler extends Entity {
   }
 
   getBuildSpeedBonus(): number {
-    return this.settlerClass === 'engineer' ? 1.5 : 1.0;
+    let bonus = this.settlerClass === 'engineer' ? 1.5 : 1.0;
+    if (this.energy <= 0) bonus *= 0.3;
+    else if (this.energy < 30) bonus *= 0.6;
+    return bonus;
   }
 
   getFogRadiusBonus(): number {
@@ -87,7 +95,10 @@ export class Settler extends Entity {
   }
 
   getMoveSpeedBonus(): number {
-    return this.settlerClass === 'pilot' ? 1.2 : 1.0;
+    let bonus = this.settlerClass === 'pilot' ? 1.2 : 1.0;
+    if (this.energy <= 0) bonus *= 0.4;
+    else if (this.energy < 30) bonus *= 0.7;
+    return bonus;
   }
 
   getAttackCooldown(): number {
@@ -142,6 +153,7 @@ export class Settler extends Entity {
       fb: this.artifactFogBonus || undefined,
       ab: this.artifactAttackSpeedBonus || undefined,
       ca: this.collectedArtifacts.size > 0 ? Object.fromEntries(this.collectedArtifacts) : undefined,
+      wm: this.workMode !== 'idle' ? this.workMode : undefined,
     };
   }
 
@@ -166,6 +178,7 @@ export class Settler extends Entity {
     s.artifactFogBonus = data.fb ?? data.artifactFogBonus ?? 0;
     s.artifactAttackSpeedBonus = data.ab ?? data.artifactAttackSpeedBonus ?? 0;
     s.collectedArtifacts = new Map(Object.entries(data.ca ?? data.collectedArtifacts ?? {}));
+    s.workMode = data.wm ?? data.workMode ?? 'idle';
     s.snapVisual();
     return s;
   }

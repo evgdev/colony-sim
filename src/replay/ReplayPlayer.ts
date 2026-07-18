@@ -99,7 +99,6 @@ export class ReplayPlayer {
       if (!tile || !tile.walkable || tile.type === 'water') continue;
       const res = new Resource(r.x, r.y, r.type, r.qty);
       this.simulation.entityManager.add(res);
-      this.simulation.tileGrid.setOccupied(r.x, r.y, true);
     }
   }
 

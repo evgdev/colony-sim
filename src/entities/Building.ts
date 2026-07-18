@@ -35,6 +35,12 @@ export class Building extends Entity {
   fireFlash: number = 0;
   damageFlash: number = 0;
 
+  crafting: boolean = false;
+  craftingRecipe: string | null = null;
+  craftingProgress: number = 0;
+  craftingTime: number = 0;
+  craftedItems: StorageItem[] = [];
+
   constructor(
     x: number, y: number, buildingType: string,
     maxHp: number = 100, buildTime: number = 10,
@@ -105,6 +111,26 @@ export class Building extends Entity {
     return this.storageCapacity > 0 && this.storageUsed >= this.storageCapacity;
   }
 
+  addCraftedItem(resourceType: string, quantity: number = 1): void {
+    const existing = this.craftedItems.find(i => i.resourceType === resourceType);
+    if (existing) {
+      existing.quantity += quantity;
+    } else {
+      this.craftedItems.push({ resourceType, quantity });
+    }
+  }
+
+  removeCraftedItem(resourceType: string, quantity: number = 1): number {
+    const item = this.craftedItems.find(i => i.resourceType === resourceType);
+    if (!item) return 0;
+    const toRemove = Math.min(quantity, item.quantity);
+    item.quantity -= toRemove;
+    if (item.quantity <= 0) {
+      this.craftedItems = this.craftedItems.filter(i => i.resourceType !== resourceType);
+    }
+    return toRemove;
+  }
+
   damage(amount: number): void {
     this.hp = Math.max(0, this.hp - amount);
   }
@@ -138,6 +164,11 @@ export class Building extends Entity {
       ar: this.attackRange || undefined,
       ai: this.attackInterval || undefined,
       ac: this.attackCooldown || undefined,
+      cr: this.crafting || undefined,
+      crp: this.craftingRecipe || undefined,
+      crpg: this.craftingProgress || undefined,
+      crtm: this.craftingTime || undefined,
+      ci: this.craftedItems.length > 0 ? this.craftedItems : undefined,
     };
   }
 
@@ -164,6 +195,11 @@ export class Building extends Entity {
     b.attackRange = data.ar ?? data.attackRange ?? 0;
     b.attackInterval = data.ai ?? data.attackInterval ?? 0;
     b.attackCooldown = data.ac ?? data.attackCooldown ?? 0;
+    b.crafting = data.cr ?? data.crafting ?? false;
+    b.craftingRecipe = data.crp ?? data.craftingRecipe ?? null;
+    b.craftingProgress = data.crpg ?? data.craftingProgress ?? 0;
+    b.craftingTime = data.crtm ?? data.craftingTime ?? 0;
+    b.craftedItems = data.ci ?? data.craftedItems ?? [];
     b.snapVisual();
     return b;
   }

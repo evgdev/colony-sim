@@ -2,7 +2,6 @@ import Phaser from 'phaser';
 import {
   TILE_SIZE, COLORS,
   FIELD_X, FIELD_Y, FIELD_W, FIELD_H, VIEWPORT_TILES,
-  NEEDS_ENABLED,
 } from '../config';
 import { Simulation } from '../core/Simulation';
 import { Entity } from '../core/Entity';
@@ -199,7 +198,25 @@ export class EntityRenderer {
     sprite.setOrigin(0.5, 0.62);
     sprite.setPosition(cx, cy + TILE_SIZE * 0.18);
     sprite.setVisible(true);
-    sprite.setTint(settler.color);
+
+    // Tint: exhaustion = blue-shift, attack flash = red
+    if (settler.energy <= 0) {
+      sprite.setTint(0x6666cc);
+    } else if (settler.energy < 30) {
+      // Lerp between normal color and blue exhaustion tint
+      const t = 1 - settler.energy / 30;
+      const r = ((settler.color >> 16) & 0xff);
+      const g = ((settler.color >> 8) & 0xff);
+      const b = (settler.color & 0xff);
+      const nr = Math.round(r + (0x66 - r) * t);
+      const ng = Math.round(g + (0x66 - g) * t);
+      const nb = Math.round(b + (0xcc - b) * t);
+      sprite.setTint((nr << 16) | (ng << 8) | nb);
+    } else if (settler.attackFlash > 0) {
+      sprite.setTint(0xff6666);
+    } else {
+      sprite.setTint(settler.color);
+    }
 
     const lastX = this.settlerLastX.get(settler.id);
     if (lastX !== undefined && settler.x !== lastX) {
@@ -220,37 +237,9 @@ export class EntityRenderer {
     this.entityContainer.add(nameText);
     this.entityTexts.push(nameText);
 
-    if (this.selectedSettler === settler) {
-      const barWidth = TILE_SIZE - 4;
-      const barHeight = 5;
-      const barX = cx - TILE_SIZE / 2 + 2;
-      const barY = cy - TILE_SIZE / 2 - 8;
-
-      if (NEEDS_ENABLED) {
-        g.fillStyle(0x333333, 0.8);
-        g.fillRect(barX, barY, barWidth, barHeight);
-        g.fillStyle(0x22cc22, 1);
-        g.fillRect(barX, barY, barWidth * (settler.hunger / 100), barHeight);
-
-        g.fillStyle(0x333333, 0.8);
-        g.fillRect(barX, barY + barHeight + 2, barWidth, barHeight);
-        g.fillStyle(0x2299ff, 1);
-        g.fillRect(barX, barY + barHeight + 2, barWidth * (settler.energy / 100), barHeight);
-      }
-    }
-
     if (settler.inventory.length > 0) {
       g.fillStyle(0xffaa00, 0.9);
       g.fillRect(cx + TILE_SIZE / 4, cy - TILE_SIZE / 4, 8, 8);
-    }
-
-    // Food indicator (orange = has food, red = no food)
-    if (NEEDS_ENABLED && settler.food <= 0) {
-      g.fillStyle(0xff4444, 0.9);
-      g.fillCircle(cx + TILE_SIZE / 4, cy + TILE_SIZE / 4, 4);
-    } else if (NEEDS_ENABLED && settler.food <= 2) {
-      g.fillStyle(0xffaa44, 0.9);
-      g.fillCircle(cx + TILE_SIZE / 4, cy + TILE_SIZE / 4, 4);
     }
 
     this.entityContainer.add(g);

@@ -6,6 +6,7 @@ import { Building } from '../entities/Building';
 import dinosaursData from '../data/dinosaurs.json';
 import { isNight } from '../config';
 import { SeededRandom } from '../replay/ReplayTypes';
+import { StoryBranchManager } from '../data/storyBranch';
 
 const PREDATOR_SPECIES = ['trex', 'raptor'];
 const HERBIVORE_SPECIES = ['brontosaur'];
@@ -22,6 +23,7 @@ export class DinosaurSystem {
   private onWallDestroyed?: (x: number, y: number) => void;
   private nightSpawnMultiplier: number = 2;
   rng: SeededRandom;
+  private branchManager: StoryBranchManager | null = null;
 
   constructor(entityManager: EntityManager, tileGrid: TileGrid, seed: number, onSettlerDeath?: (name: string) => void, onSpawn?: (species: string) => void, onWallDestroyed?: (x: number, y: number) => void) {
     this.entityManager = entityManager;
@@ -30,6 +32,10 @@ export class DinosaurSystem {
     this.onSettlerDeath = onSettlerDeath;
     this.onSpawn = onSpawn;
     this.onWallDestroyed = onWallDestroyed;
+  }
+
+  setBranchManager(branchManager: StoryBranchManager): void {
+    this.branchManager = branchManager;
   }
 
   private isNightPhase(tickCount: number): boolean {
@@ -70,7 +76,7 @@ export class DinosaurSystem {
     }
   }
 
-  private updateDino(dino: Dinosaur, _tickCount: number): void {
+  private updateDino(dino: Dinosaur, tickCount: number): void {
     dino.stateTimer++;
     dino.idleTime++;
 
@@ -78,12 +84,46 @@ export class DinosaurSystem {
       dino.attackCooldown--;
     }
 
+    // Check daily schedule - sleep during inactive hours
+    const hour = tickCount % 24;
+    const isSleepTime = hour < dino.dailySchedule.activeStart || hour >= dino.dailySchedule.activeEnd;
+
+    if (isSleepTime && dino.state !== 'sleeping') {
+      dino.state = 'sleeping';
+      dino.isSleeping = true;
+      dino.stateTimer = 0;
+      return;
+    } else if (!isSleepTime && dino.state === 'sleeping') {
+      dino.state = 'idle';
+      dino.isSleeping = false;
+      dino.stateTimer = 0;
+    }
+
+    if (dino.state === 'sleeping') {
+      // Sleeping dinosaurs don't move or attack
+      dino.stateTimer++;
+      if (dino.stateTimer > 5) {
+        // Wake up briefly then go back to sleep
+        dino.stateTimer = 0;
+      }
+      return;
+    }
+
     const nearestSettler = this.findNearestSettler(dino);
     const distToSettler = nearestSettler
       ? Math.abs(dino.x - nearestSettler.x) + Math.abs(dino.y - nearestSettler.y)
       : Infinity;
 
-    const inAttackRange = nearestSettler && distToSettler <= 1;
+    const inAttackRange = nearestSettler && distToSettler <= dino.attackRange;
+    const inWarningRange = nearestSettler && distToSettler <= dino.warningRange;
+
+    // Territory check - return to territory if too far
+    if (!dino.isOutsideTerritory() && dino.state !== 'wander') {
+      // Within territory, behave normally
+    } else if (dino.isOutsideTerritory() && dino.state === 'wander') {
+      // Too far from territory, return home
+      dino.wanderTarget = { x: dino.territoryCenterX, y: dino.territoryCenterY };
+    }
 
     switch (dino.state) {
       case 'idle':
@@ -98,15 +138,23 @@ export class DinosaurSystem {
             }
           }
         }
-        if (inAttackRange) {
+
+        // Check if settler is in warning range
+        if (inWarningRange && nearestSettler) {
+          if (Math.random() < dino.aggression) {
+            dino.state = 'investigate';
+            dino.stateTimer = 0;
+          }
+          // Even if not aggressive, show warning behavior
+          break;
+        }
+
+        if (inAttackRange && Math.random() < dino.aggression) {
           dino.state = 'attack';
-          dino.stateTimer = 0;
-        } else if (distToSettler <= dino.aggroRange && nearestSettler) {
-          dino.state = 'investigate';
           dino.stateTimer = 0;
         } else if (dino.idleTime > 3 + this.rng.next() * 4) {
           dino.state = 'wander';
-          dino.wanderTarget = this.getRandomWalkableTile();
+          dino.wanderTarget = this.getRandomWalkableNearTerritory(dino);
           dino.stateTimer = 0;
           dino.idleTime = 0;
         }
@@ -325,6 +373,21 @@ export class DinosaurSystem {
     return null;
   }
 
+  private getRandomWalkableNearTerritory(dino: Dinosaur): { x: number; y: number } | null {
+    for (let i = 0; i < 20; i++) {
+      const angle = this.rng.next() * Math.PI * 2;
+      const dist = this.rng.next() * dino.territoryRadius * 0.7;
+      const x = Math.round(dino.territoryCenterX + Math.cos(angle) * dist);
+      const y = Math.round(dino.territoryCenterY + Math.sin(angle) * dist);
+      if (x >= 0 && x < this.tileGrid.width && y >= 0 && y < this.tileGrid.height) {
+        if (this.tileGrid.isWalkableForDino(x, y)) {
+          return { x, y };
+        }
+      }
+    }
+    return this.getRandomWalkableTile();
+  }
+
   private trySpawn(night: boolean): void {
     const dinoCount = this.entityManager.getByType('dinosaur').length;
     if (dinoCount >= this.maxDinosaurs) return;
@@ -341,6 +404,37 @@ export class DinosaurSystem {
       spawnPoint.x, spawnPoint.y, species,
       def.hp, def.speed, def.aggroRange, def.size, def.attackDamage, def.wallDamage ?? 5, footprint
     );
+
+    // Set territory properties based on species and branch
+    dino.territoryCenterX = spawnPoint.x;
+    dino.territoryCenterY = spawnPoint.y;
+
+    if (species === 'trex') {
+      dino.territoryRadius = 12;
+      dino.warningRange = 8;
+      dino.attackRange = 3;
+      dino.aggression = this.branchManager?.isDinoBehaviorAggressive() ? 0.8 : 0.3;
+    } else if (species === 'raptor') {
+      dino.territoryRadius = 6;
+      dino.warningRange = 5;
+      dino.attackRange = 2;
+      dino.aggression = this.branchManager?.isDinoBehaviorAggressive() ? 0.6 : 0.2;
+    } else {
+      dino.territoryRadius = 8;
+      dino.warningRange = 3;
+      dino.attackRange = 0;
+      dino.aggression = 0;
+    }
+
+    // Set daily schedule
+    if (species === 'trex') {
+      dino.dailySchedule = { activeStart: 10, activeEnd: 16 };
+    } else if (species === 'raptor') {
+      dino.dailySchedule = { activeStart: 8, activeEnd: 20 };
+    } else {
+      dino.dailySchedule = { activeStart: 6, activeEnd: 18 };
+    }
+
     this.entityManager.add(dino);
     this.tileGrid.setOccupiedArea(spawnPoint.x, spawnPoint.y, footprint, true);
     this.onSpawn?.(species);

@@ -72,7 +72,6 @@ export function createInitialWorld(simulation: Simulation): WorldConfig {
     if (!tile || !tile.walkable || tile.type === 'water') continue;
     const res = new Resource(r.x, r.y, r.type, r.qty);
     simulation.entityManager.add(res);
-    simulation.tileGrid.setOccupied(r.x, r.y, true);
   }
 
   return { centerX: spawn.x, centerY: spawn.y, settlers };

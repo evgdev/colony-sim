@@ -70,7 +70,66 @@
       "wood": 12,
       "stone": 8
     },
-    "description": "Enables advanced crafting (coming soon)"
+    "storageCapacity": 20,
+    "description": "Craft advanced items from raw resources.",
+    "craftRecipes": [
+      {
+        "id": "medkit",
+        "name": "Medical Kit",
+        "description": "Restores 30 HP to the settler",
+        "cost": { "wood": 2, "herb": 2 },
+        "effect": { "type": "heal", "value": 30 },
+        "craftTime": 5
+      },
+      {
+        "id": "herbal_poultice",
+        "name": "Herbal Poultice",
+        "description": "Restores 20 HP, cheap to make",
+        "cost": { "herb": 3, "fiber": 1 },
+        "effect": { "type": "heal", "value": 20 },
+        "craftTime": 3
+      },
+      {
+        "id": "signal_flare",
+        "name": "Signal Flare",
+        "description": "Repels dinosaurs for 15 ticks",
+        "cost": { "stone": 2, "resin": 1 },
+        "effect": { "type": "repel", "value": 15 },
+        "craftTime": 4
+      },
+      {
+        "id": "reinforced_wall",
+        "name": "Reinforced Wall Kit",
+        "description": "+30 HP to a wall when applied",
+        "cost": { "wood": 3, "fiber": 2, "stone": 2 },
+        "effect": { "type": "maxHpBonus", "value": 30 },
+        "craftTime": 6
+      },
+      {
+        "id": "bone_armor",
+        "name": "Bone Armor",
+        "description": "+25 maxHP, strengthens settler",
+        "cost": { "stone": 3, "fiber": 3 },
+        "effect": { "type": "maxHpBonus", "value": 25 },
+        "craftTime": 8
+      },
+      {
+        "id": "rope",
+        "name": "Rope",
+        "description": "Utility item for advanced tasks",
+        "cost": { "fiber": 4 },
+        "effect": { "type": "unlock", "value": 0 },
+        "craftTime": 3
+      },
+      {
+        "id": "bio_scanner",
+        "name": "Bio Scanner",
+        "description": "Tracks dinosaur territories and daily schedules",
+        "cost": { "resin": 5, "herb": 3, "fiber": 2 },
+        "effect": { "type": "tracker", "value": 1 },
+        "craftTime": 8
+      }
+    ]
   },
   "radio": {
     "name": "Radio",
@@ -109,5 +168,17 @@
       "stone": 8
     },
     "description": "Research station. Bring plant samples here for analysis."
+  },
+  "tracker": {
+    "name": "Tracker",
+    "color": 3407616,
+    "maxHp": 80,
+    "buildTime": 8,
+    "requires": {
+      "wood": 6,
+      "stone": 4,
+      "fiber": 3
+    },
+    "description": "Marks dinosaur territories on the minimap. Shows their daily schedule."
   }
 }

@@ -2015,5 +2015,638 @@ export function createDecorationTextures(scene: Phaser.Scene): void {
     g.destroy();
   }
 
+  // ══════════════════════════════════════════════════════════
+  // === CYCAS (3 variants) — Cretaceous period ===
+  // ══════════════════════════════════════════════════════════
+  const cycasW = 70;
+  const cycasH = 90;
+  const cycasLeafColors = [0x1a5a1a, 0x2a6a22, 0x1e5e1e, 0x247028];
 
+  for (let v = 0; v < 3; v++) {
+    const seed = 16000 + v * 37;
+    const cx = cycasW / 2;
+    const baseY = cycasH - 6;
+    const trunkH = 25 + v * 5;
+    const crownY = baseY - trunkH;
+
+    // ── BOTTOM: short thick trunk + lower fronds ──
+    const gBot = scene.add.graphics().setVisible(false);
+
+    // Thick trunk
+    const trunkW = 8 + v * 2;
+    gBot.fillStyle(0x6a5a3a);
+    gBot.fillRect(cx - trunkW / 2, baseY - trunkH, trunkW, trunkH);
+    // Trunk texture
+    gBot.lineStyle(1, 0x5a4a2a, 0.5);
+    for (let i = 0; i < trunkH; i += 4) {
+      gBot.lineBetween(cx - trunkW / 2, baseY - trunkH + i, cx + trunkW / 2, baseY - trunkH + i);
+    }
+
+    // Lower fronds (drooping)
+    const frondAngles = [-1.2, -0.6, 0, 0.6, 1.2];
+    for (let i = 0; i < frondAngles.length; i++) {
+      const a = frondAngles[i] + seededRandom(v, i, seed) * 0.15;
+      const len = 22 + seededRandom(v, i, seed + 10) * 8;
+      const ex = cx + Math.sin(a) * len;
+      const ey = crownY + 8 - Math.cos(a) * len * 0.3 + len * 0.15;
+
+      // Frond stem
+      gBot.lineStyle(2, 0x4a6a2a);
+      gBot.lineBetween(cx, crownY + 5, ex, ey);
+
+      // Frond leaflets
+      const leafColor = cycasLeafColors[i % cycasLeafColors.length];
+      gBot.fillStyle(leafColor);
+      for (let j = 0; j < 6; j++) {
+        const t = j / 5;
+        const lx = cx + (ex - cx) * t;
+        const ly = crownY + 5 + (ey - crownY + 5) * t;
+        const leafSize = 4 + (1 - Math.abs(t - 0.5) * 2) * 3;
+        gBot.fillEllipse(lx + (i % 2 === 0 ? -3 : 3), ly, leafSize, leafSize * 0.6);
+      }
+    }
+
+    gBot.generateTexture(`dec_cycas_${v}_bottom`, cycasW, cycasH);
+    gBot.destroy();
+
+    // ── TOP: upper fronds only ──
+    const gTop = scene.add.graphics().setVisible(false);
+
+    // Upper fronds (more upright)
+    const upperAngles = [-0.8, -0.3, 0.2, 0.7];
+    for (let i = 0; i < upperAngles.length; i++) {
+      const a = upperAngles[i] + seededRandom(v, i, seed + 50) * 0.1;
+      const len = 25 + seededRandom(v, i, seed + 60) * 6;
+      const ex = cx + Math.sin(a) * len;
+      const ey = crownY - 5 - Math.cos(a) * len * 0.5 + len * 0.1;
+
+      gTop.lineStyle(2, 0x4a7a2a);
+      gTop.lineBetween(cx, crownY, ex, ey);
+
+      const leafColor = cycasLeafColors[(i + 1) % cycasLeafColors.length];
+      gTop.fillStyle(leafColor);
+      for (let j = 0; j < 5; j++) {
+        const t = j / 4;
+        const lx = cx + (ex - cx) * t;
+        const ly = crownY + (ey - crownY) * t;
+        const leafSize = 3 + (1 - Math.abs(t - 0.5) * 2) * 4;
+        gTop.fillEllipse(lx, ly, leafSize, leafSize * 0.5);
+      }
+    }
+
+    // Center crown mass
+    gTop.fillStyle(0x2a7a2a);
+    gTop.fillCircle(cx, crownY - 2, 8);
+
+    gTop.generateTexture(`dec_cycas_${v}_top`, cycasW, cycasH);
+    gTop.destroy();
+  }
+
+  // ══════════════════════════════════════════════════════════
+  // === TREE FERN (3 variants) — Cretaceous period ===
+  // ══════════════════════════════════════════════════════════
+  const treefernW = 80;
+  const treefernH = 120;
+  const treefernLeafColors = [0x1a6a20, 0x228a28, 0x2a7a2a, 0x1e7020];
+
+  for (let v = 0; v < 3; v++) {
+    const seed = 17000 + v * 37;
+    const cx = treefernW / 2;
+    const baseY = treefernH - 8;
+    const trunkH = 50 + v * 8;
+    const crownY = baseY - trunkH;
+
+    // ── BOTTOM: thin trunk + drooping fronds ──
+    const gBot = scene.add.graphics().setVisible(false);
+
+    // Thin trunk with texture
+    const trunkW = 4 + v;
+    gBot.fillStyle(0x5a7a3a);
+    gBot.fillRect(cx - trunkW / 2, baseY - trunkH, trunkW, trunkH);
+    // Fibrillose texture
+    gBot.lineStyle(1, 0x4a6a2a, 0.6);
+    for (let i = 0; i < trunkH; i += 3) {
+      const offset = Math.sin(i * 0.3 + seed) * 1;
+      gBot.lineBetween(cx - trunkW / 2 + offset, baseY - trunkH + i, cx + trunkW / 2 + offset, baseY - trunkH + i);
+    }
+
+    // Drooping fronds
+    const frondAngles = [-1.3, -0.7, -0.1, 0.5, 1.1];
+    for (let i = 0; i < frondAngles.length; i++) {
+      const a = frondAngles[i] + seededRandom(v, i, seed) * 0.1;
+      const len = 28 + seededRandom(v, i, seed + 10) * 10;
+      const ex = cx + Math.sin(a) * len;
+      const ey = crownY + 10 - Math.cos(a) * len * 0.2 + len * 0.2;
+
+      // Frond stem
+      gBot.lineStyle(1, 0x3a5a2a);
+      gBot.lineBetween(cx, crownY + 5, ex, ey);
+
+      // Pinnate leaflets
+      const leafColor = treefernLeafColors[i % treefernLeafColors.length];
+      gBot.fillStyle(leafColor);
+      for (let j = 0; j < 8; j++) {
+        const t = j / 7;
+        const lx = cx + (ex - cx) * t;
+        const ly = crownY + 5 + (ey - crownY + 5) * t;
+        const leafSize = 3 + (1 - Math.abs(t - 0.5) * 2) * 4;
+        gBot.fillEllipse(lx + (j % 2 === 0 ? -2 : 2), ly, leafSize, leafSize * 0.5);
+      }
+    }
+
+    gBot.generateTexture(`dec_treefern_${v}_bottom`, treefernW, treefernH);
+    gBot.destroy();
+
+    // ── TOP: upper crown only ──
+    const gTop = scene.add.graphics().setVisible(false);
+
+    const upperAngles = [-0.9, -0.4, 0.1, 0.6, 1.0];
+    for (let i = 0; i < upperAngles.length; i++) {
+      const a = upperAngles[i] + seededRandom(v, i, seed + 50) * 0.1;
+      const len = 26 + seededRandom(v, i, seed + 60) * 8;
+      const ex = cx + Math.sin(a) * len;
+      const ey = crownY - 8 - Math.cos(a) * len * 0.4 + len * 0.1;
+
+      gTop.lineStyle(1, 0x3a6a2a);
+      gTop.lineBetween(cx, crownY, ex, ey);
+
+      const leafColor = treefernLeafColors[(i + 1) % treefernLeafColors.length];
+      gTop.fillStyle(leafColor);
+      for (let j = 0; j < 7; j++) {
+        const t = j / 6;
+        const lx = cx + (ex - cx) * t;
+        const ly = crownY + (ey - crownY) * t;
+        const leafSize = 3 + (1 - Math.abs(t - 0.5) * 2) * 3;
+        gTop.fillEllipse(lx, ly, leafSize, leafSize * 0.5);
+      }
+    }
+
+    // Crown center
+    gTop.fillStyle(0x2a8a2a);
+    gTop.fillCircle(cx, crownY - 5, 7);
+
+    gTop.generateTexture(`dec_treefern_${v}_top`, treefernW, treefernH);
+    gTop.destroy();
+  }
+
+  // ══════════════════════════════════════════════════════════
+  // === GINKGO (2 variants) — Cretaceous period ===
+  // ══════════════════════════════════════════════════════════
+  const ginkgoW = 90;
+  const ginkgoH = 110;
+  const ginkgoLeafColors = [0x5a9a30, 0x6aaa40, 0x7aba50, 0x5a8a28];
+
+  for (let v = 0; v < 2; v++) {
+    const seed = 18000 + v * 37;
+    const cx = ginkgoW / 2;
+    const baseY = ginkgoH - 8;
+    const trunkH = 45 + v * 5;
+    const crownY = baseY - trunkH;
+
+    // ── BOTTOM: trunk + lower branches ──
+    const gBot = scene.add.graphics().setVisible(false);
+
+    // Branching trunk
+    const trunkW = 6 + v * 2;
+    drawTrunk(gBot, cx, baseY, trunkH, trunkW, seed, v, 0.3);
+
+    // Lower branches with fan-shaped leaves
+    const branchAngles = [-0.8, -0.2, 0.4, 0.9];
+    for (let i = 0; i < branchAngles.length; i++) {
+      const a = branchAngles[i] + seededRandom(v, i, seed) * 0.15;
+      const len = 20 + seededRandom(v, i, seed + 10) * 8;
+      const ex = cx + Math.sin(a) * len;
+      const ey = crownY + 12 - Math.cos(a) * len * 0.3 + len * 0.15;
+
+      // Branch
+      gBot.lineStyle(2, 0x5a5a3a);
+      gBot.lineBetween(cx, crownY + 8, ex, ey);
+
+      // Fan-shaped leaves (Ginkgo signature)
+      const leafColor = ginkgoLeafColors[i % ginkgoLeafColors.length];
+      gBot.fillStyle(leafColor);
+      for (let j = 0; j < 4; j++) {
+        const angle = a - 0.3 + j * 0.2;
+        const lx = ex + Math.cos(angle) * 6;
+        const ly = ey + Math.sin(angle) * 4;
+        // Fan shape
+        gBot.fillTriangle(lx, ly, lx - 4, ly - 5, lx + 4, ly - 5);
+        gBot.fillTriangle(lx, ly, lx - 4, ly - 5, lx - 6, ly - 2);
+        gBot.fillTriangle(lx, ly, lx + 4, ly - 5, lx + 6, ly - 2);
+      }
+    }
+
+    gBot.generateTexture(`dec_ginkgo_${v}_bottom`, ginkgoW, ginkgoH);
+    gBot.destroy();
+
+    // ── TOP: upper canopy ──
+    const gTop = scene.add.graphics().setVisible(false);
+
+    const upperAngles = [-0.7, -0.2, 0.3, 0.8];
+    for (let i = 0; i < upperAngles.length; i++) {
+      const a = upperAngles[i] + seededRandom(v, i, seed + 50) * 0.1;
+      const len = 22 + seededRandom(v, i, seed + 60) * 6;
+      const ex = cx + Math.sin(a) * len;
+      const ey = crownY - 5 - Math.cos(a) * len * 0.4 + len * 0.08;
+
+      gTop.lineStyle(2, 0x5a5a3a);
+      gTop.lineBetween(cx, crownY, ex, ey);
+
+      const leafColor = ginkgoLeafColors[(i + 1) % ginkgoLeafColors.length];
+      gTop.fillStyle(leafColor);
+      for (let j = 0; j < 5; j++) {
+        const angle = a - 0.4 + j * 0.2;
+        const lx = ex + Math.cos(angle) * 5;
+        const ly = ey + Math.sin(angle) * 3;
+        gTop.fillTriangle(lx, ly, lx - 5, ly - 6, lx + 5, ly - 6);
+        gTop.fillTriangle(lx, ly, lx - 5, ly - 6, lx - 7, ly - 2);
+        gTop.fillTriangle(lx, ly, lx + 5, ly - 6, lx + 7, ly - 2);
+      }
+    }
+
+    // Crown center mass
+    gTop.fillStyle(0x6aAA40);
+    gTop.fillCircle(cx, crownY - 3, 10);
+
+    gTop.generateTexture(`dec_ginkgo_${v}_top`, ginkgoW, ginkgoH);
+    gTop.destroy();
+  }
+
+}
+
+// ══════════════════════════════════════════════════════════════
+// === ENCYCLOPEDIA PREVIEW TEXTURES (240×240) ==================
+// ══════════════════════════════════════════════════════════════
+
+export function createEncyclopediaTextures(scene: Phaser.Scene): void {
+  const S = 240;
+  const CX = S / 2;
+  const BASE_Y = S - 20;
+
+  // ─── CYCAS ─────────────────────────────────────────────
+  for (let v = 0; v < 3; v++) {
+    const g = scene.add.graphics().setVisible(false);
+    const seed = 20000 + v * 53;
+
+    // Trunk
+    const trunkW = 18 + v * 4;
+    const trunkH = 80 + v * 10;
+    const trunkTop = BASE_Y - trunkH;
+    g.fillStyle(0x6a5a3a);
+    g.fillRect(CX - trunkW / 2, trunkTop, trunkW, trunkH);
+    // Bark texture
+    g.lineStyle(1, 0x5a4a2a, 0.6);
+    for (let i = 0; i < trunkH; i += 5) {
+      g.lineBetween(CX - trunkW / 2, trunkTop + i, CX + trunkW / 2, trunkTop + i);
+    }
+
+    // Crown — radiating fronds
+    const frondColors = [0x1a6a1a, 0x228a28, 0x2a7a2a, 0x1e7020, 0x288828];
+    const angles = [-1.4, -0.9, -0.4, 0.1, 0.6, 1.1, 1.5];
+    for (let i = 0; i < angles.length; i++) {
+      const a = angles[i] + seededRandom(v, i, seed) * 0.1;
+      const len = 70 + seededRandom(v, i, seed + 10) * 25;
+      const ex = CX + Math.sin(a) * len;
+      const ey = trunkTop - 10 - Math.cos(a) * len * 0.3 + len * 0.12;
+
+      // Stem
+      g.lineStyle(2, 0x4a7a2a);
+      g.lineBetween(CX, trunkTop - 5, ex, ey);
+
+      // Pinnate leaflets
+      const col = frondColors[i % frondColors.length];
+      g.fillStyle(col);
+      for (let j = 0; j < 10; j++) {
+        const t = j / 9;
+        const lx = CX + (ex - CX) * t;
+        const ly = trunkTop - 5 + (ey - trunkTop + 5) * t;
+        const leafSize = 5 + (1 - Math.abs(t - 0.5) * 2) * 6;
+        g.fillEllipse(lx + (j % 2 === 0 ? -5 : 5), ly, leafSize, leafSize * 0.5);
+      }
+    }
+
+    // Center crown
+    g.fillStyle(0x2a8a2a);
+    g.fillCircle(CX, trunkTop - 8, 14);
+
+    g.generateTexture(`ency_cycas_${v}`, S, S);
+    g.destroy();
+  }
+
+  // ─── TREE FERN ─────────────────────────────────────────
+  for (let v = 0; v < 3; v++) {
+    const g = scene.add.graphics().setVisible(false);
+    const seed = 21000 + v * 53;
+
+    // Thin trunk
+    const trunkW = 8 + v * 2;
+    const trunkH = 100 + v * 12;
+    const trunkTop = BASE_Y - trunkH;
+    g.fillStyle(0x5a7a3a);
+    g.fillRect(CX - trunkW / 2, trunkTop, trunkW, trunkH);
+    // Fibrils
+    g.lineStyle(1, 0x4a6a2a, 0.7);
+    for (let i = 0; i < trunkH; i += 4) {
+      const off = Math.sin(i * 0.2 + seed) * 2;
+      g.lineBetween(CX - trunkW / 2 + off, trunkTop + i, CX + trunkW / 2 + off, trunkTop + i);
+    }
+
+    // Drooping fronds
+    const leafColors = [0x1a6a20, 0x228a28, 0x2a7a2a, 0x1e7020];
+    const frondAngles = [-1.5, -0.9, -0.3, 0.3, 0.9, 1.4];
+    for (let i = 0; i < frondAngles.length; i++) {
+      const a = frondAngles[i] + seededRandom(v, i, seed) * 0.1;
+      const len = 80 + seededRandom(v, i, seed + 10) * 30;
+      const ex = CX + Math.sin(a) * len;
+      const ey = trunkTop - 5 - Math.cos(a) * len * 0.15 + len * 0.18;
+
+      g.lineStyle(1, 0x3a5a2a);
+      g.lineBetween(CX, trunkTop, ex, ey);
+
+      const col = leafColors[i % leafColors.length];
+      g.fillStyle(col);
+      for (let j = 0; j < 12; j++) {
+        const t = j / 11;
+        const lx = CX + (ex - CX) * t;
+        const ly = trunkTop + (ey - trunkTop) * t;
+        const leafSize = 4 + (1 - Math.abs(t - 0.5) * 2) * 5;
+        g.fillEllipse(lx + (j % 2 === 0 ? -3 : 3), ly, leafSize, leafSize * 0.4);
+      }
+    }
+
+    g.generateTexture(`ency_treefern_${v}`, S, S);
+    g.destroy();
+  }
+
+  // ─── GINKGO ────────────────────────────────────────────
+  for (let v = 0; v < 2; v++) {
+    const g = scene.add.graphics().setVisible(false);
+    const seed = 22000 + v * 53;
+
+    // Branching trunk
+    const trunkW = 12 + v * 3;
+    const trunkH = 90 + v * 10;
+    const trunkTop = BASE_Y - trunkH;
+
+    // Main trunk
+    g.fillStyle(0x5a5a3a);
+    g.fillRect(CX - trunkW / 2, trunkTop, trunkW, trunkH);
+    // Bark lines
+    g.lineStyle(1, 0x4a4a2a, 0.5);
+    for (let i = 0; i < trunkH; i += 6) {
+      g.lineBetween(CX - trunkW / 2, trunkTop + i, CX + trunkW / 2, trunkTop + i);
+    }
+
+    // Branches with fan-shaped leaves
+    const branchAngles = [-0.9, -0.3, 0.3, 0.8];
+    const leafColors = [0x5a9a30, 0x6aaa40, 0x7aba50, 0x5a8a28];
+    for (let i = 0; i < branchAngles.length; i++) {
+      const a = branchAngles[i] + seededRandom(v, i, seed) * 0.12;
+      const len = 55 + seededRandom(v, i, seed + 10) * 20;
+      const ex = CX + Math.sin(a) * len;
+      const ey = trunkTop + 15 - Math.cos(a) * len * 0.35 + len * 0.1;
+
+      // Branch
+      g.lineStyle(3, 0x5a5a3a);
+      g.lineBetween(CX, trunkTop + 10, ex, ey);
+
+      // Fan-shaped leaves (Ginkgo signature)
+      const col = leafColors[i % leafColors.length];
+      g.fillStyle(col);
+      for (let j = 0; j < 6; j++) {
+        const angle = a - 0.35 + j * 0.14;
+        const lx = ex + Math.cos(angle) * 10;
+        const ly = ey + Math.sin(angle) * 7;
+        // Fan shape
+        g.fillTriangle(lx, ly, lx - 8, ly - 12, lx + 8, ly - 12);
+        g.fillTriangle(lx, ly, lx - 8, ly - 12, lx - 12, ly - 4);
+        g.fillTriangle(lx, ly, lx + 8, ly - 12, lx + 12, ly - 4);
+      }
+    }
+
+    // Crown center
+    g.fillStyle(0x6aAA40);
+    g.fillCircle(CX, trunkTop + 8, 16);
+
+    g.generateTexture(`ency_ginkgo_${v}`, S, S);
+    g.destroy();
+  }
+
+  // ─── FERN (generic) ────────────────────────────────────
+  for (let v = 0; v < 3; v++) {
+    const g = scene.add.graphics().setVisible(false);
+    const seed = 23000 + v * 53;
+
+    const fernColors = [0x2a7a2a, 0x338833, 0x2a8a2a];
+    const col = fernColors[v];
+
+    // Central fronds radiating from center
+    const numFronds = 7 + v;
+    for (let i = 0; i < numFronds; i++) {
+      const angle = (i / numFronds) * Math.PI * 2 - Math.PI / 2;
+      const len = 60 + seededRandom(v, i, seed) * 30;
+      const ex = CX + Math.cos(angle) * len;
+      const ey = BASE_Y - 40 + Math.sin(angle) * len * 0.5;
+
+      g.lineStyle(1, 0x2a6a2a);
+      g.lineBetween(CX, BASE_Y - 40, ex, ey);
+
+      g.fillStyle(col);
+      for (let j = 0; j < 8; j++) {
+        const t = j / 7;
+        const lx = CX + (ex - CX) * t;
+        const ly = BASE_Y - 40 + (ey - BASE_Y + 40) * t;
+        const leafSize = 4 + (1 - Math.abs(t - 0.5) * 2) * 5;
+        g.fillEllipse(lx, ly, leafSize, leafSize * 0.4);
+      }
+    }
+
+    g.generateTexture(`ency_fern_${v}`, S, S);
+    g.destroy();
+  }
+
+  // ─── BUSH (generic) ────────────────────────────────────
+  for (let v = 0; v < 3; v++) {
+    const g = scene.add.graphics().setVisible(false);
+    const seed = 24000 + v * 53;
+
+    const bushColors = [0x2a6a2a, 0x338833, 0x2a7a2a];
+
+    // Multiple overlapping circles for bush shape
+    const circles = [
+      { x: CX, y: BASE_Y - 30, r: 35 + v * 5 },
+      { x: CX - 20, y: BASE_Y - 20, r: 28 + v * 3 },
+      { x: CX + 22, y: BASE_Y - 22, r: 30 + v * 4 },
+      { x: CX - 10, y: BASE_Y - 40, r: 25 + v * 3 },
+      { x: CX + 12, y: BASE_Y - 38, r: 22 + v * 2 },
+    ];
+
+    for (const c of circles) {
+      const col = bushColors[Math.floor(seededRandom(v, c.x, seed) * bushColors.length)];
+      g.fillStyle(col, 0.9);
+      g.fillCircle(c.x, c.y, c.r);
+      // Highlight
+      g.fillStyle(0x44aa44, 0.3);
+      g.fillCircle(c.x - 5, c.y - 5, c.r * 0.6);
+    }
+
+    g.generateTexture(`ency_bush_${v}`, S, S);
+    g.destroy();
+  }
+
+  // ─── HORSETAIL (generic) ───────────────────────────────
+  for (let v = 0; v < 2; v++) {
+    const g = scene.add.graphics().setVisible(false);
+    const seed = 25000 + v * 53;
+
+    // Vertical stems
+    const numStems = 5 + v * 2;
+    for (let i = 0; i < numStems; i++) {
+      const x = CX - 30 + (i / (numStems - 1)) * 60;
+      const h = 80 + seededRandom(v, i, seed) * 40;
+      const baseY = BASE_Y;
+
+      g.lineStyle(2 + seededRandom(v, i, seed + 5), 0x4a8a3a);
+      g.lineBetween(x, baseY, x, baseY - h);
+
+      // Whorls
+      g.fillStyle(0x5aaa4a, 0.8);
+      for (let j = 0; j < 6; j++) {
+        const wy = baseY - h * (j / 5) - 10;
+        g.fillCircle(x - 4, wy, 3);
+        g.fillCircle(x + 4, wy, 3);
+      }
+    }
+
+    g.generateTexture(`ency_horsetail_${v}`, S, S);
+    g.destroy();
+  }
+
+  // ─── SEQUOIA (generic tall tree) ───────────────────────
+  for (let v = 0; v < 2; v++) {
+    const g = scene.add.graphics().setVisible(false);
+    const seed = 26000 + v * 53;
+
+    // Massive trunk
+    const trunkW = 25 + v * 5;
+    const trunkH = 140 + v * 15;
+    const trunkTop = BASE_Y - trunkH;
+    g.fillStyle(0x6a3a1a);
+    g.fillRect(CX - trunkW / 2, trunkTop, trunkW, trunkH);
+    // Bark
+    g.lineStyle(1, 0x5a2a0a, 0.5);
+    for (let i = 0; i < trunkH; i += 6) {
+      g.lineBetween(CX - trunkW / 2, trunkTop + i, CX + trunkW / 2, trunkTop + i);
+    }
+
+    // Conical canopy
+    const canopyLayers = 5;
+    for (let i = 0; i < canopyLayers; i++) {
+      const t = i / (canopyLayers - 1);
+      const layerY = trunkTop - 20 + t * 50;
+      const layerW = 30 + t * 60;
+      const col = i < 2 ? 0x1a5a1a : i < 4 ? 0x2a6a2a : 0x1a4a1a;
+      g.fillStyle(col);
+      g.fillTriangle(CX, layerY - 20, CX - layerW / 2, layerY + 10, CX + layerW / 2, layerY + 10);
+    }
+
+    g.generateTexture(`ency_sequoia_${v}`, S, S);
+    g.destroy();
+  }
+
+  // ─── PALM (generic) ────────────────────────────────────
+  for (let v = 0; v < 3; v++) {
+    const g = scene.add.graphics().setVisible(false);
+    const seed = 27000 + v * 53;
+
+    // Curved trunk
+    const trunkH = 100 + v * 10;
+    const trunkTop = BASE_Y - trunkH;
+    const curve = -10 + v * 10;
+    g.lineStyle(8 + v * 2, 0x6a5a3a);
+    g.beginPath();
+    g.moveTo(CX, BASE_Y);
+    g.lineTo(CX + curve / 2, BASE_Y - trunkH / 2);
+    g.lineTo(CX + curve, trunkTop);
+    g.strokePath();
+
+    // Palm fronds
+    const frondAngles = [-1.2, -0.6, 0, 0.6, 1.2];
+    for (let i = 0; i < frondAngles.length; i++) {
+      const a = frondAngles[i] + seededRandom(v, i, seed) * 0.15;
+      const len = 60 + seededRandom(v, i, seed + 10) * 20;
+      const ex = CX + curve + Math.sin(a) * len;
+      const ey = trunkTop + 5 - Math.cos(a) * len * 0.3 + len * 0.1;
+
+      g.lineStyle(2, 0x3a6a2a);
+      g.lineBetween(CX + curve, trunkTop, ex, ey);
+
+      g.fillStyle(0x2a7a2a);
+      for (let j = 0; j < 8; j++) {
+        const t = j / 7;
+        const lx = CX + curve + (ex - CX - curve) * t;
+        const ly = trunkTop + (ey - trunkTop) * t;
+        const leafSize = 5 + (1 - Math.abs(t - 0.5) * 2) * 6;
+        g.fillEllipse(lx + (j % 2 === 0 ? -4 : 4), ly, leafSize, leafSize * 0.5);
+      }
+    }
+
+    g.generateTexture(`ency_palm_${v}`, S, S);
+    g.destroy();
+  }
+
+  // ─── MUSHROOM (generic) ────────────────────────────────
+  for (let v = 0; v < 2; v++) {
+    const g = scene.add.graphics().setVisible(false);
+
+    // Stem
+    g.fillStyle(0xe8e0d0);
+    g.fillRect(CX - 6, BASE_Y - 30, 12, 30);
+
+    // Cap
+    g.fillStyle(0xcc4444 + v * 0x222200);
+    g.fillCircle(CX, BASE_Y - 35, 22 + v * 3);
+
+    // Spots
+    g.fillStyle(0xffffff, 0.8);
+    g.fillCircle(CX - 8, BASE_Y - 40, 4);
+    g.fillCircle(CX + 6, BASE_Y - 32, 3);
+    g.fillCircle(CX + 2, BASE_Y - 45, 3);
+
+    g.generateTexture(`ency_mushroom_${v}`, S, S);
+    g.destroy();
+  }
+
+  // ─── ROCK (generic) ────────────────────────────────────
+  for (let v = 0; v < 2; v++) {
+    const g = scene.add.graphics().setVisible(false);
+    const seed = 28000 + v * 53;
+
+    const points: { x: number; y: number }[] = [];
+    const numPoints = 8;
+    for (let i = 0; i < numPoints; i++) {
+      const angle = (Math.PI * 2 * i) / numPoints;
+      const r = 25 + seededRandom(v, i, seed) * 15;
+      points.push({
+        x: CX + Math.cos(angle) * r,
+        y: BASE_Y - 30 + Math.sin(angle) * r * 0.6,
+      });
+    }
+
+    g.fillStyle(0x808080 + v * 0x101010);
+    g.beginPath();
+    g.moveTo(points[0].x, points[0].y);
+    for (let i = 1; i < points.length; i++) {
+      g.lineTo(points[i].x, points[i].y);
+    }
+    g.closePath();
+    g.fillPath();
+
+    // Highlight
+    g.fillStyle(0xaaaaaa, 0.3);
+    g.fillCircle(CX - 5, BASE_Y - 35, 12);
+
+    g.generateTexture(`ency_rock_${v}`, S, S);
+    g.destroy();
+  }
 }

@@ -1,6 +1,6 @@
 import { Entity } from '../core/Entity';
 
-export type DinosaurState = 'wander' | 'investigate' | 'flee' | 'idle' | 'attack';
+export type DinosaurState = 'wander' | 'investigate' | 'flee' | 'idle' | 'attack' | 'sleeping' | 'eating';
 
 export class Dinosaur extends Entity {
   species: string;
@@ -18,6 +18,16 @@ export class Dinosaur extends Entity {
   stateTimer: number = 0;
   idleTime: number = 0;
 
+  // Territory properties
+  territoryCenterX: number = 0;
+  territoryCenterY: number = 0;
+  territoryRadius: number = 8;
+  warningRange: number = 5;
+  attackRange: number = 2;
+  aggression: number = 0.5; // 0 = passive, 1 = aggressive
+  dailySchedule: { activeStart: number; activeEnd: number } = { activeStart: 6, activeEnd: 18 };
+  isSleeping: boolean = false;
+
   constructor(x: number, y: number, species: string, maxHp: number, speed: number, aggroRange: number, size: number, attackDamage: number = 10, wallDamage: number = 5, footprint: number = 1) {
     super('dinosaur', x, y);
     this.species = species;
@@ -29,6 +39,8 @@ export class Dinosaur extends Entity {
     this.wallDamage = wallDamage;
     this.size = size;
     this.footprint = footprint;
+    this.territoryCenterX = x;
+    this.territoryCenterY = y;
   }
 
   takeDamage(amount: number): void {
@@ -37,6 +49,15 @@ export class Dinosaur extends Entity {
 
   get isAlive(): boolean {
     return this.hp > 0;
+  }
+
+  isInRange(x: number, y: number, range: number): boolean {
+    return Math.abs(this.x - x) + Math.abs(this.y - y) <= range;
+  }
+
+  isOutsideTerritory(): boolean {
+    const dist = Math.abs(this.x - this.territoryCenterX) + Math.abs(this.y - this.territoryCenterY);
+    return dist > this.territoryRadius;
   }
 
   serialize(): object {
@@ -59,6 +80,13 @@ export class Dinosaur extends Entity {
       wt: this.wanderTarget,
       st2: this.stateTimer,
       it: this.idleTime,
+      tcx: this.territoryCenterX,
+      tcy: this.territoryCenterY,
+      tr: this.territoryRadius,
+      wr: this.warningRange,
+      ar2: this.attackRange,
+      ag: this.aggression,
+      sl: this.isSleeping,
     };
   }
 
@@ -80,6 +108,13 @@ export class Dinosaur extends Entity {
     d.wanderTarget = data.wt ?? data.wanderTarget ?? null;
     d.stateTimer = data.st2 ?? data.stateTimer ?? 0;
     d.idleTime = data.it ?? data.idleTime ?? 0;
+    d.territoryCenterX = data.tcx ?? d.x;
+    d.territoryCenterY = data.tcy ?? d.y;
+    d.territoryRadius = data.tr ?? 8;
+    d.warningRange = data.wr ?? 5;
+    d.attackRange = data.ar2 ?? 2;
+    d.aggression = data.ag ?? 0.5;
+    d.isSleeping = data.sl ?? false;
     d.snapVisual();
     return d;
   }
