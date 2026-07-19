@@ -323,5 +323,70 @@
     "harvestable": true,
     "harvestTime": 3,
     "harvestDrop": { "resource": "herb", "amount": 3, "chance": 1.0 }
+  },
+  "rock_boulder": {
+    "name": "Валун",
+    "rarity": "common",
+    "biomes": ["grass", "stone", "dirt"],
+    "nearWater": false,
+    "textureType": "rock_l",
+    "variants": 2,
+    "height": "short",
+    "description": "Крупная каменная глыба",
+    "harvestable": true,
+    "harvestTime": 4,
+    "harvestDrop": { "resource": "stone", "amount": 5, "chance": 1.0 }
+  },
+  "rock_small": {
+    "name": "Камень",
+    "rarity": "common",
+    "biomes": ["grass", "stone", "sand", "dirt"],
+    "nearWater": false,
+    "textureType": "rock_s",
+    "variants": 2,
+    "height": "short",
+    "description": "Небольшой камень",
+    "harvestable": true,
+    "harvestTime": 2,
+    "harvestDrop": { "resource": "stone", "amount": 2, "chance": 1.0 }
+  },
+  "nest_raptor": {
+    "name": "Гнездо раптора",
+    "rarity": "uncommon",
+    "biomes": ["grass", "dirt"],
+    "nearWater": false,
+    "textureType": "nest",
+    "variants": 1,
+    "height": "short",
+    "description": "Гнездо с яйцами рапторов. Опасно!",
+    "harvestable": true,
+    "harvestTime": 4,
+    "harvestDrop": { "resource": "raptor_egg", "amount": 1, "chance": 0.8 }
+  },
+  "nest_bronto": {
+    "name": "Гнездо бронтозавра",
+    "rarity": "rare",
+    "biomes": ["grass"],
+    "nearWater": true,
+    "textureType": "nest",
+    "variants": 1,
+    "height": "short",
+    "description": "Огромное гнездо с яйцами бронтозавров",
+    "harvestable": true,
+    "harvestTime": 5,
+    "harvestDrop": { "resource": "bronto_egg", "amount": 1, "chance": 0.9 }
+  },
+  "nest_trex": {
+    "name": "Гнездо ти-рекса",
+    "rarity": "legendary",
+    "biomes": ["stone", "dirt"],
+    "nearWater": false,
+    "textureType": "nest",
+    "variants": 1,
+    "height": "short",
+    "description": "Гнездо хищника. Одно яйцо может изменить всё.",
+    "harvestable": true,
+    "harvestTime": 6,
+    "harvestDrop": { "resource": "trex_egg", "amount": 1, "chance": 0.5 }
   }
 }

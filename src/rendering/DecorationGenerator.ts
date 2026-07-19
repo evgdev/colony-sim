@@ -72,7 +72,7 @@ export class DecorationGenerator {
   private scrollY = 0;
   private tileGrid: TileGrid | null = null;
   private readonly DECORATION_SEED = 7777;
-  private readonly PLACEMENT_CHANCE = 0.28;
+  private readonly PLACEMENT_CHANCE = 0.30;
 
   // Tree animation state
   private windTime = 0;
@@ -248,9 +248,9 @@ export class DecorationGenerator {
         return 'shore';
       }
       if (r < 0.15) return 'cactus';
-      if (r < 0.25) return 'palm';
+      if (r < 0.22) return 'palm';
       if (r < 0.35) return 'rock_s';
-      if (r < 0.50) return 'rock_l';
+      if (r < 0.52) return 'rock_l';
       if (r < 0.65) return 'dry_bush';
       return 'grass_tall';
     }
@@ -324,6 +324,7 @@ export class DecorationGenerator {
       case 'flower': return `dec_flower_${variant % 3}`;
       case 'rock_s': return `dec_rock_s_${variant % 2}`;
       case 'rock_l': return `dec_rock_l_${variant % 2}`;
+      case 'nest': return 'dec_nest';
       case 'shore': return `dec_shore_${variant % 2}`;
       case 'grass_tall': return `dec_grass_tall_${variant % 2}`;
       case 'cycas': return `dec_cycas_${variant % 3}_bottom`;
@@ -347,6 +348,23 @@ export class DecorationGenerator {
     const plant = (plantsData as Record<string, PlantDef>)[dec.plantId];
     if (!plant) return null;
     return { id: dec.plantId, plant };
+  }
+
+  isRockAt(tileX: number, tileY: number): boolean {
+    const dec = this.decorations.find(d => d.tileX === tileX && d.tileY === tileY);
+    if (!dec || !dec.plantId) return false;
+    const plant = (plantsData as Record<string, PlantDef>)[dec.plantId];
+    return plant?.textureType === 'rock_l' || plant?.textureType === 'rock_s';
+  }
+
+  getAllRocks(): { tileX: number; tileY: number }[] {
+    return this.decorations
+      .filter(d => !d.isTree && d.plantId && !d.depleted)
+      .filter(d => {
+        const plant = (plantsData as Record<string, PlantDef>)[d.plantId!];
+        return plant?.textureType === 'rock_l' || plant?.textureType === 'rock_s';
+      })
+      .map(d => ({ tileX: d.tileX, tileY: d.tileY }));
   }
 
   // ─── Visibility + positioning ────────────────────────────

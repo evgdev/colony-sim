@@ -114,8 +114,22 @@ export class LabJournal {
 
         // Card background
         const card = this.scene.add.rectangle(panelX + 12, yPos, panelW - 24, 64, 0x161b22, 0.9)
-          .setOrigin(0).setStrokeStyle(1, 0x30363d);
+          .setOrigin(0).setStrokeStyle(1, 0x30363d).setInteractive({ useHandCursor: true });
         contentContainer.add(card);
+
+        // Hover effects
+        card.on('pointerover', () => {
+          card.setFillStyle(0x1c2333, 1);
+          card.setStrokeStyle(1, 0x58a6ff);
+        });
+        card.on('pointerout', () => {
+          card.setFillStyle(0x161b22, 0.9);
+          card.setStrokeStyle(1, 0x30363d);
+        });
+        card.on('pointerdown', () => {
+          // Show detail popup
+          this.showArtifactDetail(name, icon, color, desc, effect, value, count);
+        });
 
         // Icon circle
         const iconCircle = this.scene.add.circle(panelX + 32, yPos + 22, 14,
@@ -170,6 +184,76 @@ export class LabJournal {
       targets: this.container, alpha: 0, duration: 150,
       onComplete: () => this.container.setVisible(false),
     });
+  }
+
+  private showArtifactDetail(name: string, icon: string, color: string, desc: string, effect: string, value: number, count: number): void {
+    const detailW = 320;
+    const detailH = 180;
+    const detailX = FIELD_X + (FIELD_W - detailW) / 2;
+    const detailY = FIELD_Y + (FIELD_H - detailH) / 2;
+
+    const detailContainer = this.scene.add.container(0, 0).setDepth(95);
+
+    // Overlay
+    const overlay = this.scene.add.rectangle(FIELD_X, FIELD_Y, FIELD_W, FIELD_H, 0x000000, 0.7)
+      .setOrigin(0).setInteractive();
+    overlay.on('pointerdown', () => detailContainer.destroy());
+    detailContainer.add(overlay);
+
+    // Panel
+    const bg = this.scene.add.rectangle(detailX, detailY, detailW, detailH, 0x0d1117, 0.98)
+      .setOrigin(0).setStrokeStyle(2, 0x58a6ff);
+    detailContainer.add(bg);
+
+    // Icon
+    const iconCircle = this.scene.add.circle(detailX + 30, detailY + 30, 18,
+      Phaser.Display.Color.HexStringToColor(color).color, 0.4);
+    detailContainer.add(iconCircle);
+    const iconText = this.scene.add.text(detailX + 30, detailY + 30, icon, {
+      fontSize: '18px', color, fontFamily: 'monospace', fontStyle: 'bold',
+    }).setOrigin(0.5);
+    detailContainer.add(iconText);
+
+    // Name
+    const nameText = this.scene.add.text(detailX + 58, detailY + 16, name, {
+      fontSize: '14px', color: '#e6edf3', fontFamily: 'monospace', fontStyle: 'bold',
+    }).setOrigin(0, 0);
+    detailContainer.add(nameText);
+
+    // Count
+    const countText = this.scene.add.text(detailX + detailW - 16, detailY + 16, `×${count}`, {
+      fontSize: '12px', color: '#8b949e', fontFamily: 'monospace',
+    }).setOrigin(1, 0);
+    detailContainer.add(countText);
+
+    // Description
+    const descText = this.scene.add.text(detailX + 16, detailY + 56, desc, {
+      fontSize: '12px', color: '#c9d1d9', fontFamily: 'monospace',
+      wordWrap: { width: detailW - 32 }, lineSpacing: 4,
+    }).setOrigin(0, 0);
+    detailContainer.add(descText);
+
+    // Effect
+    if (effect) {
+      const effectLabels: Record<string, string> = {
+        fogRadius: 'Радиус обзора',
+        maxHp: 'Макс. здоровье',
+        attackSpeed: 'Скорость атаки',
+        storage: 'Вместимость хранилищ',
+      };
+      const effectText = this.scene.add.text(detailX + 16, detailY + detailH - 40, `Эффект: +${value} ${effectLabels[effect] || effect}`, {
+        fontSize: '11px', color: '#3fb950', fontFamily: 'monospace',
+      }).setOrigin(0, 0);
+      detailContainer.add(effectText);
+    }
+
+    // Close hint
+    const closeHint = this.scene.add.text(detailX + detailW - 16, detailY + detailH - 16, 'нажми чтобы закрыть', {
+      fontSize: '10px', color: '#6e7681', fontFamily: 'monospace',
+    }).setOrigin(1, 1);
+    detailContainer.add(closeHint);
+
+    this.scene.add.existing(detailContainer);
   }
 
   get isVisible(): boolean { return this.isShowing; }

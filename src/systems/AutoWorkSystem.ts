@@ -82,6 +82,7 @@ export class AutoWorkSystem {
     if (mode === 'auto' || mode === 'gather') {
       this.addGatherCandidates(settler, candidates);
       this.addChopCandidates(settler, candidates);
+      this.addMineCandidates(settler, candidates);
       this.addArtifactCandidates(settler, candidates);
     }
 
@@ -188,6 +189,31 @@ export class AutoWorkSystem {
     }
   }
 
+  private addMineCandidates(settler: Settler, out: CandidateTask[]): void {
+    if (!this.decorationGenerator) return;
+    // Don't mine without an axe
+    const hasAxe = settler.inventory.some(i => i.resourceType === 'stone_axe');
+    if (!hasAxe) return;
+    const stoneAmount = this.simulation.getResourceAmount('stone');
+    if (stoneAmount >= 30) return;
+
+    const rocks = this.decorationGenerator.getAllRocks();
+    for (const r of rocks) {
+      if (!this.tileGrid.isRevealed(r.tileX, r.tileY)) continue;
+      if (this.assignedTargets.has(`${r.tileX},${r.tileY}`)) continue;
+      const dist = Math.abs(settler.x - r.tileX) + Math.abs(settler.y - r.tileY);
+      if (dist > this.maxSearchRadius) continue;
+      out.push({
+        type: TaskType.Mine,
+        priority: TaskPriority.High,
+        targetX: r.tileX,
+        targetY: r.tileY,
+        icon: 'mine',
+        distance: dist,
+      });
+    }
+  }
+
   private addArtifactCandidates(settler: Settler, out: CandidateTask[]): void {
     const artifacts = this.entityManager.getByType('artifact') as Artifact[];
     for (const a of artifacts) {
@@ -220,6 +246,13 @@ export class AutoWorkSystem {
       }
       case TaskType.Chop: {
         const task = this.workSystem.createChopTask(
+          candidate.targetX, candidate.targetY, candidate.priority, settler, true
+        );
+        task.autoIcon = candidate.icon;
+        break;
+      }
+      case TaskType.Mine: {
+        const task = this.workSystem.createMineTask(
           candidate.targetX, candidate.targetY, candidate.priority, settler, true
         );
         task.autoIcon = candidate.icon;

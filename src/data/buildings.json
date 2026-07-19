@@ -77,57 +77,114 @@
         "id": "medkit",
         "name": "Medical Kit",
         "description": "Restores 30 HP to the settler",
-        "cost": { "wood": 2, "herb": 2 },
-        "effect": { "type": "heal", "value": 30 },
+        "cost": {
+          "wood": 2,
+          "herb": 2
+        },
+        "effect": {
+          "type": "heal",
+          "value": 30
+        },
         "craftTime": 5
       },
       {
         "id": "herbal_poultice",
         "name": "Herbal Poultice",
         "description": "Restores 20 HP, cheap to make",
-        "cost": { "herb": 3, "fiber": 1 },
-        "effect": { "type": "heal", "value": 20 },
+        "cost": {
+          "herb": 3,
+          "fiber": 1
+        },
+        "effect": {
+          "type": "heal",
+          "value": 20
+        },
         "craftTime": 3
       },
       {
         "id": "signal_flare",
         "name": "Signal Flare",
         "description": "Repels dinosaurs for 15 ticks",
-        "cost": { "stone": 2, "resin": 1 },
-        "effect": { "type": "repel", "value": 15 },
+        "cost": {
+          "stone": 2,
+          "resin": 1
+        },
+        "effect": {
+          "type": "repel",
+          "value": 15
+        },
         "craftTime": 4
       },
       {
         "id": "reinforced_wall",
         "name": "Reinforced Wall Kit",
         "description": "+30 HP to a wall when applied",
-        "cost": { "wood": 3, "fiber": 2, "stone": 2 },
-        "effect": { "type": "maxHpBonus", "value": 30 },
+        "cost": {
+          "wood": 3,
+          "fiber": 2,
+          "stone": 2
+        },
+        "effect": {
+          "type": "maxHpBonus",
+          "value": 30
+        },
         "craftTime": 6
       },
       {
         "id": "bone_armor",
         "name": "Bone Armor",
         "description": "+25 maxHP, strengthens settler",
-        "cost": { "stone": 3, "fiber": 3 },
-        "effect": { "type": "maxHpBonus", "value": 25 },
+        "cost": {
+          "stone": 3,
+          "fiber": 3
+        },
+        "effect": {
+          "type": "maxHpBonus",
+          "value": 25
+        },
         "craftTime": 8
       },
       {
         "id": "rope",
         "name": "Rope",
         "description": "Utility item for advanced tasks",
-        "cost": { "fiber": 4 },
-        "effect": { "type": "unlock", "value": 0 },
+        "cost": {
+          "fiber": 4
+        },
+        "effect": {
+          "type": "unlock",
+          "value": 0
+        },
         "craftTime": 3
       },
       {
         "id": "bio_scanner",
         "name": "Bio Scanner",
         "description": "Tracks dinosaur territories and daily schedules",
-        "cost": { "resin": 5, "herb": 3, "fiber": 2 },
-        "effect": { "type": "tracker", "value": 1 },
+        "cost": {
+          "resin": 5,
+          "herb": 3,
+          "fiber": 2
+        },
+        "effect": {
+          "type": "tracker",
+          "value": 1
+        },
         "craftTime": 8
+      },
+      {
+        "id": "stone_axe",
+        "name": "Stone Axe",
+        "description": "Required to mine rocks for stone",
+        "cost": {
+          "wood": 3,
+          "fiber": 2
+        },
+        "effect": {
+          "type": "tool",
+          "toolType": "axe"
+        },
+        "craftTime": 4
       }
     ]
   },
@@ -180,5 +237,31 @@
       "fiber": 3
     },
     "description": "Marks dinosaur territories on the minimap. Shows their daily schedule."
+  },
+  "incubator": {
+    "name": "Incubator",
+    "color": 9121827,
+    "maxHp": 150,
+    "buildTime": 20,
+    "size": 2,
+    "requires": {
+      "wood": 10,
+      "stone": 5,
+      "fiber": 2
+    },
+    "description": "Hatches dinosaur eggs into babies. Keep warm!"
+  },
+  "paddock": {
+    "name": "Paddock",
+    "color": 2205314,
+    "maxHp": 200,
+    "buildTime": 25,
+    "size": 3,
+    "requires": {
+      "wood": 10,
+      "stone": 10,
+      "fiber": 4
+    },
+    "description": "Houses and feeds tamed dinosaurs. Capacity: 3."
   }
 }

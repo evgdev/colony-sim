@@ -82,11 +82,12 @@ export interface Dialogue {
 }
 
 export interface QuestEvent {
-  type: 'quest_available' | 'quest_started' | 'quest_completed' | 'quest_failed' | 'quest_objective_progress' | 'act_started' | 'dialogue';
+  type: 'quest_available' | 'quest_started' | 'quest_completed' | 'quest_failed' | 'quest_objective_progress' | 'act_started' | 'dialogue' | 'spawn_dinos';
   questId?: string;
   actId?: string;
   message: string;
   dialogue?: Dialogue;
+  spawnData?: { species: string; count: number };
 }
 
 export class QuestManager {
@@ -196,6 +197,16 @@ export class QuestManager {
       questId,
       message: `Квест начат: ${quest?.title}`,
     });
+
+    // Spawn dinos if specified
+    if (quest?.spawnOnStart) {
+      this.emit({
+        type: 'spawn_dinos',
+        questId,
+        message: 'spawn',
+        spawnData: quest.spawnOnStart,
+      });
+    }
 
     return true;
   }
@@ -374,6 +385,26 @@ export class QuestManager {
             }
           }
           break;
+        case 'reach_dino':
+          // Check if settler is near a dinosaur (forgiving distance)
+          if (obj.species && !obj.found) {
+            const settlers = simulation.entityManager.getByType('settler') as Settler[];
+            const dinos = simulation.entityManager.getByType('dinosaur') as Dinosaur[];
+            for (const settler of settlers) {
+              if (!settler.isAlive) continue;
+              for (const d of dinos) {
+                if (d.species !== obj.species || !d.isAlive) continue;
+                const dist = Math.abs(d.x - settler.x) + Math.abs(d.y - settler.y);
+                if (dist <= 5) {
+                  obj.found = true;
+                  this.emit({ type: 'quest_objective_progress', questId, message: `Нашли ${obj.species}!` });
+                  break;
+                }
+              }
+              if (obj.found) break;
+            }
+          }
+          break;
         case 'explore_territory':
           // Same as reach_tile but for territory mapping
           if (obj.x !== undefined && obj.y !== undefined && !obj.found) {
@@ -544,6 +575,10 @@ export class QuestManager {
             questId: unlockId,
             message: `Новый квест: ${unlockQuest?.title}`,
           });
+          // Update current act if unlocked quest is in a different act
+          if (unlockQuest && unlockQuest.act !== this.currentAct) {
+            this.currentAct = unlockQuest.act;
+          }
         }
       }
     }

@@ -522,9 +522,14 @@ export class EntityRenderer {
     }
 
     if (!bld.built) {
-      const barX = bldCx - half;
+      let barX = bldCx - half;
       const barY = bldCy - half - 6;
-      const barW = bldSize > 1 ? footprintPx : drawSize;
+      let barW = bldSize > 1 ? footprintPx : drawSize;
+      // Lab: shift left 50px, reduce width 40%
+      if (bld.buildingType === 'lab') {
+        barX -= 50;
+        barW *= 0.6;
+      }
       g.fillStyle(0x333333, 0.8);
       g.fillRect(barX, barY, barW, 4);
       g.fillStyle(0xffcc00, 1);

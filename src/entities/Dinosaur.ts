@@ -28,6 +28,17 @@ export class Dinosaur extends Entity {
   dailySchedule: { activeStart: number; activeEnd: number } = { activeStart: 6, activeEnd: 18 };
   isSleeping: boolean = false;
 
+  // Taming properties
+  loyalty: number = 0; // 0-100
+  isTamed: boolean = false;
+  ownerId: number | null = null;
+  hunger: number = 100; // 0-100
+
+  // Combat properties
+  attackTarget: Dinosaur | null = null;
+  attackCooldownTimer: number = 0;
+  spawnTime: number = 0; // Ticks since spawn for immunity
+
   constructor(x: number, y: number, species: string, maxHp: number, speed: number, aggroRange: number, size: number, attackDamage: number = 10, wallDamage: number = 5, footprint: number = 1) {
     super('dinosaur', x, y);
     this.species = species;
@@ -60,6 +71,57 @@ export class Dinosaur extends Entity {
     return dist > this.territoryRadius;
   }
 
+  feed(foodType: string): number {
+    const loyaltyGain: Record<string, number> = {
+      'herb': 3,
+      'fiber': 2,
+      'meat': 5,
+      'berries': 2,
+      'fish': 4,
+    };
+    const gain = loyaltyGain[foodType] ?? 2;
+    this.loyalty = Math.min(100, this.loyalty + gain);
+    this.hunger = Math.min(100, this.hunger + 20);
+    if (this.loyalty >= 50 && !this.isTamed) {
+      this.isTamed = true;
+    }
+    return gain;
+  }
+
+  updateHunger(tickDelta: number): void {
+    if (this.isTamed) {
+      this.hunger = Math.max(0, this.hunger - tickDelta * 0.1);
+      if (this.hunger <= 0) {
+        this.loyalty = Math.max(0, this.loyalty - tickDelta * 0.05);
+        if (this.loyalty <= 0) {
+          this.isTamed = false;
+        }
+      }
+    }
+  }
+
+  setAttackTarget(target: Dinosaur | null): void {
+    this.attackTarget = target;
+  }
+
+  canAttack(): boolean {
+    return this.attackCooldownTimer <= 0;
+  }
+
+  performAttack(target: Dinosaur): number {
+    if (!this.canAttack()) return 0;
+    const damage = this.attackDamage;
+    target.takeDamage(damage);
+    this.attackCooldownTimer = 2; // 2 ticks cooldown
+    return damage;
+  }
+
+  updateAttackCooldown(tickDelta: number): void {
+    if (this.attackCooldownTimer > 0) {
+      this.attackCooldownTimer = Math.max(0, this.attackCooldownTimer - tickDelta);
+    }
+  }
+
   serialize(): object {
     const base = super.serialize() as any;
     return {
@@ -87,6 +149,10 @@ export class Dinosaur extends Entity {
       ar2: this.attackRange,
       ag: this.aggression,
       sl: this.isSleeping,
+      ly: this.loyalty,
+      tm: this.isTamed,
+      ow: this.ownerId,
+      hn: this.hunger,
     };
   }
 
@@ -115,6 +181,10 @@ export class Dinosaur extends Entity {
     d.attackRange = data.ar2 ?? 2;
     d.aggression = data.ag ?? 0.5;
     d.isSleeping = data.sl ?? false;
+    d.loyalty = data.ly ?? 0;
+    d.isTamed = data.tm ?? false;
+    d.ownerId = data.ow ?? null;
+    d.hunger = data.hn ?? 100;
     d.snapVisual();
     return d;
   }

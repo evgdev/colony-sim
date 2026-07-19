@@ -3,7 +3,7 @@ import {
   MAP_WIDTH, MAP_HEIGHT, VIEWPORT_TILES,
   CANVAS_WIDTH, CANVAS_HEIGHT,
   FIELD_X, FIELD_Y, FIELD_W, FIELD_H, TILE_SIZE,
-  FOG_REVEAL_RADIUS,
+  FOG_REVEAL_RADIUS, isNight,
 } from '../config';
 import { Simulation } from '../core/Simulation';
 import { Settler } from '../entities/Settler';
@@ -19,6 +19,7 @@ import { DinosaurSystem } from '../systems/DinosaurSystem';
 import { CombatSystem } from '../systems/CombatSystem';
 import { AutoWorkSystem } from '../systems/AutoWorkSystem';
 import { ArtifactSystem } from '../systems/ArtifactSystem';
+import { IncubatorSystem } from '../systems/IncubatorSystem';
 import { QuestSystem } from '../systems/QuestSystem';
 import { QuestManager } from '../systems/QuestManager';
 import { DialogueBox } from '../ui/DialogueBox';
@@ -45,6 +46,7 @@ import { ToastManager } from '../ui/ToastManager';
 import { ReplayRecorder } from '../replay/ReplayRecorder';
 import { ReplayActionType } from '../replay/ReplayTypes';
 
+import { gameConfig } from '../gameConfig';
 import { createInitialWorld } from '../game/GameSetup';
 import { StartMenu, GameMode } from '../game/StartMenu';
 import { GameOverScreen } from '../game/GameOverScreen';
@@ -59,6 +61,7 @@ export class GameScene extends Phaser.Scene {
   combatSystem!: CombatSystem;
   autoWorkSystem!: AutoWorkSystem;
   artifactSystem!: ArtifactSystem;
+  incubatorSystem!: IncubatorSystem;
   questSystem!: QuestSystem;
   questManager!: QuestManager;
   dialogueBox!: DialogueBox;
@@ -94,7 +97,7 @@ export class GameScene extends Phaser.Scene {
   private scrollX: number = 0;
   private scrollY: number = 0;
   private resourceSpawnTimer: number = 0;
-  private resourceSpawnInterval: number = 50;
+  private resourceSpawnInterval: number = gameConfig.resourceSpawnInterval;
   private defenseWaveTimer: number = 0;
   private defenseWaveInterval: number = 40;
   private defenseWaveCount: number = 0;
@@ -373,6 +376,17 @@ export class GameScene extends Phaser.Scene {
       this.autoWorkSystem.setDecorationGenerator(this.decorationGenerator);
     }
 
+    // IncubatorSystem — инкубация яиц динозавров
+    this.incubatorSystem = new IncubatorSystem(
+      this.simulation.entityManager,
+      this.simulation.tileGrid,
+      this.simulation
+    );
+    this.incubatorSystem.setOnHatch((dino) => {
+      this.uiManager?.addLog(`🥚 ${dino.species} вылупился!`);
+      this.toastManager?.show(`Новый динозавр!`);
+    });
+
     this.workSystem.onSettlerSleep = (settler) => {
       this.uiManager?.addLog(`${settler.name} is exhausted and sleeping!`);
       this.toastManager?.show(`${settler.name} fell asleep from exhaustion!`);
@@ -389,6 +403,15 @@ export class GameScene extends Phaser.Scene {
     // QuestManager — full quest tree
     this.questManager = new QuestManager(this.storyBranchManager);
     this.questManager.onEvent((event) => {
+      // Always log messages
+      if (event.message && event.type !== 'dialogue') {
+        this.uiManager?.addLog(event.message);
+      }
+      // Always show toast for quest start/complete
+      if (event.type === 'quest_started' || event.type === 'quest_completed') {
+        this.toastManager?.show(event.message);
+      }
+      // Show dialogue if present
       if (event.type === 'dialogue' && event.dialogue) {
         this.dialoguePaused = true;
         this.inputHandler?.hideHover();
@@ -396,12 +419,10 @@ export class GameScene extends Phaser.Scene {
           this.dialoguePaused = false;
           this.questManager?.onDialogueComplete();
         });
-      } else if (event.message) {
-        this.uiManager?.addLog(event.message);
-        // Only show toast for important events, not for every quest update
-        if (event.type === 'quest_started' || event.type === 'quest_completed') {
-          this.toastManager?.show(event.message);
-        }
+      }
+      // Spawn dinos if requested by quest
+      if (event.type === 'spawn_dinos' && event.spawnData) {
+        this.spawnQuestDinosNow(event.spawnData.species, event.spawnData.count);
       }
     });
     // Emit act1 intro dialogue now that callback is registered
@@ -409,9 +430,7 @@ export class GameScene extends Phaser.Scene {
       this.questManager!.flushPendingIntro();
     }
     // Start the first quest after short delay — decorations already generated
-    // To skip to a specific quest, change SKIP_TO_QUEST (e.g. 'q2_2')
-    const SKIP_TO_QUEST: string | null = null; // set to null for normal start
-    //const SKIP_TO_QUEST: string | null = 'q2_2'; // set to null for normal start
+    const SKIP_TO_QUEST = gameConfig.skipToQuest;
     this.time.delayedCall(2000, () => {
       if (this.gameMode === 'story') {
         if (SKIP_TO_QUEST) {
@@ -478,6 +497,7 @@ export class GameScene extends Phaser.Scene {
     this.startMenu.destroy();
     this.gameMode = mode;
     this.worldReady = true;
+    this.questArtifactSpawned = false;
     this.uiManager.setBuildButtonsEnabled(true);
     this.uiManager.setDayNightDimmed(false);
     this.uiManager.setHudButtonsEnabled(true);
@@ -521,11 +541,11 @@ export class GameScene extends Phaser.Scene {
     if (!qm) return;
 
     // Auto-complete all quests before the target
-    const allQuestIds = ['q1_1', 'q1_2'];
+    const allQuestIds = ['q1_1', 'q1_2', 'q1_3', 'q2_1', 'q2_plants', 'q2_3', 'q3_1', 'q3_2', 'q3_3', 'q4_1', 'q4_2', 'q4_3', 'q4_4', 'q5_1', 'q5_2', 'q5_3', 'q5_4', 'q5_5', 'q_dino_1', 'q_dino_2', 'q_dino_3', 'q_dino_4', 'q_dino_5'];
     for (const qid of allQuestIds) {
       if (qid === targetQuestId) break;
       const state = qm.getQuestState(qid);
-      if (state && (state.status === 'active' || state.status === 'available')) {
+      if (state && (state.status === 'active' || state.status === 'available' || state.status === 'locked')) {
         (state as any).status = 'completed';
         qm['completedQuests'].add(qid);
         const quest = qm.getQuest(qid);
@@ -538,10 +558,65 @@ export class GameScene extends Phaser.Scene {
       }
     }
 
+    // Set current act based on target quest
+    const targetQuest = qm.getQuest(targetQuestId);
+    if (targetQuest) {
+      qm['currentAct'] = targetQuest.act;
+    }
+
     // Start the target quest
-    qm['currentAct'] = 'act1_crash';
     qm.startQuest(targetQuestId, this.simulation.tickCount);
     this.uiManager?.addLog(`[SKIP] Квест: ${qm.getQuest(targetQuestId)?.title}`);
+
+    // Build incubator and paddock if skipping to dino quests
+    if (targetQuestId.startsWith('q_dino')) {
+      this.buildSkipStructures();
+    }
+  }
+
+  private buildSkipStructures(): void {
+    const centerX = Math.floor(MAP_WIDTH / 2);
+    const centerY = Math.floor(MAP_HEIGHT / 2);
+
+    // Build incubator
+    const incubatorDef = (buildingsData as any).incubator;
+    if (incubatorDef) {
+      const inc = new Building(centerX - 4, centerY, 'incubator');
+      inc.built = true;
+      inc.hp = incubatorDef.maxHp;
+      this.simulation.entityManager.add(inc);
+      for (let dy = 0; dy < (incubatorDef.size ?? 2); dy++) {
+        for (let dx = 0; dx < (incubatorDef.size ?? 2); dx++) {
+          this.simulation.tileGrid.setOccupied(centerX - 4 + dx, centerY + dy, true);
+          this.simulation.tileGrid.setBuilding(centerX - 4 + dx, centerY + dy, true);
+        }
+      }
+      this.uiManager?.addLog('[SKIP] Инкубатор построен');
+    }
+
+    // Build paddock
+    const paddockDef = (buildingsData as any).paddock;
+    if (paddockDef) {
+      const pad = new Building(centerX + 2, centerY, 'paddock');
+      pad.built = true;
+      pad.hp = paddockDef.maxHp;
+      this.simulation.entityManager.add(pad);
+      for (let dy = 0; dy < (paddockDef.size ?? 3); dy++) {
+        for (let dx = 0; dx < (paddockDef.size ?? 3); dx++) {
+          this.simulation.tileGrid.setOccupied(centerX + 2 + dx, centerY + dy, true);
+          this.simulation.tileGrid.setBuilding(centerX + 2 + dx, centerY + dy, true);
+        }
+      }
+      this.uiManager?.addLog('[SKIP] Загон построен');
+    }
+
+    // Spawn a baby raptor near incubator
+    const babyRaptor = new Dinosaur(centerX - 2, centerY + 1, 'raptor', 30, 3, 4, 1.1, 15, 8, 1);
+    babyRaptor.isTamed = true;
+    babyRaptor.loyalty = 50;
+    babyRaptor.hunger = 100;
+    this.simulation.entityManager.add(babyRaptor);
+    this.uiManager?.addLog('[SKIP] Раптор вылупился!');
   }
 
   private spawnDefenseModeDinos(world: { centerX: number; centerY: number }): void {
@@ -630,6 +705,7 @@ export class GameScene extends Phaser.Scene {
     this.workSystem.update(td);
     this.buildingSystem.update(td);
     this.dinosaurSystem.update(td, this.simulation.tickCount, this.gameMode === 'defense');
+    this.incubatorSystem?.update(td, !isNight(this.simulation.tickCount));
     if (this.gameMode === 'story') {
       this.spawnQuestDinos();
     }
@@ -648,6 +724,7 @@ export class GameScene extends Phaser.Scene {
       this.spawnDefenseWave();
     }
     this.questManager?.update(this.simulation.tickCount, this.simulation);
+    this.spawnQuestArtifacts();
     this.uiManager.updateThoughts(ticked);
     this.checkGameOver();
     this.uiManager.updateBuildButtonStates();
@@ -661,7 +738,7 @@ export class GameScene extends Phaser.Scene {
     this.resourceSpawnTimer = 0;
 
     const existing = this.simulation.entityManager.getByType('resource').length;
-    if (existing >= 25) return;
+    if (existing >= gameConfig.maxResourcesOnMap) return;
 
     // During q1_2: more stone, spawn near base
     const isWallQuest = this.questManager?.isQuestActive('q1_2');
@@ -697,6 +774,9 @@ export class GameScene extends Phaser.Scene {
   private spawnQuestDinos(): void {
     const qm = this.questManager;
     if (!qm) return;
+
+    // Don't spawn dinos if q2_1 is still active (exploration quest)
+    if (qm.isQuestActive('q2_1')) return;
 
     // Only spawn dinos after certain quests are completed
     const q2_1Done = qm.getQuestState('q2_1')?.status === 'completed';
@@ -748,6 +828,77 @@ export class GameScene extends Phaser.Scene {
     const msg = `${def.name} появился на ${edge === 'east' ? 'востоке' : edge === 'west' ? 'западе' : edge === 'north' ? 'севере' : 'юге'}!`;
     this.uiManager?.addLog(msg);
     this.toastManager?.show(msg);
+  }
+
+  private spawnQuestDinosNow(species: string, count: number): void {
+    const def = (dinosaursData as any)[species];
+    if (!def) return;
+    const footprint = def.footprint ?? 1;
+    const centerX = Math.floor(MAP_WIDTH / 2);
+    const centerY = Math.floor(MAP_HEIGHT / 2);
+
+    for (let i = 0; i < count; i++) {
+      // Spawn at random position near edges, away from base
+      let sx = 0, sy = 0;
+      for (let attempt = 0; attempt < 30; attempt++) {
+        sx = Math.floor(Math.random() * (MAP_WIDTH - footprint));
+        sy = Math.floor(Math.random() * (MAP_HEIGHT - footprint));
+        // Must be at least 10 tiles from center
+        const distFromCenter = Math.abs(sx - centerX) + Math.abs(sy - centerY);
+        if (distFromCenter >= 10 && this.simulation.tileGrid.isAreaWalkableForDino(sx, sy, footprint)) break;
+      }
+
+      const dino = new Dinosaur(
+        sx, sy, species,
+        def.hp, def.speed, def.aggroRange,
+        def.size, def.attackDamage, def.wallDamage ?? 5, footprint
+      );
+      this.simulation.entityManager.add(dino);
+      this.simulation.tileGrid.setOccupiedArea(dino.x, dino.y, footprint, true);
+    }
+
+    const msg = `${count > 1 ? count + ' ' : ''}${def.name}${count > 1 ? (species === 'brontosaur' ? 'а' : 'ов') : ''} появил${count > 1 ? 'ись' : 'ся'} на карте!`;
+    this.uiManager?.addLog(msg);
+    this.toastManager?.show(msg);
+  }
+
+  private questArtifactSpawned: boolean = false;
+
+  private spawnQuestArtifacts(): void {
+    const qm = this.questManager;
+    if (!qm) return;
+
+    // Only spawn artifacts once when q2_2 becomes active
+    if (this.questArtifactSpawned) return;
+    if (!qm.isQuestActive('q2_2')) return;
+    this.questArtifactSpawned = true;
+
+    const centerX = Math.floor(MAP_WIDTH / 2);
+    const centerY = Math.floor(MAP_HEIGHT / 2);
+
+    // Spawn 2 fossils and 1 strange_track at random locations
+    const artifactSpawns = [
+      { name: 'fossil', type: 'fossil' },
+      { name: 'fossil', type: 'fossil' },
+      { name: 'strange_track', type: 'strange_track' },
+    ];
+
+    for (const spawn of artifactSpawns) {
+      for (let attempt = 0; attempt < 20; attempt++) {
+        const x = Math.floor(MAP_WIDTH / 2 + (Math.random() - 0.5) * 28);
+        const y = Math.floor(MAP_HEIGHT / 2 + (Math.random() - 0.5) * 28);
+        const tile = this.simulation.tileGrid.get(x, y);
+        if (!tile || !tile.walkable || tile.type === 'water' || tile.occupied) continue;
+
+        const artifact = new Artifact(x, y, spawn.type, spawn.name);
+        this.simulation.entityManager.add(artifact);
+        // No setOccupied — artifacts don't block movement
+        break;
+      }
+    }
+
+    this.uiManager?.addLog('На карте появились окаменелости и следы!');
+    this.toastManager?.show('Найди окаменелости на карте!');
   }
 
   private spawnDefenseWave(): void {
@@ -960,11 +1111,6 @@ export class GameScene extends Phaser.Scene {
     const qm = this.questManager;
     if (!qm) return;
 
-    // Show markers for active explore quests
-    const active = qm.getActiveQuests();
-    const exploreQuest = active.find(q => q.quest.type === 'explore');
-    if (!exploreQuest) return;
-
     const tileSize = 50;
     const fieldX = 250;
     const fieldY = 50;
@@ -978,38 +1124,78 @@ export class GameScene extends Phaser.Scene {
 
     const pulse = Math.sin(Date.now() / 300) * 0.3 + 0.7;
 
-    for (const obj of exploreQuest.state.objectives) {
-      if (obj.type !== 'reach_tile' || obj.found) continue;
-      if (obj.x === undefined || obj.y === undefined) continue;
+    const active = qm.getActiveQuests();
 
-      const tileX = centerX + obj.x;
-      const tileY = centerY + obj.y;
+    // 1. Show markers for explore quests (reach_tile objectives)
+    const exploreQuest = active.find(q => q.quest.type === 'explore');
+    if (exploreQuest) {
+      for (const obj of exploreQuest.state.objectives) {
+        if (obj.type !== 'reach_tile' || obj.found) continue;
+        if (obj.x === undefined || obj.y === undefined) continue;
 
-      // Skip water tiles — natural barrier
-      const tile = this.simulation.tileGrid.get(tileX, tileY);
-      if (!tile || tile.type === 'water') continue;
+        const tileX = centerX + obj.x;
+        const tileY = centerY + obj.y;
 
-      const px = fieldX + (tileX - sx) * tileSize + tileSize / 2;
-      const py = fieldY + (tileY - sy) * tileSize + tileSize / 2;
+        // Skip if not revealed (fog of war)
+        if (!this.simulation.tileGrid.isRevealed(tileX, tileY)) continue;
 
-      // Skip if outside viewport
-      if (px < fieldX - tileSize || px > fieldMaxX + tileSize) continue;
-      if (py < fieldY - tileSize || py > fieldMaxY + tileSize) continue;
+        const tile = this.simulation.tileGrid.get(tileX, tileY);
+        if (!tile || tile.type === 'water') continue;
 
-      // Pulsing diamond marker
-      g.lineStyle(2, 0xff8800, pulse);
-      const r = 14;
-      g.beginPath();
-      g.moveTo(px, py - r);
-      g.lineTo(px + r, py);
-      g.lineTo(px, py + r);
-      g.lineTo(px - r, py);
-      g.closePath();
-      g.strokePath();
+        const px = fieldX + (tileX - sx) * tileSize + tileSize / 2;
+        const py = fieldY + (tileY - sy) * tileSize + tileSize / 2;
 
-      // Inner dot
-      g.fillStyle(0xff8800, pulse * 0.5);
-      g.fillCircle(px, py, 4);
+        if (px < fieldX - tileSize || px > fieldMaxX + tileSize) continue;
+        if (py < fieldY - tileSize || py > fieldMaxY + tileSize) continue;
+
+        // Orange diamond
+        g.lineStyle(2, 0xff8800, pulse);
+        const r = 14;
+        g.beginPath();
+        g.moveTo(px, py - r);
+        g.lineTo(px + r, py);
+        g.lineTo(px, py + r);
+        g.lineTo(px - r, py);
+        g.closePath();
+        g.strokePath();
+        g.fillStyle(0xff8800, pulse * 0.5);
+        g.fillCircle(px, py, 4);
+      }
+    }
+
+    // 2. Show markers for artifact quests (fossil / strange_track on map)
+    const artifactQuest = active.find(q => q.quest.type === 'gather_artifact');
+    if (artifactQuest) {
+      const artifacts = this.simulation.entityManager.getByType('artifact') as Artifact[];
+      for (const art of artifacts) {
+        // Only mark artifacts that this quest needs
+        const needed = artifactQuest.state.objectives.some(
+          o => o.type === 'artifact' && o.name === art.name && (o.current ?? 0) < (o.amount ?? 0)
+        );
+        if (!needed) continue;
+
+        // Skip if not revealed (fog of war)
+        if (!this.simulation.tileGrid.isRevealed(art.x, art.y)) continue;
+
+        const px = fieldX + (art.x - sx) * tileSize + tileSize / 2;
+        const py = fieldY + (art.y - sy) * tileSize + tileSize / 2;
+
+        if (px < fieldX - tileSize || px > fieldMaxX + tileSize) continue;
+        if (py < fieldY - tileSize || py > fieldMaxY + tileSize) continue;
+
+        // Cyan diamond for artifacts
+        g.lineStyle(2, 0x00ccff, pulse);
+        const r = 12;
+        g.beginPath();
+        g.moveTo(px, py - r);
+        g.lineTo(px + r, py);
+        g.lineTo(px, py + r);
+        g.lineTo(px - r, py);
+        g.closePath();
+        g.strokePath();
+        g.fillStyle(0x00ccff, pulse * 0.5);
+        g.fillCircle(px, py, 3);
+      }
     }
   }
 
@@ -1504,7 +1690,7 @@ export class GameScene extends Phaser.Scene {
     const artifactName = dino.species === 'pterodactyl' ? 'pterodactyl wing' : `${dino.species} tooth`;
     const artifact = new Artifact(dino.x, dino.y, 'trophy', artifactName);
     this.simulation.entityManager.add(artifact);
-    this.simulation.tileGrid.setOccupied(dino.x, dino.y, true);
+    // No setOccupied — artifacts don't block movement
 
     const achieveMsg = `${dino.attacker ?? 'Turret'} dropped: ${artifactName}`;
     this.uiManager.addEvent(achieveMsg);

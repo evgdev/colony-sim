@@ -9,6 +9,7 @@ export enum TaskType {
   DeliverArtifact = 'deliver_artifact',
   Craft = 'craft',
   HarvestPlant = 'harvest_plant',
+  Mine = 'mine',
 }
 
 export enum TaskPriority {
@@ -18,7 +19,7 @@ export enum TaskPriority {
   Urgent = 3,
 }
 
-export type AutoTaskIcon = 'chop' | 'gather' | 'build' | 'repair' | 'research' | 'scout' | 'food';
+export type AutoTaskIcon = 'chop' | 'gather' | 'build' | 'repair' | 'research' | 'scout' | 'food' | 'mine';
 
 export interface TaskData {
   type: TaskType;

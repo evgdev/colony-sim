@@ -5,6 +5,7 @@ import { Settler } from '../entities/Settler';
 import { Building } from '../entities/Building';
 import dinosaursData from '../data/dinosaurs.json';
 import { isNight } from '../config';
+import { gameConfig } from '../gameConfig';
 import { SeededRandom } from '../replay/ReplayTypes';
 import { StoryBranchManager } from '../data/storyBranch';
 
@@ -16,8 +17,8 @@ export class DinosaurSystem {
   private entityManager: EntityManager;
   private tileGrid: TileGrid;
   private spawnTimer: number = 0;
-  private spawnInterval: number = 30;
-  private maxDinosaurs: number = 6;
+  private spawnInterval: number = gameConfig.dinoSpawnInterval;
+  private maxDinosaurs: number = gameConfig.maxDinosaurs;
   private onSettlerDeath?: (name: string) => void;
   private onSpawn?: (species: string) => void;
   private onWallDestroyed?: (x: number, y: number) => void;
@@ -53,7 +54,14 @@ export class DinosaurSystem {
 
     const dinos = this.entityManager.getByType('dinosaur') as Dinosaur[];
     for (const dino of dinos) {
-      this.updateDino(dino, tickCount);
+      dino.spawnTime++;
+      // Update hunger for tamed dinosaurs
+      if (dino.isTamed) {
+        dino.updateHunger(tickDelta);
+        this.updateTamedDino(dino, tickDelta);
+      } else {
+        this.updateDino(dino, tickCount);
+      }
     }
 
     const dead = dinos.filter(d => !d.isAlive);
@@ -73,6 +81,87 @@ export class DinosaurSystem {
       this.entityManager.remove(s.id);
       this.tileGrid.setOccupied(s.x, s.y, false);
       this.onSettlerDeath?.(s.name);
+    }
+  }
+
+  private updateTamedDino(dino: Dinosaur, tickDelta: number): void {
+    dino.updateAttackCooldown(tickDelta);
+
+    // If has attack target, fight it
+    if (dino.attackTarget && dino.attackTarget.isAlive) {
+      const dist = Math.abs(dino.x - dino.attackTarget.x) + Math.abs(dino.y - dino.attackTarget.y);
+      if (dist <= 2) {
+        // In range - attack
+        dino.performAttack(dino.attackTarget);
+        if (!dino.attackTarget.isAlive) {
+          dino.attackTarget = null;
+        }
+        return;
+      } else {
+        // Move towards target
+        const dx = Math.sign(dino.attackTarget.x - dino.x);
+        const dy = Math.sign(dino.attackTarget.y - dino.y);
+        this.moveDino(dino, dx, dy);
+        return;
+      }
+    }
+
+    // Check if near a paddock - if so, stay there (don't follow)
+    const buildings = this.entityManager.getByType('building') as Building[];
+    const nearbyPaddock = buildings.find(b =>
+      b.buildingType === 'paddock' && b.built &&
+      Math.abs(b.x - dino.x) + Math.abs(b.y - dino.y) <= 3
+    );
+    if (nearbyPaddock) {
+      // Near paddock - stay put, auto-feed if hungry
+      if (dino.hunger < 50) {
+        dino.hunger = Math.min(100, dino.hunger + tickDelta * 2);
+        dino.loyalty = Math.min(100, dino.loyalty + tickDelta * 0.5);
+      }
+      return;
+    }
+
+    // No target - find nearest wild predator to attack
+    if (dino.loyalty >= 80) {
+      const dinos = this.entityManager.getByType('dinosaur') as Dinosaur[];
+      const wildPredator = dinos.find(d =>
+        !d.isTamed && d.isAlive &&
+        PREDATOR_SPECIES.includes(d.species) &&
+        Math.abs(d.x - dino.x) + Math.abs(d.y - dino.y) <= 6
+      );
+      if (wildPredator) {
+        dino.setAttackTarget(wildPredator);
+        return;
+      }
+    }
+
+    // Follow nearest settler
+    const settlers = this.entityManager.getByType('settler') as Settler[];
+    const nearestSettler = settlers.find(s => s.isAlive);
+    if (!nearestSettler) return;
+
+    const dist = Math.abs(dino.x - nearestSettler.x) + Math.abs(dino.y - nearestSettler.y);
+    if (dist > 4) {
+      const dx = Math.sign(nearestSettler.x - dino.x);
+      const dy = Math.sign(nearestSettler.y - dino.y);
+      this.moveDino(dino, dx, dy);
+    }
+
+    // If loyalty drops below threshold, become untamed
+    if (dino.loyalty <= 0) {
+      dino.isTamed = false;
+      dino.ownerId = null;
+    }
+  }
+
+  private moveDino(dino: Dinosaur, dx: number, dy: number): void {
+    const newX = dino.x + dx;
+    const newY = dino.y + dy;
+    if (this.tileGrid.isWalkable(newX, newY) && !this.tileGrid.isOccupied(newX, newY)) {
+      this.tileGrid.setOccupiedArea(dino.x, dino.y, dino.footprint, false);
+      dino.x = newX;
+      dino.y = newY;
+      this.tileGrid.setOccupiedArea(dino.x, dino.y, dino.footprint, true);
     }
   }
 

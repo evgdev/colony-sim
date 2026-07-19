@@ -152,6 +152,9 @@ export class WorkSystem {
       case TaskType.HarvestPlant:
         this.executeHarvestPlant(settler, task, tickDelta);
         break;
+      case TaskType.Mine:
+        this.executeMine(settler, task, tickDelta);
+        break;
       default:
         task.completed = true;
         break;
@@ -785,6 +788,101 @@ export class WorkSystem {
     return task;
   }
 
+  private executeMine(settler: Settler, task: Task, tickDelta: number): void {
+    if (!this.decorationGenerator) { task.completed = true; return; }
+
+    // Check if settler has a stone axe
+    const hasAxe = settler.inventory.some(i => i.resourceType === 'stone_axe');
+    if (!hasAxe) {
+      task.completed = true;
+      return;
+    }
+
+    const dec = this.decorationGenerator.getDecorationAt(task.targetX, task.targetY);
+    if (!dec || !dec.plantId) { task.completed = true; return; }
+
+    if (dec.depleted) { task.completed = true; return; }
+
+    const plantData = this.decorationGenerator.getPlantAt(task.targetX, task.targetY);
+    if (!plantData || !plantData.plant.harvestable || !plantData.plant.harvestDrop) {
+      task.completed = true;
+      return;
+    }
+
+    // Move to adjacent tile
+    const dist = Math.abs(settler.x - task.targetX) + Math.abs(settler.y - task.targetY);
+    if (dist > 1) {
+      const dirs = [
+        { dx: 0, dy: -1 }, { dx: 0, dy: 1 },
+        { dx: -1, dy: 0 }, { dx: 1, dy: 0 },
+      ];
+      let adjTarget: { x: number; y: number } | null = null;
+      let bestDist = Infinity;
+      for (const d of dirs) {
+        const nx = task.targetX + d.dx;
+        const ny = task.targetY + d.dy;
+        const tile = this.tileGrid.get(nx, ny);
+        if (tile && tile.walkable && !tile.building && !tile.occupied) {
+          const d2 = Math.abs(settler.x - nx) + Math.abs(settler.y - ny);
+          if (d2 < bestDist) { bestDist = d2; adjTarget = { x: nx, y: ny }; }
+        }
+      }
+      if (!adjTarget) { task.completed = true; return; }
+
+      if (settler.path.length === 0 || settler.pathIndex === 0) {
+        const path = this.movementSystem.findPath(settler.x, settler.y, adjTarget.x, adjTarget.y);
+        if (path.length <= 1) { task.completed = true; return; }
+        settler.path = path;
+        settler.pathIndex = 1;
+      }
+
+      settler.pathIndex = this.movementSystem.stepAlongPath(settler, settler.path, settler.pathIndex);
+      if (settler.pathIndex < settler.path.length) return;
+      settler.path = [];
+      settler.pathIndex = 0;
+    }
+
+    // Mining
+    dec.isHarvesting = true;
+    dec.harvestProgress++;
+    settler.activity = 'gather';
+
+    if (dec.harvestProgress >= dec.harvestTime) {
+      const drop = plantData.plant.harvestDrop;
+      if (Math.random() < drop.chance) {
+        this.simulation.addToInventory(drop.resource, drop.amount, drop.resource);
+      }
+      // Remove permanently — rocks don't regrow
+      this.decorationGenerator.removeAt(task.targetX, task.targetY);
+      this.tileGrid.setOccupied(task.targetX, task.targetY, false);
+      task.completed = true;
+    }
+  }
+
+  createMineTask(tileX: number, tileY: number, priority: TaskPriority = TaskPriority.Normal, settler?: Settler, queue: boolean = false): Task {
+    if (!queue) {
+      if (settler) {
+        this.interruptSettler(settler);
+      } else {
+        const settlers = this.entityManager.getByType('settler') as Settler[];
+        for (const s of settlers) this.interruptSettler(s);
+      }
+    }
+    const task = new Task({
+      type: TaskType.Mine,
+      priority,
+      targetX: tileX,
+      targetY: tileY,
+      assignedSettlerId: settler?.id,
+    });
+    this.taskQueue.add(task);
+    if (settler && settler.isAlive && !settler.currentTaskId) {
+      settler.currentTaskId = task.id;
+      this.executeMine(settler, task, 0);
+    }
+    return task;
+  }
+
   private executeDeliverArtifact(settler: Settler, task: Task, tickDelta: number): void {
     // Find the lab building
     const buildings = this.entityManager.getByType('building') as Building[];
@@ -969,6 +1067,10 @@ export class WorkSystem {
         break;
       case 'repel':
         // Repel is handled elsewhere — just consume the item for now
+        break;
+      case 'tool':
+        // Add tool to settler's inventory
+        settler.addToInventory({ name: recipe.name, quantity: 1, resourceType: recipe.id });
         break;
     }
     return true;

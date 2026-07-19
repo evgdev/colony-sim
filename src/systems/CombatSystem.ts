@@ -104,6 +104,7 @@ export class CombatSystem {
     let minDist = Infinity;
     for (const d of dinos) {
       if (!d.isAlive) continue;
+      if (d.isTamed) continue; // Don't attack tamed dinosaurs
       const dist = Math.abs(settler.x - d.x) + Math.abs(settler.y - d.y);
       if (dist <= range && dist < minDist) {
         minDist = dist;

@@ -128,6 +128,11 @@ export class TileGrid {
     return tile !== null && tile.walkable && !tile.occupied;
   }
 
+  isOccupied(x: number, y: number): boolean {
+    const tile = this.get(x, y);
+    return tile?.occupied ?? true;
+  }
+
   isWalkableForDino(x: number, y: number): boolean {
     const tile = this.get(x, y);
     return tile !== null && tile.walkable && tile.type !== 'water' && !tile.occupied && !tile.dinoBlocked && !tile.building;

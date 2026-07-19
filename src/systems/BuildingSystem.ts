@@ -69,6 +69,8 @@ export class BuildingSystem {
     let minDist = Infinity;
     for (const d of dinos) {
       if (!d.isAlive) continue;
+      if (d.isTamed) continue; // Don't attack tamed dinosaurs
+      if (d.spawnTime < 50) continue; // Immune for first 50 ticks
       const dist = Math.abs(bld.x - d.x) + Math.abs(bld.y - d.y);
       if (dist <= range && dist < minDist) {
         minDist = dist;

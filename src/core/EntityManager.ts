@@ -29,7 +29,13 @@ export class EntityManager {
   }
 
   getAt(x: number, y: number, type?: string): Entity | undefined {
-    return this.getAll().find(e => e.x === x && e.y === y && (!type || e.entityType === type));
+    // Exact match first
+    const exact = this.getAll().find(e => e.x === x && e.y === y && (!type || e.entityType === type));
+    if (exact) return exact;
+    // Fuzzy match for moving entities (within 0.5 tiles)
+    return this.getAll().find(e =>
+      Math.abs(e.x - x) < 0.6 && Math.abs(e.y - y) < 0.6 && (!type || e.entityType === type)
+    );
   }
 
   getAllAt(x: number, y: number): Entity[] {

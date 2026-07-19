@@ -4,6 +4,7 @@ import {
   CANVAS_WIDTH, CANVAS_HEIGHT, HUD_HEIGHT, PANEL_X, BOTTOM_HUD_Y,
   NEEDS_ENABLED,
 } from '../config';
+import { gameConfig } from '../gameConfig';
 import { Simulation } from '../core/Simulation';
 import { Settler } from '../entities/Settler';
 import { Dinosaur } from '../entities/Dinosaur';
@@ -22,7 +23,7 @@ export class DebugPanel {
   private speedBtns: Phaser.GameObjects.Text[] = [];
 
   paused: boolean = false;
-  speed: number = 1;
+  speed: number = gameConfig.debugSpeed;
   projectileCount: number = 0;
 
   constructor(scene: Phaser.Scene) {

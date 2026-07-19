@@ -5,21 +5,57 @@
       "title": "Крушение",
       "description": "Капсула разрушена. Выжившие на планете, не похожей ни на одну из каталога.",
       "order": 1,
-      "quests": ["q1_1", "q1_2", "q1_3"],
+      "quests": [
+        "q1_1",
+        "q1_2",
+        "q1_3"
+      ],
       "dialogue_intro": "act1_intro",
+      "dinosEnabled": false
+    },
+    {
+      "id": "act2_traces",
+      "title": "Следы",
+      "description": "На карте обнаружены странные следы. Исследуй их.",
+      "order": 2,
+      "quests": [
+        "q2_1",
+        "q2_plants",
+        "q2_3"
+      ],
+      "dialogue_intro": "act2_intro",
       "dinosEnabled": false
     },
     {
       "id": "act_plants",
       "title": "Ботаническая экспедиция",
       "description": "Исследуй растительность планеты. Собери образцы для лаборатории.",
-      "order": 2,
-      "quests": ["q_plants_1", "q_plants_2", "q_plants_3", "q_plants_4"],
+      "order": 3,
+      "quests": [
+        "q_plants_1",
+        "q_plants_2",
+        "q_plants_3",
+        "q_plants_4"
+      ],
       "dialogue_intro": "act_plants_intro",
       "dinosEnabled": false
+    },
+    {
+      "id": "act_dinos",
+      "title": "Приручение",
+      "description": "Научись собирать яйца и приручать динозавров.",
+      "order": 6,
+      "quests": [
+        "q_dino_1",
+        "q_dino_2",
+        "q_dino_3",
+        "q_dino_4",
+        "q_dino_5"
+      ],
+      "dialogue_intro": "act_dinos_intro",
+      "dinosEnabled": true
     }
   ],
-
   "quests": {
     "q1_1": {
       "id": "q1_1",
@@ -29,20 +65,39 @@
       "act": "act1_crash",
       "order": 1,
       "objectives": [
-        { "type": "resource", "resource": "wood", "amount": 30, "current": 0 },
-        { "type": "resource", "resource": "stone", "amount": 20, "current": 0 }
+        {
+          "type": "resource",
+          "resource": "wood",
+          "amount": 30,
+          "current": 0
+        },
+        {
+          "type": "resource",
+          "resource": "stone",
+          "amount": 20,
+          "current": 0
+        }
       ],
       "timeLimit": null,
       "rewards": [
-        { "type": "resource", "resource": "wood", "amount": 10 },
-        { "type": "resource", "resource": "stone", "amount": 5 }
+        {
+          "type": "resource",
+          "resource": "wood",
+          "amount": 10
+        },
+        {
+          "type": "resource",
+          "resource": "stone",
+          "amount": 5
+        }
       ],
-      "unlocks": ["q1_2"],
+      "unlocks": [
+        "q1_2"
+      ],
       "dialogue_start": "q1_1_start",
       "dialogue_success": "q1_1_success",
       "dialogue_fail": "q1_1_fail"
     },
-
     "q1_2": {
       "id": "q1_2",
       "title": "Первое укрытие",
@@ -51,17 +106,31 @@
       "act": "act1_crash",
       "order": 2,
       "objectives": [
-        { "type": "building", "building": "wall", "amount": 30, "current": 0 },
-        { "type": "building", "building": "gate", "amount": 1, "current": 0 }
+        {
+          "type": "building",
+          "building": "wall",
+          "amount": 30,
+          "current": 0
+        },
+        {
+          "type": "building",
+          "building": "gate",
+          "amount": 1,
+          "current": 0
+        }
       ],
       "rewards": [
-        { "type": "unlock", "building": "farm" }
+        {
+          "type": "unlock",
+          "building": "farm"
+        }
       ],
-      "unlocks": ["q1_3"],
+      "unlocks": [
+        "q1_3"
+      ],
       "dialogue_start": "q1_2_start",
       "dialogue_success": "q1_2_success"
     },
-
     "q1_3": {
       "id": "q1_3",
       "title": "Продовольствие",
@@ -70,17 +139,30 @@
       "act": "act1_crash",
       "order": 3,
       "objectives": [
-        { "type": "building", "building": "farm", "amount": 2, "current": 0 }
+        {
+          "type": "building",
+          "building": "farm",
+          "amount": 2,
+          "current": 0
+        }
       ],
       "rewards": [
-        { "type": "unlock", "building": "warehouse" },
-        { "type": "resource", "resource": "food", "amount": 15 }
+        {
+          "type": "unlock",
+          "building": "warehouse"
+        },
+        {
+          "type": "resource",
+          "resource": "food",
+          "amount": 15
+        }
       ],
-      "unlocks": ["q2_1"],
+      "unlocks": [
+        "q2_1"
+      ],
       "dialogue_start": "q1_3_start",
       "dialogue_success": "q1_3_success"
     },
-
     "q2_1": {
       "id": "q2_1",
       "title": "Исследуй следы",
@@ -89,23 +171,53 @@
       "act": "act2_traces",
       "order": 1,
       "objectives": [
-        { "type": "reach_tile", "pointName": "tracks_1", "x": -6, "y": -2, "found": false },
-        { "type": "reach_tile", "pointName": "tracks_2", "x": 6, "y": -3, "found": false },
-        { "type": "reach_tile", "pointName": "tracks_3", "x": 4, "y": 5, "found": false }
+        {
+          "type": "reach_tile",
+          "pointName": "tracks_1",
+          "x": -6,
+          "y": -2,
+          "found": false
+        },
+        {
+          "type": "reach_tile",
+          "pointName": "tracks_2",
+          "x": 6,
+          "y": -3,
+          "found": false
+        },
+        {
+          "type": "reach_tile",
+          "pointName": "tracks_3",
+          "x": 4,
+          "y": 5,
+          "found": false
+        }
       ],
       "rewards": [
-        { "type": "unlock", "building": "turret" },
-        { "type": "resource", "resource": "stone", "amount": 20 },
-        { "type": "resource", "resource": "wood", "amount": 10 }
+        {
+          "type": "unlock",
+          "building": "turret"
+        },
+        {
+          "type": "resource",
+          "resource": "stone",
+          "amount": 20
+        },
+        {
+          "type": "resource",
+          "resource": "wood",
+          "amount": 10
+        }
       ],
-      "unlocks": ["q2_2", "q2_plants"],
+      "unlocks": [
+        "q2_plants"
+      ],
       "dialogue_start": "q2_1_start",
       "dialogue_checkpoint_1": "q2_1_cp1",
       "dialogue_checkpoint_2": "q2_1_cp2",
       "dialogue_checkpoint_3": "q2_1_cp3",
       "dialogue_success": "q2_1_success"
     },
-
     "q2_plants": {
       "id": "q2_plants",
       "title": "Исследование растений",
@@ -114,38 +226,72 @@
       "act": "act2_traces",
       "order": 1.5,
       "objectives": [
-        { "type": "building", "building": "lab", "amount": 1, "current": 0 },
-        { "type": "research", "researchType": "plant", "amount": 3, "current": 0 }
+        {
+          "type": "building",
+          "building": "lab",
+          "amount": 1,
+          "current": 0
+        },
+        {
+          "type": "research",
+          "researchType": "plant",
+          "amount": 3,
+          "current": 0
+        }
       ],
       "rewards": [
-        { "type": "effect", "effect": "fogRadius", "value": 1 },
-        { "type": "resource", "resource": "wood", "amount": 15 }
+        {
+          "type": "effect",
+          "effect": "fogRadius",
+          "value": 1
+        },
+        {
+          "type": "resource",
+          "resource": "wood",
+          "amount": 15
+        }
       ],
-      "unlocks": [],
+      "unlocks": ["q2_3"],
       "dialogue_start": "q2_plants_start",
       "dialogue_success": "q2_plants_success"
     },
-
-    "q2_2": {
-      "id": "q2_2",
+    "q2_3": {
       "title": "Собери образцы",
       "description": "Найди окаменелости и странные следы для анализа.",
       "type": "gather_artifact",
       "act": "act2_traces",
       "order": 2,
       "objectives": [
-        { "type": "artifact", "name": "fossil", "amount": 2, "current": 0 },
-        { "type": "artifact", "name": "strange_track", "amount": 1, "current": 0 }
+        {
+          "type": "artifact",
+          "name": "fossil",
+          "amount": 2,
+          "current": 0
+        },
+        {
+          "type": "artifact",
+          "name": "strange_track",
+          "amount": 1,
+          "current": 0
+        }
       ],
       "rewards": [
-        { "type": "unlock", "building": "workshop" },
-        { "type": "effect", "effect": "fogRadius", "value": 1 }
+        {
+          "type": "unlock",
+          "building": "workshop"
+        },
+        {
+          "type": "effect",
+          "effect": "fogRadius",
+          "value": 1
+        }
       ],
-      "unlocks": ["q2_3"],
+      "unlocks": [
+        "q2_3"
+      ],
       "dialogue_start": "q2_2_start",
       "dialogue_success": "q2_2_success"
     },
-
     "q2_3": {
       "id": "q2_3",
       "title": "Укрепи оборону",
@@ -154,17 +300,31 @@
       "act": "act2_traces",
       "order": 3,
       "objectives": [
-        { "type": "building", "building": "turret", "amount": 2, "current": 0 }
+        {
+          "type": "building",
+          "building": "turret",
+          "amount": 2,
+          "current": 0
+        }
       ],
       "rewards": [
-        { "type": "resource", "resource": "wood", "amount": 30 },
-        { "type": "resource", "resource": "stone", "amount": 20 }
+        {
+          "type": "resource",
+          "resource": "wood",
+          "amount": 30
+        },
+        {
+          "type": "resource",
+          "resource": "stone",
+          "amount": 20
+        }
       ],
-      "unlocks": ["q3_1"],
+      "unlocks": [
+        "q3_1"
+      ],
       "dialogue_start": "q2_3_start",
       "dialogue_success": "q2_3_success"
     },
-
     "q3_1": {
       "id": "q3_1",
       "title": "Первый контакт",
@@ -173,18 +333,31 @@
       "act": "act3_awakening",
       "order": 1,
       "objectives": [
-        { "type": "reach_dino", "species": "brontosaur", "distance": 3, "found": false }
+        {
+          "type": "reach_dino",
+          "species": "brontosaur",
+          "distance": 5,
+          "found": false
+        }
       ],
-      "timeLimit": 50,
+      "spawnOnStart": {
+        "species": "brontosaur",
+        "count": 2
+      },
       "rewards": [
-        { "type": "effect", "effect": "fogRadius", "value": 1 }
+        {
+          "type": "effect",
+          "effect": "fogRadius",
+          "value": 1
+        }
       ],
-      "unlocks": ["q3_2"],
+      "unlocks": [
+        "q3_2"
+      ],
       "dialogue_start": "q3_1_start",
       "dialogue_success": "q3_1_success",
       "dialogue_fail": "q3_1_fail"
     },
-
     "q3_2": {
       "id": "q3_2",
       "title": "Добыча кости",
@@ -193,16 +366,26 @@
       "act": "act3_awakening",
       "order": 2,
       "objectives": [
-        { "type": "artifact", "name": "fossil", "amount": 3, "current": 0 }
+        {
+          "type": "artifact",
+          "name": "fossil",
+          "amount": 3,
+          "current": 0
+        }
       ],
       "rewards": [
-        { "type": "effect", "effect": "maxHp", "value": 10 }
+        {
+          "type": "effect",
+          "effect": "maxHp",
+          "value": 10
+        }
       ],
-      "unlocks": ["q3_3"],
+      "unlocks": [
+        "q3_3"
+      ],
       "dialogue_start": "q3_2_start",
       "dialogue_success": "q3_2_success"
     },
-
     "q3_3": {
       "id": "q3_3",
       "title": "Стражи",
@@ -211,18 +394,37 @@
       "act": "act3_awakening",
       "order": 3,
       "objectives": [
-        { "type": "building", "building": "turret", "amount": 4, "current": 0 },
-        { "type": "building", "building": "wall", "amount": 2, "current": 0 }
+        {
+          "type": "building",
+          "building": "turret",
+          "amount": 4,
+          "current": 0
+        },
+        {
+          "type": "building",
+          "building": "wall",
+          "amount": 2,
+          "current": 0
+        }
       ],
       "rewards": [
-        { "type": "resource", "resource": "wood", "amount": 50 },
-        { "type": "resource", "resource": "stone", "amount": 30 }
+        {
+          "type": "resource",
+          "resource": "wood",
+          "amount": 50
+        },
+        {
+          "type": "resource",
+          "resource": "stone",
+          "amount": 30
+        }
       ],
-      "unlocks": ["q4_1"],
+      "unlocks": [
+        "q4_1"
+      ],
       "dialogue_start": "q3_3_start",
       "dialogue_success": "q3_3_success"
     },
-
     "q4_1": {
       "id": "q4_1",
       "title": "Вымани врага",
@@ -231,19 +433,32 @@
       "act": "act4_hunt",
       "order": 1,
       "objectives": [
-        { "type": "kill", "species": "raptor", "amount": 3, "current": 0 }
+        {
+          "type": "kill",
+          "species": "raptor",
+          "amount": 3,
+          "current": 0
+        }
       ],
       "timeLimit": 80,
       "rewards": [
-        { "type": "artifact_loot", "name": "raptor tooth", "amount": 3 },
-        { "type": "unlock", "building": "turret" }
+        {
+          "type": "artifact_loot",
+          "name": "raptor tooth",
+          "amount": 3
+        },
+        {
+          "type": "unlock",
+          "building": "turret"
+        }
       ],
-      "unlocks": ["q4_2"],
+      "unlocks": [
+        "q4_2"
+      ],
       "dialogue_start": "q4_1_start",
       "dialogue_kill": "q4_1_kill",
       "dialogue_success": "q4_1_success"
     },
-
     "q4_2": {
       "id": "q4_2",
       "title": "Раненый",
@@ -252,17 +467,27 @@
       "act": "act4_hunt",
       "order": 2,
       "objectives": [
-        { "type": "survive_ticks", "amount": 50, "current": 0 }
+        {
+          "type": "survive_ticks",
+          "amount": 50,
+          "current": 0
+        }
       ],
       "rewards": [
-        { "type": "unlock", "building": "workshop" },
-        { "type": "heal_all" }
+        {
+          "type": "unlock",
+          "building": "workshop"
+        },
+        {
+          "type": "heal_all"
+        }
       ],
-      "unlocks": ["q4_3"],
+      "unlocks": [
+        "q4_3"
+      ],
       "dialogue_start": "q4_2_start",
       "dialogue_success": "q4_2_success"
     },
-
     "q4_3": {
       "id": "q4_3",
       "title": "Трофей",
@@ -271,17 +496,31 @@
       "act": "act4_hunt",
       "order": 3,
       "objectives": [
-        { "type": "kill_melee", "species": "raptor", "amount": 1, "current": 0 }
+        {
+          "type": "kill_melee",
+          "species": "raptor",
+          "amount": 1,
+          "current": 0
+        }
       ],
       "rewards": [
-        { "type": "artifact_loot", "name": "raptor tooth", "amount": 1 },
-        { "type": "effect", "effect": "attackSpeed", "value": 0.1 }
+        {
+          "type": "artifact_loot",
+          "name": "raptor tooth",
+          "amount": 1
+        },
+        {
+          "type": "effect",
+          "effect": "attackSpeed",
+          "value": 0.1
+        }
       ],
-      "unlocks": ["q4_4"],
+      "unlocks": [
+        "q4_4"
+      ],
       "dialogue_start": "q4_3_start",
       "dialogue_success": "q4_3_success"
     },
-
     "q4_4": {
       "id": "q4_4",
       "title": "Первый Ти-Рекс",
@@ -290,21 +529,34 @@
       "act": "act4_hunt",
       "order": 4,
       "objectives": [
-        { "type": "survive_ticks", "amount": 30, "current": 0 }
+        {
+          "type": "survive_ticks",
+          "amount": 30,
+          "current": 0
+        }
       ],
       "spawnOnStart": {
         "species": "trex",
         "count": 1
       },
       "rewards": [
-        { "type": "artifact_loot", "name": "trex tooth", "amount": 1 },
-        { "type": "effect", "effect": "maxHp", "value": 20 }
+        {
+          "type": "artifact_loot",
+          "name": "trex tooth",
+          "amount": 1
+        },
+        {
+          "type": "effect",
+          "effect": "maxHp",
+          "value": 20
+        }
       ],
-      "unlocks": ["q5_1"],
+      "unlocks": [
+        "q5_1"
+      ],
       "dialogue_start": "q4_4_start",
       "dialogue_success": "q4_4_success"
     },
-
     "q5_1": {
       "id": "q5_1",
       "title": "Собери фрагменты",
@@ -313,16 +565,25 @@
       "act": "act5_rescue",
       "order": 1,
       "objectives": [
-        { "type": "artifact", "name": "radio_fragment", "amount": 3, "current": 0 }
+        {
+          "type": "artifact",
+          "name": "radio_fragment",
+          "amount": 3,
+          "current": 0
+        }
       ],
       "rewards": [
-        { "type": "unlock", "building": "radio" }
+        {
+          "type": "unlock",
+          "building": "radio"
+        }
       ],
-      "unlocks": ["q5_2"],
+      "unlocks": [
+        "q5_2"
+      ],
       "dialogue_start": "q5_1_start",
       "dialogue_success": "q5_1_success"
     },
-
     "q5_2": {
       "id": "q5_2",
       "title": "Собери компоненты",
@@ -331,17 +592,32 @@
       "act": "act5_rescue",
       "order": 2,
       "objectives": [
-        { "type": "resource", "resource": "stone", "amount": 50, "current": 0 },
-        { "type": "resource", "resource": "wood", "amount": 30, "current": 0 }
+        {
+          "type": "resource",
+          "resource": "stone",
+          "amount": 50,
+          "current": 0
+        },
+        {
+          "type": "resource",
+          "resource": "wood",
+          "amount": 30,
+          "current": 0
+        }
       ],
       "rewards": [
-        { "type": "resource", "resource": "stone", "amount": 20 }
+        {
+          "type": "resource",
+          "resource": "stone",
+          "amount": 20
+        }
       ],
-      "unlocks": ["q5_3"],
+      "unlocks": [
+        "q5_3"
+      ],
       "dialogue_start": "q5_2_start",
       "dialogue_success": "q5_2_success"
     },
-
     "q5_3": {
       "id": "q5_3",
       "title": "Построй радио",
@@ -350,16 +626,25 @@
       "act": "act5_rescue",
       "order": 3,
       "objectives": [
-        { "type": "building", "building": "radio", "amount": 1, "current": 0 }
+        {
+          "type": "building",
+          "building": "radio",
+          "amount": 1,
+          "current": 0
+        }
       ],
       "rewards": [
-        { "type": "unlock_quest", "quest": "q5_4" }
+        {
+          "type": "unlock_quest",
+          "quest": "q5_4"
+        }
       ],
-      "unlocks": ["q5_4"],
+      "unlocks": [
+        "q5_4"
+      ],
       "dialogue_start": "q5_3_start",
       "dialogue_success": "q5_3_success"
     },
-
     "q5_4": {
       "id": "q5_4",
       "title": "Активируй маяк",
@@ -368,15 +653,18 @@
       "act": "act5_rescue",
       "order": 4,
       "objectives": [
-        { "type": "activate_radio" }
+        {
+          "type": "activate_radio"
+        }
       ],
       "timeLimit": null,
       "rewards": [],
-      "unlocks": ["q5_5"],
+      "unlocks": [
+        "q5_5"
+      ],
       "dialogue_start": "q5_4_start",
       "dialogue_success": "q5_4_success"
     },
-
     "q5_5": {
       "id": "q5_5",
       "title": "Финальная оборона",
@@ -385,29 +673,116 @@
       "act": "act5_rescue",
       "order": 5,
       "objectives": [
-        { "type": "survive_ticks", "amount": 100, "current": 0 }
+        {
+          "type": "survive_ticks",
+          "amount": 100,
+          "current": 0
+        }
       ],
       "waves": [
-        { "wave": 1, "species": ["raptor"], "count": 3, "interval": 15 },
-        { "wave": 2, "species": ["raptor"], "count": 4, "interval": 12 },
-        { "wave": 3, "species": ["raptor", "brontosaur"], "count": 5, "interval": 10 },
-        { "wave": 4, "species": ["raptor", "trex"], "count": 6, "interval": 8 },
-        { "wave": 5, "species": ["raptor", "trex"], "count": 7, "interval": 7 },
-        { "wave": 6, "species": ["raptor", "trex", "pterodactyl"], "count": 8, "interval": 6 },
-        { "wave": 7, "species": ["raptor", "trex", "pterodactyl"], "count": 10, "interval": 5 },
-        { "wave": 8, "species": ["raptor", "trex", "pterodactyl"], "count": 12, "interval": 4 },
-        { "wave": 9, "species": ["trex", "pterodactyl"], "count": 10, "interval": 4 },
-        { "wave": 10, "species": ["trex", "raptor", "pterodactyl"], "count": 15, "interval": 3 }
+        {
+          "wave": 1,
+          "species": [
+            "raptor"
+          ],
+          "count": 3,
+          "interval": 15
+        },
+        {
+          "wave": 2,
+          "species": [
+            "raptor"
+          ],
+          "count": 4,
+          "interval": 12
+        },
+        {
+          "wave": 3,
+          "species": [
+            "raptor",
+            "brontosaur"
+          ],
+          "count": 5,
+          "interval": 10
+        },
+        {
+          "wave": 4,
+          "species": [
+            "raptor",
+            "trex"
+          ],
+          "count": 6,
+          "interval": 8
+        },
+        {
+          "wave": 5,
+          "species": [
+            "raptor",
+            "trex"
+          ],
+          "count": 7,
+          "interval": 7
+        },
+        {
+          "wave": 6,
+          "species": [
+            "raptor",
+            "trex",
+            "pterodactyl"
+          ],
+          "count": 8,
+          "interval": 6
+        },
+        {
+          "wave": 7,
+          "species": [
+            "raptor",
+            "trex",
+            "pterodactyl"
+          ],
+          "count": 10,
+          "interval": 5
+        },
+        {
+          "wave": 8,
+          "species": [
+            "raptor",
+            "trex",
+            "pterodactyl"
+          ],
+          "count": 12,
+          "interval": 4
+        },
+        {
+          "wave": 9,
+          "species": [
+            "trex",
+            "pterodactyl"
+          ],
+          "count": 10,
+          "interval": 4
+        },
+        {
+          "wave": 10,
+          "species": [
+            "trex",
+            "raptor",
+            "pterodactyl"
+          ],
+          "count": 15,
+          "interval": 3
+        }
       ],
       "rewards": [
-        { "type": "victory" }
+        {
+          "type": "victory"
+        }
       ],
       "unlocks": [],
       "dialogue_start": "q5_5_start",
       "dialogue_wave": "q5_5_wave",
       "dialogue_success": "q5_5_success"
     },
-
     "q_plants_1": {
       "id": "q_plants_1",
       "title": "Ботанический обзор",
@@ -416,18 +791,38 @@
       "act": "act_plants",
       "order": 1,
       "objectives": [
-        { "type": "harvest_plant", "plantId": "ostrichfern", "amount": 2, "current": 0 },
-        { "type": "harvest_plant", "plantId": "pteridium", "amount": 2, "current": 0 },
-        { "type": "harvest_plant", "plantId": "dryopteris", "amount": 1, "current": 0 }
+        {
+          "type": "harvest_plant",
+          "plantId": "ostrichfern",
+          "amount": 2,
+          "current": 0
+        },
+        {
+          "type": "harvest_plant",
+          "plantId": "pteridium",
+          "amount": 2,
+          "current": 0
+        },
+        {
+          "type": "harvest_plant",
+          "plantId": "dryopteris",
+          "amount": 1,
+          "current": 0
+        }
       ],
       "rewards": [
-        { "type": "resource", "resource": "fiber", "amount": 10 }
+        {
+          "type": "resource",
+          "resource": "fiber",
+          "amount": 10
+        }
       ],
-      "unlocks": ["q_plants_2"],
+      "unlocks": [
+        "q_plants_2"
+      ],
       "dialogue_start": "q_plants_1_start",
       "dialogue_success": "q_plants_1_success"
     },
-
     "q_plants_2": {
       "id": "q_plants_2",
       "title": "Древовидные гиганты",
@@ -436,18 +831,37 @@
       "act": "act_plants",
       "order": 2,
       "objectives": [
-        { "type": "harvest_plant", "plantId": "treefern", "amount": 2, "current": 0 },
-        { "type": "harvest_plant", "plantId": "cycas", "amount": 2, "current": 0 }
+        {
+          "type": "harvest_plant",
+          "plantId": "treefern",
+          "amount": 2,
+          "current": 0
+        },
+        {
+          "type": "harvest_plant",
+          "plantId": "cycas",
+          "amount": 2,
+          "current": 0
+        }
       ],
       "rewards": [
-        { "type": "resource", "resource": "fiber", "amount": 15 },
-        { "type": "resource", "resource": "herb", "amount": 5 }
+        {
+          "type": "resource",
+          "resource": "fiber",
+          "amount": 15
+        },
+        {
+          "type": "resource",
+          "resource": "herb",
+          "amount": 5
+        }
       ],
-      "unlocks": ["q_plants_3"],
+      "unlocks": [
+        "q_plants_3"
+      ],
       "dialogue_start": "q_plants_2_start",
       "dialogue_success": "q_plants_2_success"
     },
-
     "q_plants_3": {
       "id": "q_plants_3",
       "title": "Редкие экземпляры",
@@ -456,17 +870,30 @@
       "act": "act_plants",
       "order": 3,
       "objectives": [
-        { "type": "harvest_plant", "plantId": "ginkgo", "amount": 2, "current": 0 }
+        {
+          "type": "harvest_plant",
+          "plantId": "ginkgo",
+          "amount": 2,
+          "current": 0
+        }
       ],
       "rewards": [
-        { "type": "resource", "resource": "herb", "amount": 10 },
-        { "type": "unlock", "building": "lab" }
+        {
+          "type": "resource",
+          "resource": "herb",
+          "amount": 10
+        },
+        {
+          "type": "unlock",
+          "building": "lab"
+        }
       ],
-      "unlocks": ["q_plants_4"],
+      "unlocks": [
+        "q_plants_4"
+      ],
       "dialogue_start": "q_plants_3_start",
       "dialogue_success": "q_plants_3_success"
     },
-
     "q_plants_4": {
       "id": "q_plants_4",
       "title": "Лабораторный анализ",
@@ -475,18 +902,34 @@
       "act": "act_plants",
       "order": 4,
       "objectives": [
-        { "type": "resource", "resource": "herb", "amount": 5, "current": 0 },
-        { "type": "resource", "resource": "fiber", "amount": 5, "current": 0 }
+        {
+          "type": "resource",
+          "resource": "herb",
+          "amount": 5,
+          "current": 0
+        },
+        {
+          "type": "resource",
+          "resource": "fiber",
+          "amount": 5,
+          "current": 0
+        }
       ],
       "rewards": [
-        { "type": "fog_radius", "amount": 2 },
-        { "type": "resource", "resource": "resin", "amount": 10 }
+        {
+          "type": "fog_radius",
+          "amount": 2
+        },
+        {
+          "type": "resource",
+          "resource": "resin",
+          "amount": 10
+        }
       ],
       "unlocks": [],
       "dialogue_start": "q_plants_4_start",
       "dialogue_success": "q_plants_4_success"
     },
-
     "q_branch_choice": {
       "id": "q_branch_choice",
       "title": "Выбор пути",
@@ -500,7 +943,6 @@
       "dialogue_start": "q_branch_choice_start",
       "dialogue_success": "q_branch_choice_success"
     },
-
     "qs_1": {
       "id": "qs_1",
       "title": "Первые наблюдения",
@@ -509,17 +951,30 @@
       "act": "act_scientist_1",
       "order": 1,
       "objectives": [
-        { "type": "observe_dino", "species": "brontosaur", "distance": 5, "found": false }
+        {
+          "type": "observe_dino",
+          "species": "brontosaur",
+          "distance": 5,
+          "found": false
+        }
       ],
       "rewards": [
-        { "type": "unlock", "building": "lab" },
-        { "type": "resource", "resource": "herb", "amount": 5 }
+        {
+          "type": "unlock",
+          "building": "lab"
+        },
+        {
+          "type": "resource",
+          "resource": "herb",
+          "amount": 5
+        }
       ],
-      "unlocks": ["qs_2"],
+      "unlocks": [
+        "qs_2"
+      ],
       "dialogue_start": "qs_1_start",
       "dialogue_success": "qs_1_success"
     },
-
     "qs_2": {
       "id": "qs_2",
       "title": "Карта territoriality",
@@ -528,19 +983,45 @@
       "act": "act_scientist_1",
       "order": 2,
       "objectives": [
-        { "type": "reach_tile", "pointName": "trex_territory", "x": 8, "y": -6, "found": false },
-        { "type": "reach_tile", "pointName": "raptor_territory", "x": -7, "y": 4, "found": false },
-        { "type": "reach_tile", "pointName": "bronto_territory", "x": 2, "y": 7, "found": false }
+        {
+          "type": "reach_tile",
+          "pointName": "trex_territory",
+          "x": 8,
+          "y": -6,
+          "found": false
+        },
+        {
+          "type": "reach_tile",
+          "pointName": "raptor_territory",
+          "x": -7,
+          "y": 4,
+          "found": false
+        },
+        {
+          "type": "reach_tile",
+          "pointName": "bronto_territory",
+          "x": 2,
+          "y": 7,
+          "found": false
+        }
       ],
       "rewards": [
-        { "type": "fog_radius", "amount": 2 },
-        { "type": "resource", "resource": "fiber", "amount": 10 }
+        {
+          "type": "fog_radius",
+          "amount": 2
+        },
+        {
+          "type": "resource",
+          "resource": "fiber",
+          "amount": 10
+        }
       ],
-      "unlocks": ["qs_3"],
+      "unlocks": [
+        "qs_3"
+      ],
       "dialogue_start": "qs_2_start",
       "dialogue_success": "qs_2_success"
     },
-
     "qs_3": {
       "id": "qs_3",
       "title": "Артефакты прошлого",
@@ -549,18 +1030,36 @@
       "act": "act_scientist_2",
       "order": 1,
       "objectives": [
-        { "type": "artifact", "name": "fossil", "amount": 3, "current": 0 },
-        { "type": "artifact", "name": "strange_track", "amount": 2, "current": 0 }
+        {
+          "type": "artifact",
+          "name": "fossil",
+          "amount": 3,
+          "current": 0
+        },
+        {
+          "type": "artifact",
+          "name": "strange_track",
+          "amount": 2,
+          "current": 0
+        }
       ],
       "rewards": [
-        { "type": "unlock", "building": "workshop" },
-        { "type": "effect", "effect": "fogRadius", "value": 1 }
+        {
+          "type": "unlock",
+          "building": "workshop"
+        },
+        {
+          "type": "effect",
+          "effect": "fogRadius",
+          "value": 1
+        }
       ],
-      "unlocks": ["qs_4"],
+      "unlocks": [
+        "qs_4"
+      ],
       "dialogue_start": "qs_3_start",
       "dialogue_success": "qs_3_success"
     },
-
     "qs_4": {
       "id": "qs_4",
       "title": "Биосканер",
@@ -569,17 +1068,32 @@
       "act": "act_scientist_2",
       "order": 2,
       "objectives": [
-        { "type": "building", "building": "workshop", "amount": 1, "current": 0 },
-        { "type": "craft", "recipeId": "bio_scanner", "amount": 1, "current": 0 }
+        {
+          "type": "building",
+          "building": "workshop",
+          "amount": 1,
+          "current": 0
+        },
+        {
+          "type": "craft",
+          "recipeId": "bio_scanner",
+          "amount": 1,
+          "current": 0
+        }
       ],
       "rewards": [
-        { "type": "effect", "effect": "fogRadius", "value": 2 }
+        {
+          "type": "effect",
+          "effect": "fogRadius",
+          "value": 2
+        }
       ],
-      "unlocks": ["qs_5"],
+      "unlocks": [
+        "qs_5"
+      ],
       "dialogue_start": "qs_4_start",
       "dialogue_success": "qs_4_success"
     },
-
     "qs_5": {
       "id": "qs_5",
       "title": "Тайна руин",
@@ -588,19 +1102,43 @@
       "act": "act_scientist_3",
       "order": 1,
       "objectives": [
-        { "type": "artifact", "name": "radio_fragment", "amount": 3, "current": 0 },
-        { "type": "harvest_plant", "plantId": "sequoia", "amount": 1, "current": 0 },
-        { "type": "harvest_plant", "plantId": "wollemia", "amount": 1, "current": 0 }
+        {
+          "type": "artifact",
+          "name": "radio_fragment",
+          "amount": 3,
+          "current": 0
+        },
+        {
+          "type": "harvest_plant",
+          "plantId": "sequoia",
+          "amount": 1,
+          "current": 0
+        },
+        {
+          "type": "harvest_plant",
+          "plantId": "wollemia",
+          "amount": 1,
+          "current": 0
+        }
       ],
       "rewards": [
-        { "type": "resource", "resource": "resin", "amount": 20 },
-        { "type": "effect", "effect": "maxHp", "value": 20 }
+        {
+          "type": "resource",
+          "resource": "resin",
+          "amount": 20
+        },
+        {
+          "type": "effect",
+          "effect": "maxHp",
+          "value": 20
+        }
       ],
-      "unlocks": ["qs_6"],
+      "unlocks": [
+        "qs_6"
+      ],
       "dialogue_start": "qs_5_start",
       "dialogue_success": "qs_5_success"
     },
-
     "qs_6": {
       "id": "qs_6",
       "title": "Отбытие",
@@ -609,14 +1147,107 @@
       "act": "act_scientist_4",
       "order": 1,
       "objectives": [
-        { "type": "activate_radio" }
+        {
+          "type": "activate_radio"
+        }
       ],
       "rewards": [
-        { "type": "victory" }
+        {
+          "type": "victory"
+        }
       ],
       "unlocks": [],
       "dialogue_start": "qs_6_start",
       "dialogue_success": "qs_6_success"
+    },
+    "q_dino_1": {
+      "id": "q_dino_1",
+      "title": "Яйцо на обочине",
+      "description": "Найди гнездо динозавра и собери яйцо. Осторожно — мать может быть рядом!",
+      "type": "gather",
+      "act": "act_dinos",
+      "order": 1,
+      "objectives": [
+        { "type": "resource", "resource": "raptor_egg", "amount": 1, "current": 0 }
+      ],
+      "rewards": [
+        { "type": "unlock", "building": "incubator" }
+      ],
+      "unlocks": ["q_dino_2"],
+      "dialogue_start": "q_dino_1_start",
+      "dialogue_success": "q_dino_1_success"
+    },
+    "q_dino_2": {
+      "id": "q_dino_2",
+      "title": "Вылупление",
+      "description": "Построй инкубатор и вырасти детёныша из яйца.",
+      "type": "build",
+      "act": "act_dinos",
+      "order": 2,
+      "objectives": [
+        { "type": "building", "building": "incubator", "amount": 1, "current": 0 }
+      ],
+      "rewards": [
+        { "type": "unlock", "building": "paddock" }
+      ],
+      "unlocks": ["q_dino_3"],
+      "dialogue_start": "q_dino_2_start",
+      "dialogue_success": "q_dino_2_success"
+    },
+    "q_dino_3": {
+      "id": "q_dino_3",
+      "title": "Доверие",
+      "description": "Накорми детёныша до лояльности 50%.",
+      "type": "gather",
+      "act": "act_dinos",
+      "order": 3,
+      "objectives": [
+        { "type": "resource", "resource": "herb", "amount": 10, "current": 0 }
+      ],
+      "rewards": [
+        { "type": "resource", "resource": "meat", "amount": 5 }
+      ],
+      "unlocks": ["q_dino_4"],
+      "dialogue_start": "q_dino_3_start",
+      "dialogue_success": "q_dino_3_success"
+    },
+    "q_dino_4": {
+      "id": "q_dino_4",
+      "title": "Команда",
+      "description": "Приручи раптора и построй вольер.",
+      "type": "build",
+      "act": "act_dinos",
+      "order": 4,
+      "objectives": [
+        { "type": "building", "building": "paddock", "amount": 1, "current": 0 }
+      ],
+      "rewards": [
+        { "type": "effect", "effect": "fogRadius", "value": 2 }
+      ],
+      "unlocks": ["q_dino_5"],
+      "dialogue_start": "q_dino_4_start",
+      "dialogue_success": "q_dino_4_success"
+    },
+    "q_dino_5": {
+      "id": "q_dino_5",
+      "title": "Хищник",
+      "description": "Победи Ти-Рекса с командой прирученных динозавров!",
+      "type": "kill",
+      "act": "act_dinos",
+      "order": 5,
+      "objectives": [
+        { "type": "kill", "species": "trex", "amount": 1, "current": 0 }
+      ],
+      "spawnOnStart": {
+        "species": "trex",
+        "count": 1
+      },
+      "rewards": [
+        { "type": "victory" }
+      ],
+      "unlocks": [],
+      "dialogue_start": "q_dino_5_start",
+      "dialogue_success": "q_dino_5_success"
     }
   }
 }

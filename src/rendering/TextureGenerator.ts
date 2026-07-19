@@ -1676,6 +1676,30 @@ export function createDecorationTextures(scene: Phaser.Scene): void {
     g.generateTexture(`dec_rock_l_${v}`, 28, 24); g.destroy();
   }
 
+  // === Nest ===
+  {
+    const g = scene.add.graphics().setVisible(false);
+    // Nest base - brown circle
+    g.fillStyle(0x8B4513); g.fillEllipse(14, 12, 24, 16);
+    // Straw texture
+    g.lineStyle(1, 0xD2B48C, 0.6);
+    for (let i = 0; i < 8; i++) {
+      const angle = (i / 8) * Math.PI * 2;
+      const x1 = 14 + Math.cos(angle) * 8;
+      const y1 = 12 + Math.sin(angle) * 5;
+      const x2 = 14 + Math.cos(angle) * 12;
+      const y2 = 12 + Math.sin(angle) * 8;
+      g.lineBetween(x1, y1, x2, y2);
+    }
+    // Eggs
+    g.fillStyle(0xFFFACD); g.fillEllipse(11, 10, 5, 4);
+    g.fillStyle(0xFFF8DC); g.fillEllipse(17, 11, 5, 4);
+    g.lineStyle(1, 0xDAA520, 0.5);
+    g.strokeEllipse(11, 10, 5, 4);
+    g.strokeEllipse(17, 11, 5, 4);
+    g.generateTexture('dec_nest', 28, 24); g.destroy();
+  }
+
   // === Shore ===
   for (let v = 0; v < 2; v++) {
     const g = scene.add.graphics().setVisible(false);
