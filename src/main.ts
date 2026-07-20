@@ -2,14 +2,15 @@ import Phaser from 'phaser';
 import { BootScene } from './scenes/BootScene';
 import { GameScene } from './scenes/GameScene';
 import { ReplayScene } from './replay/ReplayScene';
-import { CANVAS_WIDTH, CANVAS_HEIGHT } from './config';
+import { initLayout } from './ui/LayoutConfig';
 
+const layout = initLayout();
 const DPR = window.devicePixelRatio || 1;
 
 const config = {
   type: Phaser.AUTO,
-  width: CANVAS_WIDTH,
-  height: CANVAS_HEIGHT,
+  width: layout.canvasW,
+  height: layout.canvasH,
   backgroundColor: '#1a1a2e',
   parent: document.body,
   scene: [BootScene, GameScene, ReplayScene],

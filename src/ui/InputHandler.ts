@@ -9,6 +9,7 @@ import Phaser from 'phaser';
 import {
   TILE_SIZE, FIELD_X, FIELD_Y, FIELD_W, FIELD_H, MAP_WIDTH, MAP_HEIGHT,
 } from '../config';
+import { getLayout } from './LayoutConfig';
 import { Simulation } from '../core/Simulation';
 import { Settler } from '../entities/Settler';
 import { Resource } from '../entities/Resource';
@@ -93,10 +94,11 @@ export class InputHandler {
   updateScroll(sx: number, sy: number): void { this.scrollX = sx; this.scrollY = sy; }
 
   private screenToTile(px: number, py: number): { tileX: number; tileY: number } | null {
-    if (px < FIELD_X || px >= FIELD_X + FIELD_W) return null;
-    if (py < FIELD_Y || py >= FIELD_Y + FIELD_H) return null;
-    const tileX = Math.floor((px - FIELD_X) / TILE_SIZE) + this.scrollX;
-    const tileY = Math.floor((py - FIELD_Y) / TILE_SIZE) + this.scrollY;
+    const L = getLayout();
+    if (px < L.fieldX || px >= L.fieldX + L.fieldW) return null;
+    if (py < L.fieldY || py >= L.fieldY + L.fieldH) return null;
+    const tileX = Math.floor((px - L.fieldX) / L.tileSize) + this.scrollX;
+    const tileY = Math.floor((py - L.fieldY) / L.tileSize) + this.scrollY;
     if (tileX < 0 || tileX >= MAP_WIDTH || tileY < 0 || tileY >= MAP_HEIGHT) return null;
     return { tileX, tileY };
   }
@@ -111,14 +113,16 @@ export class InputHandler {
   }
 
   private tileToScreen(tileX: number, tileY: number): { sx: number; sy: number } {
+    const L = getLayout();
     return {
-      sx: FIELD_X + (tileX - this.scrollX) * TILE_SIZE,
-      sy: FIELD_Y + (tileY - this.scrollY) * TILE_SIZE,
+      sx: L.fieldX + (tileX - this.scrollX) * L.tileSize,
+      sy: L.fieldY + (tileY - this.scrollY) * L.tileSize,
     };
   }
 
   createHoverRect(): void {
-    this.hoverRect = this.scene.add.rectangle(FIELD_X, FIELD_Y, TILE_SIZE, TILE_SIZE)
+    const L = getLayout();
+    this.hoverRect = this.scene.add.rectangle(L.fieldX, L.fieldY, L.tileSize, L.tileSize)
       .setStrokeStyle(2, 0xffffff)
       .setFillStyle(0xffffff, 0.15)
       .setOrigin(0)
@@ -128,7 +132,8 @@ export class InputHandler {
   }
 
   createSelectionRect(): void {
-    this.uiManager.selectionRect = this.scene.add.rectangle(FIELD_X, FIELD_Y, TILE_SIZE + 4, TILE_SIZE + 4)
+    const L = getLayout();
+    this.uiManager.selectionRect = this.scene.add.rectangle(L.fieldX, L.fieldY, L.tileSize + 4, L.tileSize + 4)
       .setStrokeStyle(3, 0x00ff00)
       .setFillStyle(0x00ff00, 0.1)
       .setOrigin(0.5)
@@ -385,8 +390,9 @@ export class InputHandler {
   // ── Draw drag selection rectangle ──
   private drawDragRect(x1: number, y1: number, x2: number, y2: number): void {
     // Clamp to viewport
-    const clampX = (v: number) => Math.max(FIELD_X, Math.min(FIELD_X + FIELD_W, v));
-    const clampY = (v: number) => Math.max(FIELD_Y, Math.min(FIELD_Y + FIELD_H, v));
+    const L = getLayout();
+    const clampX = (v: number) => Math.max(L.fieldX, Math.min(L.fieldX + L.fieldW, v));
+    const clampY = (v: number) => Math.max(L.fieldY, Math.min(L.fieldY + L.fieldH, v));
     const cx1 = clampX(x1), cy1 = clampY(y1);
     const cx2 = clampX(x2), cy2 = clampY(y2);
 
@@ -438,10 +444,11 @@ export class InputHandler {
   // ── Handle drag-select completion ──
   private handleDragSelect(x1: number, y1: number, x2: number, y2: number): void {
     // Clamp
-    const cx1 = Math.max(FIELD_X, Math.min(FIELD_X + FIELD_W, x1));
-    const cy1 = Math.max(FIELD_Y, Math.min(FIELD_Y + FIELD_H, y1));
-    const cx2 = Math.max(FIELD_X, Math.min(FIELD_X + FIELD_W, x2));
-    const cy2 = Math.max(FIELD_Y, Math.min(FIELD_Y + FIELD_H, y2));
+    const L = getLayout();
+    const cx1 = Math.max(L.fieldX, Math.min(L.fieldX + L.fieldW, x1));
+    const cy1 = Math.max(L.fieldY, Math.min(L.fieldY + L.fieldH, y1));
+    const cx2 = Math.max(L.fieldX, Math.min(L.fieldX + L.fieldW, x2));
+    const cy2 = Math.max(L.fieldY, Math.min(L.fieldY + L.fieldH, y2));
 
     // Too small — treat as click
     if (Math.abs(cx2 - cx1) < DRAG_THRESHOLD && Math.abs(cy2 - cy1) < DRAG_THRESHOLD) {
@@ -506,10 +513,11 @@ export class InputHandler {
     const bottom = Math.max(sy1, sy2);
 
     // Convert screen rect to tile range
-    const tileLeft = Math.floor((left - FIELD_X) / TILE_SIZE) + this.scrollX;
-    const tileRight = Math.floor((right - FIELD_X) / TILE_SIZE) + this.scrollX;
-    const tileTop = Math.floor((top - FIELD_Y) / TILE_SIZE) + this.scrollY;
-    const tileBottom = Math.floor((bottom - FIELD_Y) / TILE_SIZE) + this.scrollY;
+    const L = getLayout();
+    const tileLeft = Math.floor((left - L.fieldX) / L.tileSize) + this.scrollX;
+    const tileRight = Math.floor((right - L.fieldX) / L.tileSize) + this.scrollX;
+    const tileTop = Math.floor((top - L.fieldY) / L.tileSize) + this.scrollY;
+    const tileBottom = Math.floor((bottom - L.fieldY) / L.tileSize) + this.scrollY;
 
     // Search entities in tile range (with margin for large dinos)
     const margin = 2;

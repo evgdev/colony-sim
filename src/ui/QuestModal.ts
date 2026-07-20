@@ -1,5 +1,6 @@
 import Phaser from 'phaser';
-import { CANVAS_WIDTH, CANVAS_HEIGHT, COLORS } from '../config';
+import { COLORS } from '../config';
+import { getLayout } from './LayoutConfig';
 
 export class QuestModal {
   private scene: Phaser.Scene;
@@ -12,21 +13,22 @@ export class QuestModal {
   }
 
   private create(): void {
+    const L = getLayout();
     this.container = this.scene.add.container(0, 0).setDepth(90).setVisible(false);
 
     // Overlay
     const overlay = this.scene.add.rectangle(
-      CANVAS_WIDTH / 2, CANVAS_HEIGHT / 2,
-      CANVAS_WIDTH, CANVAS_HEIGHT,
+      L.canvasW / 2, L.canvasH / 2,
+      L.canvasW, L.canvasH,
       0x000000, 0.6
     ).setInteractive().on('pointerdown', () => this.hide());
     this.container.add(overlay);
 
     // Modal box
-    const boxW = 520;
-    const boxH = 420;
-    const boxX = (CANVAS_WIDTH - boxW) / 2;
-    const boxY = (CANVAS_HEIGHT - boxH) / 2;
+    const boxW = Math.min(520, L.canvasW - 40);
+    const boxH = Math.min(420, L.canvasH - 40);
+    const boxX = (L.canvasW - boxW) / 2;
+    const boxY = (L.canvasH - boxH) / 2;
 
     const bg = this.scene.add.rectangle(boxX, boxY, boxW, boxH, 0x0d1117, 0.98)
       .setOrigin(0)

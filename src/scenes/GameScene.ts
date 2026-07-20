@@ -5,6 +5,7 @@ import {
   FIELD_X, FIELD_Y, FIELD_W, FIELD_H, TILE_SIZE,
   FOG_REVEAL_RADIUS, isNight,
 } from '../config';
+import { getLayout } from '../ui/LayoutConfig';
 import { Simulation } from '../core/Simulation';
 import { Settler } from '../entities/Settler';
 import { Resource } from '../entities/Resource';
@@ -510,8 +511,8 @@ export class GameScene extends Phaser.Scene {
       this.selectedSettler = world.settlers[0];
       this.replayRecorder.start();
 
-      this.scrollX = Math.max(0, world.centerX - Math.floor(VIEWPORT_TILES / 2));
-      this.scrollY = Math.max(0, world.centerY - Math.floor(VIEWPORT_TILES / 2));
+      this.scrollX = Math.max(0, world.centerX - Math.floor(getLayout().viewportTiles / 2));
+      this.scrollY = Math.max(0, world.centerY - Math.floor(getLayout().viewportTiles / 2));
       this.clampScroll();
 
       if (mode === 'defense') {
@@ -1035,11 +1036,12 @@ export class GameScene extends Phaser.Scene {
     const minY = Math.max(0, centerY - halfSize);
     const maxY = Math.min(MAP_HEIGHT - 1, centerY + halfSize - 1);
 
-    const tileSize = 50;
-    const fieldX = 250;
-    const fieldY = 50;
-    const fieldMaxX = fieldX + VIEWPORT_TILES * tileSize;
-    const fieldMaxY = fieldY + VIEWPORT_TILES * tileSize;
+    const L = getLayout();
+    const tileSize = L.tileSize;
+    const fieldX = L.fieldX;
+    const fieldY = L.fieldY;
+    const fieldMaxX = fieldX + L.viewportTiles * tileSize;
+    const fieldMaxY = fieldY + L.viewportTiles * tileSize;
     const sx = this.scrollX;
     const sy = this.scrollY;
     const g = this.wallOverlay;
@@ -1111,11 +1113,12 @@ export class GameScene extends Phaser.Scene {
     const qm = this.questManager;
     if (!qm) return;
 
-    const tileSize = 50;
-    const fieldX = 250;
-    const fieldY = 50;
-    const fieldMaxX = fieldX + VIEWPORT_TILES * tileSize;
-    const fieldMaxY = fieldY + VIEWPORT_TILES * tileSize;
+    const L = getLayout();
+    const tileSize = L.tileSize;
+    const fieldX = L.fieldX;
+    const fieldY = L.fieldY;
+    const fieldMaxX = fieldX + L.viewportTiles * tileSize;
+    const fieldMaxY = fieldY + L.viewportTiles * tileSize;
     const sx = this.scrollX;
     const sy = this.scrollY;
     const centerX = Math.floor(this.simulation.tileGrid.width / 2);
@@ -1214,12 +1217,13 @@ export class GameScene extends Phaser.Scene {
     if (this.keys.S.isDown || this.keys.DOWN.isDown) dy += 1;
 
     if (dx !== 0 || dy !== 0) {
+      const L = getLayout();
       const newScrollX = this.scrollX + dx;
       const newScrollY = this.scrollY + dy;
-      if (newScrollX >= 0 && newScrollX <= MAP_WIDTH - VIEWPORT_TILES) {
+      if (newScrollX >= 0 && newScrollX <= MAP_WIDTH - L.viewportTiles) {
         this.scrollX = newScrollX;
       }
-      if (newScrollY >= 0 && newScrollY <= MAP_HEIGHT - VIEWPORT_TILES) {
+      if (newScrollY >= 0 && newScrollY <= MAP_HEIGHT - L.viewportTiles) {
         this.scrollY = newScrollY;
       }
       this.updateScrollPosition();
@@ -1286,7 +1290,8 @@ export class GameScene extends Phaser.Scene {
   }
 
   private autoScrollToSettler(settler: Settler): void {
-    const halfView = Math.floor(VIEWPORT_TILES / 2);
+    const L = getLayout();
+    const halfView = Math.floor(L.viewportTiles / 2);
     const centerX = this.scrollX + halfView;
     const centerY = this.scrollY + halfView;
 
@@ -1308,8 +1313,9 @@ export class GameScene extends Phaser.Scene {
     }
 
     // Clamp
-    newScrollX = Math.max(0, Math.min(newScrollX, MAP_WIDTH - VIEWPORT_TILES));
-    newScrollY = Math.max(0, Math.min(newScrollY, MAP_HEIGHT - VIEWPORT_TILES));
+    const L2 = getLayout();
+    newScrollX = Math.max(0, Math.min(newScrollX, MAP_WIDTH - L2.viewportTiles));
+    newScrollY = Math.max(0, Math.min(newScrollY, MAP_HEIGHT - L2.viewportTiles));
 
     if (newScrollX !== this.scrollX || newScrollY !== this.scrollY) {
       this.scrollX = newScrollX;
@@ -1327,29 +1333,32 @@ export class GameScene extends Phaser.Scene {
     const alpha = 0.8;
 
     // Top border
+    const L = getLayout();
     this.shootModeBorder.lineStyle(borderWidth, color, alpha);
-    this.shootModeBorder.strokeRect(FIELD_X, FIELD_Y, FIELD_W, FIELD_H);
+    this.shootModeBorder.strokeRect(L.fieldX, L.fieldY, L.fieldW, L.fieldH);
 
     // Inner glow
     this.shootModeBorder.lineStyle(1, 0xffaa00, 0.4);
-    this.shootModeBorder.strokeRect(FIELD_X + 2, FIELD_Y + 2, FIELD_W - 4, FIELD_H - 4);
+    this.shootModeBorder.strokeRect(L.fieldX + 2, L.fieldY + 2, L.fieldW - 4, L.fieldH - 4);
   }
 
   private scrollBy(dx: number, dy: number): void {
+    const L = getLayout();
     const newScrollX = this.scrollX + dx;
     const newScrollY = this.scrollY + dy;
-    if (newScrollX >= 0 && newScrollX <= MAP_WIDTH - VIEWPORT_TILES) {
+    if (newScrollX >= 0 && newScrollX <= MAP_WIDTH - L.viewportTiles) {
       this.scrollX = newScrollX;
     }
-    if (newScrollY >= 0 && newScrollY <= MAP_HEIGHT - VIEWPORT_TILES) {
+    if (newScrollY >= 0 && newScrollY <= MAP_HEIGHT - L.viewportTiles) {
       this.scrollY = newScrollY;
     }
     this.updateScrollPosition();
   }
 
   private scrollTo(tileX: number, tileY: number): void {
-    this.scrollX = Math.max(0, Math.min(tileX - Math.floor(VIEWPORT_TILES / 2), MAP_WIDTH - VIEWPORT_TILES));
-    this.scrollY = Math.max(0, Math.min(tileY - Math.floor(VIEWPORT_TILES / 2), MAP_HEIGHT - VIEWPORT_TILES));
+    const L2 = getLayout();
+    this.scrollX = Math.max(0, Math.min(tileX - Math.floor(L2.viewportTiles / 2), MAP_WIDTH - L2.viewportTiles));
+    this.scrollY = Math.max(0, Math.min(tileY - Math.floor(L2.viewportTiles / 2), MAP_HEIGHT - L2.viewportTiles));
     this.updateScrollPosition();
   }
 
@@ -1362,8 +1371,9 @@ export class GameScene extends Phaser.Scene {
   }
 
   private clampScroll(): void {
-    this.scrollX = Math.max(0, Math.min(this.scrollX, MAP_WIDTH - VIEWPORT_TILES));
-    this.scrollY = Math.max(0, Math.min(this.scrollY, MAP_HEIGHT - VIEWPORT_TILES));
+    const L = getLayout();
+    this.scrollX = Math.max(0, Math.min(this.scrollX, MAP_WIDTH - L.viewportTiles));
+    this.scrollY = Math.max(0, Math.min(this.scrollY, MAP_HEIGHT - L.viewportTiles));
   }
 
   getSelectedSettler(): Settler {
@@ -1520,8 +1530,9 @@ export class GameScene extends Phaser.Scene {
 
   private showBuildHotkeyOverlay(): void {
     this.buildHotkeyOverlay.removeAll(true);
-    const cx = FIELD_X + FIELD_W / 2;
-    const cy = FIELD_Y + FIELD_H / 2;
+    const L = getLayout();
+    const cx = L.fieldX + L.fieldW / 2;
+    const cy = L.fieldY + L.fieldH / 2;
     const bg = this.add.rectangle(cx, cy, 260, 220, 0x0d1117, 0.95)
       .setOrigin(0.5).setStrokeStyle(2, 0x58a6ff);
     this.buildHotkeyOverlay.add(bg);
@@ -1646,11 +1657,12 @@ export class GameScene extends Phaser.Scene {
 
   private drawProjectiles(): void {
     this.projectileGraphics.clear();
+    const L = getLayout();
     for (const p of this.projectiles) {
-      const sx = FIELD_X + (p.x - this.scrollX) * TILE_SIZE + TILE_SIZE / 2;
-      const sy = FIELD_Y + (p.y - this.scrollY) * TILE_SIZE + TILE_SIZE / 2;
-      const psx = FIELD_X + (p.prevX - this.scrollX) * TILE_SIZE + TILE_SIZE / 2;
-      const psy = FIELD_Y + (p.prevY - this.scrollY) * TILE_SIZE + TILE_SIZE / 2;
+      const sx = L.fieldX + (p.x - this.scrollX) * L.tileSize + L.tileSize / 2;
+      const sy = L.fieldY + (p.y - this.scrollY) * L.tileSize + L.tileSize / 2;
+      const psx = L.fieldX + (p.prevX - this.scrollX) * L.tileSize + L.tileSize / 2;
+      const psy = L.fieldY + (p.prevY - this.scrollY) * L.tileSize + L.tileSize / 2;
 
       // Elongated projectile (line from previous to current position)
       this.projectileGraphics.lineStyle(2, 0xffff00, 0.9);
@@ -1801,8 +1813,8 @@ export class GameScene extends Phaser.Scene {
     this.scrollY = 0;
     if (settlers.length > 0) {
       const s = settlers[0];
-      this.scrollX = Math.max(0, s.x - Math.floor(VIEWPORT_TILES / 2));
-      this.scrollY = Math.max(0, s.y - Math.floor(VIEWPORT_TILES / 2));
+      this.scrollX = Math.max(0, s.x - Math.floor(getLayout().viewportTiles / 2));
+      this.scrollY = Math.max(0, s.y - Math.floor(getLayout().viewportTiles / 2));
       this.clampScroll();
     }
     this.uiManager.selectedBuilding = null;

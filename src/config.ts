@@ -1,3 +1,9 @@
+export type { LayoutConfig, LayoutMode } from './ui/LayoutConfig';
+export { getLayout, initLayout } from './ui/LayoutConfig';
+import { getLayout } from './ui/LayoutConfig';
+
+// Legacy constants — kept for backward compatibility.
+// New code should use getLayout() instead.
 export const TILE_SIZE = 50;
 export const MAP_WIDTH = 30;
 export const MAP_HEIGHT = 30;
@@ -24,7 +30,7 @@ export const CYCLE_TICKS = DAY_TICKS + NIGHT_TICKS;
 export const DUSK_TICKS = 10;
 // Night color correction: hue + strength applied as a field overlay
 export const NIGHT_TINT = 0x10204a;
-export const NIGHT_MAX_ALPHA = 0.6;
+export const NIGHT_MAX_ALPHA = 0.78;
 
 export function isNight(tickCount: number): boolean {
   const phase = ((tickCount % CYCLE_TICKS) + CYCLE_TICKS) % CYCLE_TICKS;

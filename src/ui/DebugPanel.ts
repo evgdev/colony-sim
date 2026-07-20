@@ -1,9 +1,9 @@
 import Phaser from 'phaser';
 import {
-  TILE_SIZE, MAP_WIDTH, MAP_HEIGHT, PANEL_WIDTH, COLORS,
-  CANVAS_WIDTH, CANVAS_HEIGHT, HUD_HEIGHT, PANEL_X, BOTTOM_HUD_Y,
+  TILE_SIZE, MAP_WIDTH, MAP_HEIGHT, COLORS,
   NEEDS_ENABLED,
 } from '../config';
+import { getLayout } from './LayoutConfig';
 import { gameConfig } from '../gameConfig';
 import { Simulation } from '../core/Simulation';
 import { Settler } from '../entities/Settler';
@@ -34,11 +34,12 @@ export class DebugPanel {
   }
 
   private createBackground(): void {
-    const bg = this.scene.add.rectangle(PANEL_X, 0, PANEL_WIDTH, CANVAS_HEIGHT, COLORS.panelBg, 0.95)
+    const L = getLayout();
+    const bg = this.scene.add.rectangle(L.panelX, 0, L.rightPanelW, L.canvasH, COLORS.panelBg, 0.95)
       .setOrigin(0).setStrokeStyle(1, COLORS.panelBorder);
     this.container.add(bg);
 
-    const title = this.scene.add.text(PANEL_X + PAD, PAD, languageManager.ui.debug, {
+    const title = this.scene.add.text(L.panelX + PAD, PAD, languageManager.ui.debug, {
       fontSize: '20px', color: '#58a6ff', fontFamily: 'monospace',
       fontStyle: 'bold',
     }).setDepth(31);
@@ -46,13 +47,14 @@ export class DebugPanel {
   }
 
   private createButtons(): void {
-    const btnY = BOTTOM_HUD_Y + 12;
+    const L = getLayout();
+    const btnY = L.bottomHudY + 12;
     const btnStyle: Phaser.Types.GameObjects.Text.TextStyle = {
       fontSize: '18px', color: '#c9d1d9', fontFamily: 'monospace',
       backgroundColor: '#21262d', padding: { x: 10, y: 5 },
     };
 
-    this.pauseBtn = this.scene.add.text(PANEL_X + PAD, btnY, `[${languageManager.ui.pause}]`, btnStyle)
+    this.pauseBtn = this.scene.add.text(L.panelX + PAD, btnY, `[${languageManager.ui.pause}]`, btnStyle)
       .setInteractive({ useHandCursor: true }).setDepth(31)
       .on('pointerdown', () => {
         this.paused = !this.paused;
@@ -63,7 +65,7 @@ export class DebugPanel {
 
     const speeds = [0.5, 1, 2, 4];
     for (let i = 0; i < speeds.length; i++) {
-      const sb = this.scene.add.text(PANEL_X + PAD + 90 + i * 46, btnY, `×${speeds[i]}`, btnStyle)
+      const sb = this.scene.add.text(L.panelX + PAD + 90 + i * 46, btnY, `×${speeds[i]}`, btnStyle)
         .setInteractive({ useHandCursor: true }).setDepth(31)
         .on('pointerdown', () => {
           this.speed = speeds[i];
@@ -145,7 +147,8 @@ export class DebugPanel {
   }
 
   private addSection(title: string, y: number): number {
-    const t = this.scene.add.text(PANEL_X + PAD, y, `\u2500\u2500 ${title} \u2500\u2500`, {
+    const L = getLayout();
+    const t = this.scene.add.text(L.panelX + PAD, y, `\u2500\u2500 ${title} \u2500\u2500`, {
       fontSize: '16px', color: '#58a6ff', fontFamily: 'monospace',
       fontStyle: 'bold',
     }).setDepth(31);
@@ -155,7 +158,8 @@ export class DebugPanel {
   }
 
   private addLine(text: string, y: number): number {
-    const t = this.scene.add.text(PANEL_X + PAD + 6, y, text, {
+    const L = getLayout();
+    const t = this.scene.add.text(L.panelX + PAD + 6, y, text, {
       fontSize: '14px', color: '#c9d1d9', fontFamily: 'monospace',
     }).setDepth(31);
     this.container.add(t);

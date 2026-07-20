@@ -7,7 +7,8 @@ export const gameConfig = {
   debugSpeed: 1,
 
   // Quest skip (set to quest id to skip, null for normal start)
-  skipToQuest: 'q_dino_3' as string | null,
+  //skipToQuest: 'q_dino_3' as string | null,
+  skipToQuest: null as string | null,
   // Example: skipToQuest: 'q2_3',
 
   // Starting resources (when skipping quests)

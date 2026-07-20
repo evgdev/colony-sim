@@ -12,6 +12,7 @@
  */
 import Phaser from 'phaser';
 import { TILE_SIZE, FIELD_X, FIELD_Y, FIELD_W, FIELD_H, VIEWPORT_TILES, MAP_WIDTH, MAP_HEIGHT } from '../config';
+import { getLayout } from '../ui/LayoutConfig';
 import { TileGrid } from '../core/TileGrid';
 import { EntityManager } from '../core/EntityManager';
 import plantsData from '../data/plants.json';
@@ -97,9 +98,10 @@ export class DecorationGenerator {
   }
 
   private applyViewportMask(container: Phaser.GameObjects.Container): void {
+    const L = getLayout();
     const mask = this.scene.add.graphics();
     mask.fillStyle(0xffffff);
-    mask.fillRect(FIELD_X, FIELD_Y, FIELD_W, FIELD_H);
+    mask.fillRect(L.fieldX, L.fieldY, L.fieldW, L.fieldH);
     mask.setVisible(false);
     container.setMask(new Phaser.Display.Masks.GeometryMask(this.scene, mask));
   }
@@ -376,8 +378,9 @@ export class DecorationGenerator {
     const sy = this.scrollY;
 
     for (const dec of this.decorations) {
-      const inView = dec.tileX >= sx - 2 && dec.tileX < sx + VIEWPORT_TILES + 2
-                  && dec.tileY >= sy - 2 && dec.tileY < sy + VIEWPORT_TILES + 2;
+      const L = getLayout();
+      const inView = dec.tileX >= sx - 2 && dec.tileX < sx + L.viewportTiles + 2
+                  && dec.tileY >= sy - 2 && dec.tileY < sy + L.viewportTiles + 2;
 
       if (!inView) {
         dec.bottomSprite.setVisible(false);
@@ -394,14 +397,14 @@ export class DecorationGenerator {
         continue;
       }
 
-      const px = FIELD_X + (dec.tileX - sx) * TILE_SIZE + TILE_SIZE / 2;
+      const px = L.fieldX + (dec.tileX - sx) * L.tileSize + L.tileSize / 2;
       const py = dec.isTree
-        ? FIELD_Y + (dec.tileY - sy) * TILE_SIZE + TILE_SIZE
-        : FIELD_Y + (dec.tileY - sy) * TILE_SIZE + TILE_SIZE / 2;
+        ? L.fieldY + (dec.tileY - sy) * L.tileSize + L.tileSize
+        : L.fieldY + (dec.tileY - sy) * L.tileSize + L.tileSize / 2;
 
       // Shadow position (at base of tree, slightly offset)
       if (dec.shadowSprite && dec.isTree) {
-        const shadowPy = FIELD_Y + (dec.tileY - sy) * TILE_SIZE + TILE_SIZE - 4;
+        const shadowPy = L.fieldY + (dec.tileY - sy) * L.tileSize + L.tileSize - 4;
         const shadowPx = px + 3; // slight offset for direction
         dec.shadowSprite.setPosition(shadowPx, shadowPy);
         dec.shadowSprite.setVisible(true);
@@ -538,12 +541,13 @@ export class DecorationGenerator {
 
   drawChopProgress(scrollX: number, scrollY: number): void {
     this.chopGraphics.clear();
+    const L = getLayout();
     for (const dec of this.decorations) {
       if (!dec.isTree || !dec.isChopping || dec.chopProgress <= 0) continue;
-      const sx = FIELD_X + (dec.tileX - scrollX) * TILE_SIZE + TILE_SIZE / 2;
-      const sy = FIELD_Y + (dec.tileY - scrollY) * TILE_SIZE - TILE_SIZE / 2 - 8;
-      if (sx < FIELD_X || sx > FIELD_X + FIELD_W || sy < FIELD_Y || sy > FIELD_Y + FIELD_H) continue;
-      const barW = TILE_SIZE * 0.8;
+      const sx = L.fieldX + (dec.tileX - scrollX) * L.tileSize + L.tileSize / 2;
+      const sy = L.fieldY + (dec.tileY - scrollY) * L.tileSize - L.tileSize / 2 - 8;
+      if (sx < L.fieldX || sx > L.fieldX + L.fieldW || sy < L.fieldY || sy > L.fieldY + L.fieldH) continue;
+      const barW = L.tileSize * 0.8;
       const barH = 4;
       const ratio = Math.min(1, dec.chopProgress / dec.chopTime);
       this.chopGraphics.fillStyle(0x333333, 0.8);

@@ -1,12 +1,10 @@
 import Phaser from 'phaser';
 import {
-  TILE_SIZE, COLORS, VIEWPORT_TILES,
-  CANVAS_WIDTH, CANVAS_HEIGHT, HUD_HEIGHT,
-  LEFT_PANEL_WIDTH, FIELD_X, FIELD_Y, FIELD_W, FIELD_H,
-  PANEL_X, BOTTOM_HUD_Y, PANEL_WIDTH, EVENT_HEIGHT,
+  COLORS,
   NEEDS_ENABLED,
   DAY_TICKS, NIGHT_TICKS, CYCLE_TICKS, NIGHT_MAX_ALPHA, nightAlpha,
 } from '../config';
+import { getLayout } from './LayoutConfig';
 import { Simulation } from '../core/Simulation';
 import { Settler } from '../entities/Settler';
 import { Resource } from '../entities/Resource';
@@ -73,7 +71,7 @@ export class UIManager {
   private dnStars: Phaser.GameObjects.Arc[] = [];
   private dnLabel!: Phaser.GameObjects.Text;
   private dnDim!: Phaser.GameObjects.Rectangle;
-  private dnBand = { x: 14, y: 44, w: LEFT_PANEL_WIDTH - 28, h: 44 };
+  private dnBand = { x: 14, y: 44, w: 222, h: 44 };
 
   private settlerIcons: Phaser.GameObjects.Container[] = [];
   private settlerIconsBg: Phaser.GameObjects.Rectangle[] = [];
@@ -141,23 +139,25 @@ export class UIManager {
   }
 
   private tileToScreen(tileX: number, tileY: number): { sx: number; sy: number } {
+    const L = getLayout();
     return {
-      sx: FIELD_X + (tileX - this.scrollX) * TILE_SIZE + TILE_SIZE / 2,
-      sy: FIELD_Y + (tileY - this.scrollY) * TILE_SIZE + TILE_SIZE / 2,
+      sx: L.fieldX + (tileX - this.scrollX) * L.tileSize + L.tileSize / 2,
+      sy: L.fieldY + (tileY - this.scrollY) * L.tileSize + L.tileSize / 2,
     };
   }
 
   createEventArea(): void {
-    const evBg = this.scene.add.rectangle(FIELD_X, 0, FIELD_W, EVENT_HEIGHT, 0x0a0a2e, 0.95)
+    const L = getLayout();
+    const evBg = this.scene.add.rectangle(L.fieldX, 0, L.fieldW, L.eventH, 0x0a0a2e, 0.95)
       .setOrigin(0).setStrokeStyle(1, COLORS.panelBorder).setDepth(20);
 
-    this.globalInventoryContainer = this.scene.add.container(FIELD_X + 4, 1);
+    this.globalInventoryContainer = this.scene.add.container(L.fieldX + 4, 1);
     this.globalInventoryContainer.setDepth(21);
     this.updateGlobalInventory();
 
-    this.eventText = this.scene.add.text(FIELD_X + 220, 8, '', {
+    this.eventText = this.scene.add.text(L.fieldX + 220, 8, '', {
       fontSize: '14px', color: '#c9d1d9', fontFamily: 'monospace',
-      wordWrap: { width: FIELD_W - 230 },
+      wordWrap: { width: L.fieldW - 230 },
       lineSpacing: 4,
     }).setDepth(21);
   }
@@ -167,9 +167,10 @@ export class UIManager {
   }
 
   createLeftPanel(): void {
+    const L = getLayout();
     this.leftPanelContainer = this.scene.add.container(0, 0).setDepth(20);
 
-    const bg = this.scene.add.rectangle(0, 0, LEFT_PANEL_WIDTH, CANVAS_HEIGHT, COLORS.panelBg, 0.95)
+    const bg = this.scene.add.rectangle(0, 0, L.leftPanelW, L.canvasH, COLORS.panelBg, 0.95)
       .setOrigin(0).setStrokeStyle(1, COLORS.panelBorder);
     this.leftPanelContainer.add(bg);
 
@@ -179,7 +180,7 @@ export class UIManager {
     });
     this.leftPanelContainer.add(title);
 
-    const line1 = this.scene.add.rectangle(14, 38, LEFT_PANEL_WIDTH - 28, 1, COLORS.panelBorder, 0.5)
+    const line1 = this.scene.add.rectangle(14, 38, L.leftPanelW - 28, 1, COLORS.panelBorder, 0.5)
       .setOrigin(0);
     this.leftPanelContainer.add(line1);
 
@@ -187,14 +188,14 @@ export class UIManager {
 
     this.colonistStatusText = this.scene.add.text(14, 146, '', {
       fontSize: '14px', color: '#c9d1d9', fontFamily: 'monospace',
-      wordWrap: { width: LEFT_PANEL_WIDTH - 28 },
+      wordWrap: { width: L.leftPanelW - 28 },
       lineSpacing: 4,
     });
     this.leftPanelContainer.add(this.colonistStatusText);
 
     this.colonistTaskText = this.scene.add.text(14, 250, '', {
       fontSize: '14px', color: '#c9d1d9', fontFamily: 'monospace',
-      wordWrap: { width: LEFT_PANEL_WIDTH - 28 },
+      wordWrap: { width: L.leftPanelW - 28 },
       lineSpacing: 4,
     });
     this.leftPanelContainer.add(this.colonistTaskText);
@@ -232,7 +233,7 @@ export class UIManager {
 
     this.colonistInvText = this.scene.add.text(14, 380, '', {
       fontSize: '14px', color: '#c9d1d9', fontFamily: 'monospace',
-      wordWrap: { width: LEFT_PANEL_WIDTH - 28 },
+      wordWrap: { width: L.leftPanelW - 28 },
       lineSpacing: 4,
     });
     this.leftPanelContainer.add(this.colonistInvText);
@@ -253,7 +254,7 @@ export class UIManager {
 
     this.questText = this.scene.add.text(14, 474, '', {
       fontSize: '12px', color: '#8b949e', fontFamily: 'monospace',
-      wordWrap: { width: LEFT_PANEL_WIDTH - 28 },
+      wordWrap: { width: L.leftPanelW - 28 },
       lineSpacing: 3,
     });
     this.leftPanelContainer.add(this.questText);
@@ -269,11 +270,11 @@ export class UIManager {
 
     this.thoughtText = this.scene.add.text(14, 555, '', {
       fontSize: '13px', color: '#8b949e', fontFamily: 'monospace',
-      wordWrap: { width: LEFT_PANEL_WIDTH - 28 },
+      wordWrap: { width: L.leftPanelW - 28 },
       lineSpacing: 3,
       fontStyle: 'italic',
     });
-    this.thoughtText.setCrop(0, 0, LEFT_PANEL_WIDTH - 28, 48);
+    this.thoughtText.setCrop(0, 0, L.leftPanelW - 28, 48);
     this.leftPanelContainer.add(this.thoughtText);
 
     const minimapY = 620;
@@ -419,7 +420,8 @@ export class UIManager {
   }
 
   createActionLog(): void {
-    const logX = FIELD_X + FIELD_W + 10;
+    const L = getLayout();
+    const logX = L.fieldX + L.fieldW + 10;
     const logY = 220;
 
     const logBg = this.scene.add.rectangle(logX, logY, 230, 500, COLORS.panelBg, 0.95)
@@ -438,7 +440,8 @@ export class UIManager {
   }
 
   createInfoPanel(): void {
-    const px = PANEL_X - 240;
+    const L = getLayout();
+    const px = L.panelX - 240;
     const py = 10;
 
     this.infoPanel = this.scene.add.container(px, py).setDepth(25).setVisible(false);
@@ -569,9 +572,10 @@ export class UIManager {
     debugPanel?: import('./DebugPanel').DebugPanel,
     onExit?: () => void
   ): void {
-    this.bottomHudBg = this.scene.add.rectangle(FIELD_X, BOTTOM_HUD_Y, FIELD_W, HUD_HEIGHT, COLORS.uiPanel, 0.95)
+    const L = getLayout();
+    this.bottomHudBg = this.scene.add.rectangle(L.fieldX, L.bottomHudY, L.fieldW, L.bottomHudH, COLORS.uiPanel, 0.95)
       .setOrigin(0).setDepth(20);
-    this.bottomHudAccent = this.scene.add.rectangle(FIELD_X, BOTTOM_HUD_Y, FIELD_W, 2, COLORS.settler, 0.5)
+    this.bottomHudAccent = this.scene.add.rectangle(L.fieldX, L.bottomHudY, L.fieldW, 2, COLORS.settler, 0.5)
       .setOrigin(0).setDepth(21);
 
     const btnStyle: Phaser.Types.GameObjects.Text.TextStyle = {
@@ -584,7 +588,8 @@ export class UIManager {
       backgroundColor: '#16213e', padding: { x: 5, y: 2 },
     };
 
-    const logX = FIELD_X + FIELD_W + 10;
+    const L2 = getLayout();
+    const logX = L2.fieldX + L2.fieldW + 10;
     const btnsY = 730;
     let btnX = logX;
     const btnDepth = 35;
@@ -673,12 +678,22 @@ export class UIManager {
   }
 
   createBuildButtons(): void {
+    const L = getLayout();
     const types = Object.keys(buildingsData) as BuildingType[];
-    const btnY = BOTTOM_HUD_Y + 15;
-    const ICON_SIZE = 50;
+    const ICON_SIZE = L.mode === 'mobile' ? 56 : 50;
     const ICON_GAP = 10;
+    const btnW = ICON_SIZE + 16 + ICON_GAP;
 
-    const cancelBtn = this.scene.add.text(FIELD_X + 10, btnY + 5, '[X]', {
+    // Calculate how many buttons fit in one row
+    const cancelBtnW = 50; // approximate [X] button width
+    const availableW = L.fieldW - cancelBtnW - 20; // margin
+    const maxPerRow = Math.max(1, Math.floor(availableW / btnW));
+
+    // Calculate row height: icon + cost text + gap
+    const rowH = ICON_SIZE + 24;
+    const totalRows = Math.ceil(types.length / maxPerRow);
+
+    const cancelBtn = this.scene.add.text(L.fieldX + 10, L.bottomHudY + 15, '[X]', {
       fontSize: '16px', color: '#ff4444', fontFamily: 'monospace',
       backgroundColor: '#16213e', padding: { x: 8, y: 6 },
     }).setInteractive({ useHandCursor: true }).setDepth(22)
@@ -689,8 +704,13 @@ export class UIManager {
       });
     this.buildButtons.push(cancelBtn);
 
-    let xOff = FIELD_X + 50;
-    for (const type of types) {
+    for (let i = 0; i < types.length; i++) {
+      const type = types[i];
+      const row = Math.floor(i / maxPerRow);
+      const col = i % maxPerRow;
+      const xOff = L.fieldX + cancelBtnW + 10 + col * btnW;
+      const btnY = L.bottomHudY + 15 + row * rowH;
+
       const def = (buildingsData as any)[type];
       const reqEntries = Object.entries(def.requires);
       const reqStr = reqEntries.map(([k, v]) => `${k}:${v}`).join(' ');
@@ -742,15 +762,14 @@ export class UIManager {
 
       container.setSize(ICON_SIZE + 8, ICON_SIZE + 20);
 
-
       this.buildTypeMap.set(container, type);
       this.buildButtons.push(container);
-
-      xOff += ICON_SIZE + 16 + ICON_GAP;
     }
   }
 
   private createDayNightWidget(): void {
+    const L = getLayout();
+    this.dnBand = { x: 14, y: 44, w: L.leftPanelW - 28, h: 44 };
     const { x, y, w, h } = this.dnBand;
 
     this.dnSky = this.scene.add.rectangle(x, y, w, h, 0x0a1430, 1)
@@ -1032,17 +1051,18 @@ export class UIManager {
   }
 
   updateSelection(): void {
+    const L = getLayout();
     if (this.selectedBuilding) {
       const bldSize = this.selectedBuilding.size ?? 1;
       const { sx, sy } = this.tileToScreen(this.selectedBuilding.x, this.selectedBuilding.y);
-      const footprintPx = TILE_SIZE * bldSize;
-      this.selectionRect.setPosition(sx + footprintPx / 2 - TILE_SIZE / 2, sy + footprintPx / 2 - TILE_SIZE / 2);
+      const footprintPx = L.tileSize * bldSize;
+      this.selectionRect.setPosition(sx + footprintPx / 2 - L.tileSize / 2, sy + footprintPx / 2 - L.tileSize / 2);
       this.selectionRect.setSize(footprintPx + 4, footprintPx + 4);
       this.selectionRect.setVisible(true);
     } else if (this.selectedEntity) {
       const { sx, sy } = this.tileToScreen(this.selectedEntity.x, this.selectedEntity.y);
       this.selectionRect.setPosition(sx, sy);
-      this.selectionRect.setSize(TILE_SIZE + 4, TILE_SIZE + 4);
+      this.selectionRect.setSize(L.tileSize + 4, L.tileSize + 4);
       this.selectionRect.setVisible(true);
     } else {
       this.selectionRect.setVisible(false);
@@ -1225,8 +1245,9 @@ export class UIManager {
 
     const vx = ox + this.scrollX * ts;
     const vy = oy + this.scrollY * ts;
-    const vw = VIEWPORT_TILES * ts;
-    const vh = VIEWPORT_TILES * ts;
+    const L3 = getLayout();
+    const vw = L3.viewportTiles * ts;
+    const vh = L3.viewportTiles * ts;
     this.minimapGraphics.lineStyle(1, 0xffffff, 0.8);
     this.minimapGraphics.strokeRect(vx, vy, vw, vh);
   }

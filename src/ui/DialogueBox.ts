@@ -1,5 +1,6 @@
 import Phaser from 'phaser';
 import { FIELD_X, FIELD_Y, FIELD_W, FIELD_H, COLORS } from '../config';
+import { getLayout } from './LayoutConfig';
 import { DialogueLine, Dialogue } from '../systems/QuestManager';
 
 const SPEAKER_CONFIG: Record<string, { name: string; color: number; title: string; texKey: string }> = {
@@ -36,16 +37,17 @@ export class DialogueBox {
   }
 
   private create(): void {
-    const boxW = Math.min(720, FIELD_W - 20);
+    const L = getLayout();
+    const boxW = Math.min(720, L.fieldW - 20);
     const boxH = 180;
-    const boxX = FIELD_X + (FIELD_W - boxW) / 2;
-    const boxY = FIELD_Y + FIELD_H - boxH - 16;
+    const boxX = L.fieldX + (L.fieldW - boxW) / 2;
+    const boxY = L.fieldY + L.fieldH - boxH - 16;
 
     this.container = this.scene.add.container(0, 0).setDepth(80).setVisible(false);
 
     // Transparent blocker on game field only — blocks map clicks, preserves UI buttons
     const fieldBlocker = this.scene.add.rectangle(
-      FIELD_X, FIELD_Y, FIELD_W, FIELD_H,
+      L.fieldX, L.fieldY, L.fieldW, L.fieldH,
       0x000000, 0
     ).setOrigin(0).setInteractive();
     this.container.add(fieldBlocker);

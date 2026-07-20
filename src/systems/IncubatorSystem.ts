@@ -39,7 +39,7 @@ export class IncubatorSystem {
     const species = eggToSpecies[eggType];
     if (!species) return false;
 
-    const incubationTime = gameConfig.incubationTimes;
+    const incubationTime = gameConfig.incubationTimes as Record<string, number>;
 
     // Check if egg is available
     const eggAmount = this.simulation.getResourceAmount(eggType);

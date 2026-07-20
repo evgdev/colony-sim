@@ -3,6 +3,7 @@ import {
   TILE_SIZE, COLORS,
   FIELD_X, FIELD_Y, FIELD_W, FIELD_H, VIEWPORT_TILES,
 } from '../config';
+import { getLayout } from '../ui/LayoutConfig';
 import { Simulation } from '../core/Simulation';
 import { Entity } from '../core/Entity';
 import { Settler } from '../entities/Settler';
@@ -40,9 +41,10 @@ export class EntityRenderer {
   }
 
   private setViewportClip(): void {
+    const L = getLayout();
     const mask = this.scene.add.graphics();
     mask.fillStyle(0xffffff);
-    mask.fillRect(FIELD_X, FIELD_Y, FIELD_W, FIELD_H);
+    mask.fillRect(L.fieldX, L.fieldY, L.fieldW, L.fieldH);
     mask.setVisible(false);
     this.viewportMask = new Phaser.Display.Masks.GeometryMask(this.scene, mask);
     this.pathGraphics.setMask(this.viewportMask);
@@ -56,14 +58,16 @@ export class EntityRenderer {
   }
 
   private isInViewport(x: number, y: number): boolean {
-    return x >= this.scrollX && x < this.scrollX + VIEWPORT_TILES
-      && y >= this.scrollY && y < this.scrollY + VIEWPORT_TILES;
+    const L = getLayout();
+    return x >= this.scrollX && x < this.scrollX + L.viewportTiles
+      && y >= this.scrollY && y < this.scrollY + L.viewportTiles;
   }
 
   private worldToScreen(wx: number, wy: number): { sx: number; sy: number } {
+    const L = getLayout();
     return {
-      sx: FIELD_X + (wx - this.scrollX) * TILE_SIZE + TILE_SIZE / 2,
-      sy: FIELD_Y + (wy - this.scrollY) * TILE_SIZE + TILE_SIZE / 2,
+      sx: L.fieldX + (wx - this.scrollX) * L.tileSize + L.tileSize / 2,
+      sy: L.fieldY + (wy - this.scrollY) * L.tileSize + L.tileSize / 2,
     };
   }
 

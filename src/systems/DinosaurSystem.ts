@@ -173,9 +173,12 @@ export class DinosaurSystem {
       dino.attackCooldown--;
     }
 
-    // Check daily schedule - sleep during inactive hours
+    // Check daily schedule - herbivores sleep at night, predators use their own schedule
+    const herbivoreSleepsAtNight = HERBIVORE_SPECIES.includes(dino.species);
     const hour = tickCount % 24;
-    const isSleepTime = hour < dino.dailySchedule.activeStart || hour >= dino.dailySchedule.activeEnd;
+    const isSleepTime = herbivoreSleepsAtNight
+      ? isNight(tickCount)
+      : (hour < dino.dailySchedule.activeStart || hour >= dino.dailySchedule.activeEnd);
 
     if (isSleepTime && dino.state !== 'sleeping') {
       dino.state = 'sleeping';
@@ -311,7 +314,6 @@ export class DinosaurSystem {
               }
             }
           }
-          dino.stateTimer = 0;
         } else {
           dino.state = 'wander';
           dino.wanderTarget = this.getRandomWalkableTile();
@@ -324,7 +326,7 @@ export class DinosaurSystem {
         break;
 
       case 'attack':
-        if (!nearestSettler || distToSettler > 1) {
+        if (!nearestSettler || distToSettler > dino.attackRange) {
           // Can't reach settler — look for a wall/building to attack
           const targetBuilding = this.findAdjacentBuilding(dino);
           if (targetBuilding) {
@@ -509,7 +511,7 @@ export class DinosaurSystem {
       dino.attackRange = 2;
       dino.aggression = this.branchManager?.isDinoBehaviorAggressive() ? 0.6 : 0.2;
     } else {
-      dino.territoryRadius = 8;
+      dino.territoryRadius = 4;
       dino.warningRange = 3;
       dino.attackRange = 0;
       dino.aggression = 0;

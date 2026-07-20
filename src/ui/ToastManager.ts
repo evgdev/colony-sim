@@ -1,5 +1,6 @@
 import Phaser from 'phaser';
-import { FIELD_X, FIELD_Y, FIELD_W, FIELD_H, COLORS } from '../config';
+import { COLORS } from '../config';
+import { getLayout } from './LayoutConfig';
 
 const TOAST_DURATION = 3500;
 const FADE_DURATION = 400;
@@ -19,8 +20,9 @@ export class ToastManager {
   }
 
   private create(): void {
-    const cx = FIELD_X + FIELD_W / 2;
-    const cy = FIELD_Y + FIELD_H - 50;
+    const L = getLayout();
+    const cx = L.fieldX + L.fieldW / 2;
+    const cy = L.fieldY + L.fieldH - 50;
 
     this.container = this.scene.add.container(cx, cy).setDepth(50).setAlpha(0);
 
