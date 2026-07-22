@@ -13,13 +13,25 @@ export interface CraftRecipe {
   craftTime: number;
 }
 
-const PANEL_WIDTH = 340;
-const PANEL_HEIGHT = 400;
+const PANEL_WIDTH = 420;
+const PANEL_HEIGHT = 520;
 const ITEM_HEIGHT = 80;
+
+const RECIPE_ICONS: Record<string, string> = {
+  medkit: '💊',
+  herbal_poultice: '🌿',
+  signal_flare: '🔥',
+  reinforced_wall: '🧱',
+  bone_armor: '🦴',
+  rope: '🪢',
+  bio_scanner: '📡',
+  stone_axe: '🪓',
+};
 
 export class CraftPanel {
   private scene: Phaser.Scene;
   private container!: Phaser.GameObjects.Container;
+  private maskGraphics: Phaser.GameObjects.Graphics | null = null;
   private visible: boolean = false;
   private recipeButtons: Phaser.GameObjects.Container[] = [];
   private onCraft: ((recipeId: string, workshop: Building) => void) | null = null;
@@ -49,6 +61,14 @@ export class CraftPanel {
     const cy = 450;
 
     this.container = this.scene.add.container(0, 0).setDepth(100);
+
+    // Add mask to clip items within panel bounds
+    this.maskGraphics = this.scene.add.graphics();
+    this.maskGraphics.fillStyle(0xffffff);
+    this.maskGraphics.fillRect(cx - PANEL_WIDTH / 2, cy - PANEL_HEIGHT / 2, PANEL_WIDTH, PANEL_HEIGHT);
+    this.maskGraphics.setVisible(false);
+    const mask = this.maskGraphics.createGeometryMask();
+    this.container.setMask(mask);
 
     const bg = this.scene.add.rectangle(cx, cy, PANEL_WIDTH, PANEL_HEIGHT, 0x0d1117, 0.97)
       .setOrigin(0.5).setStrokeStyle(2, COLORS.panelBorder);
@@ -81,27 +101,34 @@ export class CraftPanel {
         .setOrigin(0.5).setStrokeStyle(1, COLORS.panelBorder);
       itemContainer.add(itemBg);
 
-      const nameText = this.scene.add.text(8, 6, recipe.name, {
+      // Icon
+      const icon = RECIPE_ICONS[recipe.id] || '📦';
+      const iconText = this.scene.add.text(14, ITEM_HEIGHT / 2, icon, {
+        fontSize: '22px',
+      }).setOrigin(0, 0.5);
+      itemContainer.add(iconText);
+
+      const nameText = this.scene.add.text(42, 6, recipe.name, {
         fontSize: '13px', color: '#e0e0e0', fontFamily: 'monospace', fontStyle: 'bold',
       });
       itemContainer.add(nameText);
 
-      const descText = this.scene.add.text(8, 24, recipe.description, {
+      const descText = this.scene.add.text(42, 24, recipe.description, {
         fontSize: '11px', color: '#8b949e', fontFamily: 'monospace',
-        wordWrap: { width: PANEL_WIDTH - 80 },
+        wordWrap: { width: PANEL_WIDTH - 140 },
       });
       itemContainer.add(descText);
 
       const costStr = Object.entries(recipe.cost)
         .map(([r, q]) => `${r}:${q}`)
         .join('  ');
-      const costText = this.scene.add.text(8, 44, costStr, {
+      const costText = this.scene.add.text(42, 48, costStr, {
         fontSize: '11px', color: '#ffd700', fontFamily: 'monospace',
       });
       itemContainer.add(costText);
 
       const canAfford = this.checkAfford(recipe);
-      const craftBtn = this.scene.add.text(PANEL_WIDTH - 70, 28, '[Craft]', {
+      const craftBtn = this.scene.add.text(PANEL_WIDTH - 80, 28, '[Craft]', {
         fontSize: '12px', color: canAfford ? '#44ff44' : '#484f58', fontFamily: 'monospace',
         backgroundColor: canAfford ? '#16213e' : '#0d1117',
         padding: { x: 6, y: 3 },
@@ -120,7 +147,7 @@ export class CraftPanel {
       }
       itemContainer.add(craftBtn);
 
-      const timeText = this.scene.add.text(PANEL_WIDTH - 70, 50, `${recipe.craftTime} ticks`, {
+      const timeText = this.scene.add.text(PANEL_WIDTH - 80, 50, `${recipe.craftTime} ticks`, {
         fontSize: '10px', color: '#8b949e', fontFamily: 'monospace',
       });
       itemContainer.add(timeText);
@@ -140,7 +167,14 @@ export class CraftPanel {
 
       for (const item of this.workshop.craftedItems) {
         if (item.quantity <= 0) continue;
-        const itemText = this.scene.add.text(cx - PANEL_WIDTH / 2 + 20, y, `${item.resourceType} x${item.quantity}`, {
+
+        const itemIcon = RECIPE_ICONS[item.resourceType] || '📦';
+        const iconText = this.scene.add.text(cx - PANEL_WIDTH / 2 + 14, y + 10, itemIcon, {
+          fontSize: '16px',
+        });
+        this.container.add(iconText);
+
+        const itemText = this.scene.add.text(cx - PANEL_WIDTH / 2 + 36, y, `${item.resourceType} x${item.quantity}`, {
           fontSize: '12px', color: '#c9d1d9', fontFamily: 'monospace',
         });
         this.container.add(itemText);
@@ -176,6 +210,10 @@ export class CraftPanel {
   hide(): void {
     if (this.container) {
       this.container.destroy();
+    }
+    if (this.maskGraphics) {
+      this.maskGraphics.destroy();
+      this.maskGraphics = null;
     }
     this.visible = false;
     this.recipeButtons = [];

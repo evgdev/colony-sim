@@ -21,6 +21,7 @@ export const gameConfig = {
   },
 
   // Spawn settings
+  dinosaursEnabled: true,
   maxDinosaurs: 6,
   dinoSpawnInterval: 30,
   resourceSpawnInterval: 50,
@@ -52,4 +53,12 @@ export const gameConfig = {
     lab: 'q2_plants',
     radio: 'q5_1',
   },
+
+  // Dinosaur skins ('default' or 'pixel')
+  //dinoSkin: 'default' as 'default' | 'pixel',
+  dinoSkin: 'pixel' as 'default' | 'pixel',
+
+  // Spawn specific dinos at game start (for testing/sprites preview)
+  // Example: ['trex'] or ['raptor', 'brontosaur']
+  startDinos: [] as string[],
 };

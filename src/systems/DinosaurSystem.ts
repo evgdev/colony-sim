@@ -47,8 +47,8 @@ export class DinosaurSystem {
     const night = this.isNightPhase(tickCount);
     const spawnInterval = night ? Math.floor(this.spawnInterval / this.nightSpawnMultiplier) : this.spawnInterval;
 
-    // Spawn dinosaurs when enabled by quest system
-    if (dinosEnabled && tickCount > 0 && tickCount % spawnInterval === 0) {
+    // Spawn dinosaurs when enabled by quest system AND config
+    if (gameConfig.dinosaursEnabled && dinosEnabled && tickCount > 0 && tickCount % spawnInterval === 0) {
       this.trySpawn(night);
     }
 
@@ -86,6 +86,21 @@ export class DinosaurSystem {
 
   private updateTamedDino(dino: Dinosaur, tickDelta: number): void {
     dino.updateAttackCooldown(tickDelta);
+
+    // If in paddock, stay there and auto-feed
+    if (dino.isInPaddock) {
+      if (dino.hunger < 100) {
+        dino.hunger = Math.min(100, dino.hunger + tickDelta * 2);
+        dino.loyalty = Math.min(100, dino.loyalty + tickDelta * 0.5);
+      }
+      // Check if still near paddock — if not, clear flag
+      const buildings = this.entityManager.getByType('building') as Building[];
+      const paddock = buildings.find(b => b.buildingType === 'paddock' && b.built);
+      if (!paddock || Math.abs(paddock.x + 1 - dino.x) + Math.abs(paddock.y + 1 - dino.y) > 3) {
+        dino.isInPaddock = false;
+      }
+      return;
+    }
 
     // If has attack target, fight it
     if (dino.attackTarget && dino.attackTarget.isAlive) {
@@ -157,7 +172,7 @@ export class DinosaurSystem {
   private moveDino(dino: Dinosaur, dx: number, dy: number): void {
     const newX = dino.x + dx;
     const newY = dino.y + dy;
-    if (this.tileGrid.isWalkable(newX, newY) && !this.tileGrid.isOccupied(newX, newY)) {
+    if (this.tileGrid.isAreaWalkableForDino(newX, newY, dino.footprint)) {
       this.tileGrid.setOccupiedArea(dino.x, dino.y, dino.footprint, false);
       dino.x = newX;
       dino.y = newY;
@@ -326,7 +341,8 @@ export class DinosaurSystem {
         break;
 
       case 'attack':
-        if (!nearestSettler || distToSettler > dino.attackRange) {
+        // Hysteresis: stay in attack until settler is 1.5x attackRange away
+        if (!nearestSettler || distToSettler > dino.attackRange * 1.5) {
           // Can't reach settler — look for a wall/building to attack
           const targetBuilding = this.findAdjacentBuilding(dino);
           if (targetBuilding) {

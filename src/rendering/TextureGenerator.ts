@@ -2673,4 +2673,47 @@ export function createEncyclopediaTextures(scene: Phaser.Scene): void {
     g.generateTexture(`ency_rock_${v}`, S, S);
     g.destroy();
   }
+
+  // Nest texture
+  {
+    const S = 200;
+    const g = scene.add.graphics();
+    const CX = S / 2;
+    const BASE_Y = S * 0.72;
+
+    // Nest bowl (brown twigs)
+    g.fillStyle(0x6b4226);
+    g.fillEllipse(CX, BASE_Y, 140, 60);
+
+    // Twig details
+    g.lineStyle(3, 0x8b5e3c, 0.8);
+    for (let i = 0; i < 12; i++) {
+      const angle = (i / 12) * Math.PI * 2;
+      const rx = 55 + Math.random() * 10;
+      const ry = 18 + Math.random() * 5;
+      g.beginPath();
+      g.moveTo(CX + Math.cos(angle) * rx * 0.3, BASE_Y + Math.sin(angle) * ry * 0.3);
+      g.lineTo(CX + Math.cos(angle) * rx, BASE_Y + Math.sin(angle) * ry);
+      g.strokePath();
+    }
+
+    // Eggs
+    g.fillStyle(0xf5f0e0);
+    g.fillEllipse(CX - 18, BASE_Y - 8, 18, 22);
+    g.fillEllipse(CX + 12, BASE_Y - 5, 16, 20);
+    g.fillEllipse(CX - 4, BASE_Y - 14, 15, 19);
+
+    // Egg spots
+    g.fillStyle(0xd4c9a8, 0.4);
+    g.fillCircle(CX - 18, BASE_Y - 10, 4);
+    g.fillCircle(CX + 12, BASE_Y - 7, 3);
+    g.fillCircle(CX - 4, BASE_Y - 16, 3);
+
+    // Shadow
+    g.fillStyle(0x000000, 0.15);
+    g.fillEllipse(CX, BASE_Y + 28, 130, 16);
+
+    g.generateTexture('ency_nest_0', S, S);
+    g.destroy();
+  }
 }

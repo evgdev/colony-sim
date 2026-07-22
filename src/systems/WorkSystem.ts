@@ -215,6 +215,14 @@ export class WorkSystem {
     const speedBonus = settler.getMoveSpeedBonus();
     const steps = speedBonus > 1 ? 2 : 1;
     for (let i = 0; i < steps && settler.pathIndex < settler.path.length; i++) {
+      // For multi-step movers, verify intermediate tile is walkable
+      if (i > 0) {
+        const nextTarget = settler.path[settler.pathIndex];
+        const ntx = Math.floor(nextTarget.x);
+        const nty = Math.floor(nextTarget.y);
+        const nTile = this.tileGrid.get(ntx, nty);
+        if (!nTile || !nTile.walkable || (nTile.occupied && !nTile.gate)) break;
+      }
       settler.pathIndex = this.movementSystem.stepAlongPath(settler, settler.path, settler.pathIndex);
     }
 
@@ -247,6 +255,16 @@ export class WorkSystem {
 
       const path = this.movementSystem.findPath(settler.x, settler.y, task.targetX, task.targetY);
       if (path.length <= 1) {
+        // Settler is at or adjacent to resource — try to harvest
+        if (settler.x === task.targetX && settler.y === task.targetY && resource && !resource.depleted) {
+          const amount = resource.harvest(5);
+          if (amount > 0) {
+            this.simulation.addToInventory(resource.resourceType, amount, resource.resourceType);
+          }
+          if (resource.depleted) {
+            this.entityManager.remove(resource.id);
+          }
+        }
         task.completed = true;
         return;
       }
@@ -424,6 +442,16 @@ export class WorkSystem {
 
       const path = this.movementSystem.findPath(settler.x, settler.y, task.targetX, task.targetY);
       if (path.length <= 1) {
+        // Settler is at or adjacent to artifact — try to pick up
+        if (settler.x === task.targetX && settler.y === task.targetY && artifact) {
+          settler.addArtifact(artifact.name);
+          if (this.artifactSystem) {
+            this.artifactSystem.applyEffects(settler);
+          }
+          settler.addToInventory({ name: artifact.name, quantity: 1, resourceType: 'artifact' });
+          this.entityManager.remove(artifact.id);
+          this.tileGrid.setOccupied(task.targetX, task.targetY, false);
+        }
         task.completed = true;
         return;
       }
@@ -791,13 +819,6 @@ export class WorkSystem {
   private executeMine(settler: Settler, task: Task, tickDelta: number): void {
     if (!this.decorationGenerator) { task.completed = true; return; }
 
-    // Check if settler has a stone axe
-    const hasAxe = settler.inventory.some(i => i.resourceType === 'stone_axe');
-    if (!hasAxe) {
-      task.completed = true;
-      return;
-    }
-
     const dec = this.decorationGenerator.getDecorationAt(task.targetX, task.targetY);
     if (!dec || !dec.plantId) { task.completed = true; return; }
 
@@ -852,9 +873,20 @@ export class WorkSystem {
       if (Math.random() < drop.chance) {
         this.simulation.addToInventory(drop.resource, drop.amount, drop.resource);
       }
-      // Remove permanently — rocks don't regrow
-      this.decorationGenerator.removeAt(task.targetX, task.targetY);
-      this.tileGrid.setOccupied(task.targetX, task.targetY, false);
+
+      // Check if rock has stoneAmount (for rocks that can be mined multiple times)
+      if (dec.stoneAmount !== undefined && dec.stoneAmount > 0) {
+        dec.stoneAmount -= drop.amount;
+        if (dec.stoneAmount <= 0) {
+          // Rock depleted
+          this.decorationGenerator.removeAt(task.targetX, task.targetY);
+          this.tileGrid.setOccupied(task.targetX, task.targetY, false);
+        }
+      } else {
+        // Remove permanently — rocks don't regrow
+        this.decorationGenerator.removeAt(task.targetX, task.targetY);
+        this.tileGrid.setOccupied(task.targetX, task.targetY, false);
+      }
       task.completed = true;
     }
   }

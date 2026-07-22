@@ -1,14 +1,9 @@
 import Phaser from 'phaser';
-import { CANVAS_WIDTH, CANVAS_HEIGHT } from '../config';
+import { getLayout } from './LayoutConfig';
 import { Encyclopedia } from '../data/Encyclopedia';
 
 const PANEL_W = 640;
 const PANEL_H = 520;
-const PANEL_X = (CANVAS_WIDTH - PANEL_W) / 2;
-const PANEL_Y = (CANVAS_HEIGHT - PANEL_H) / 2;
-
-const LIST_X = PANEL_X + 10;
-const LIST_Y = PANEL_Y + 40;
 const LIST_W = 210;
 const LIST_H = PANEL_H - 52;
 const ITEM_H = 28;
@@ -27,7 +22,7 @@ const ENCY_TEXTURE_MAP: Record<string, string> = {
   cycas: 'ency_cycas', treefern: 'ency_treefern', ginkgo: 'ency_ginkgo',
   palm: 'ency_palm', palm_tall: 'ency_sequoia', round: 'ency_sequoia',
   bush: 'ency_bush', fern: 'ency_fern', grass_tall: 'ency_horsetail',
-  mushroom: 'ency_mushroom',
+  mushroom: 'ency_mushroom', nest: 'ency_nest', rock_l: 'ency_rock', rock_s: 'ency_rock',
 };
 
 export class EncyclopediaModal {
@@ -42,9 +37,14 @@ export class EncyclopediaModal {
   private allIds: string[] = [];
   private scrollbar!: Phaser.GameObjects.Rectangle;
   private inputHandler: any;
+  private listX = 0;
+  private listY = 0;
+  private panelX = 0;
+  private panelY = 0;
 
   // Drag state
   private isDragging = false;
+  private isDraggingScrollbar = false;
   private dragStartPointerY = 0;
   private dragStartScrollY = 0;
 
@@ -76,6 +76,14 @@ export class EncyclopediaModal {
     this.inputHandler = (this.scene as any).inputHandler;
     if (this.inputHandler) this.inputHandler.encyclopediaOpen = true;
 
+    const L = getLayout();
+    const CANVAS_WIDTH = L.canvasW;
+    const CANVAS_HEIGHT = L.canvasH;
+    this.panelX = (CANVAS_WIDTH - PANEL_W) / 2;
+    this.panelY = (CANVAS_HEIGHT - PANEL_H) / 2;
+    this.listX = this.panelX + 10;
+    this.listY = this.panelY + 40;
+
     this.container = this.scene.add.container(0, 0).setDepth(200);
 
     // Dark backdrop
@@ -85,18 +93,18 @@ export class EncyclopediaModal {
 
     // Panel bg
     this.container.add(
-      this.scene.add.rectangle(PANEL_X, PANEL_Y, PANEL_W, PANEL_H, 0x1a2233, 1)
+      this.scene.add.rectangle(this.panelX, this.panelY, PANEL_W, PANEL_H, 0x1a2233, 1)
         .setOrigin(0).setStrokeStyle(2, 0x4488cc)
     );
 
     // Title
-    this.container.add(this.scene.add.text(PANEL_X + PANEL_W / 2, PANEL_Y + 16,
+    this.container.add(this.scene.add.text(this.panelX + PANEL_W / 2, this.panelY + 16,
       `── Encyclopedia (${this.encyclopedia.getDiscoveryCount()}/${this.encyclopedia.getTotalPlants()}) ──`, {
       fontSize: '16px', color: '#66bbff', fontFamily: 'monospace', fontStyle: 'bold',
     }).setOrigin(0.5, 0));
 
     // Close button
-    const closeBtn = this.scene.add.text(PANEL_X + PANEL_W - 28, PANEL_Y + 8, '✕', {
+    const closeBtn = this.scene.add.text(this.panelX + PANEL_W - 28, this.panelY + 8, '✕', {
       fontSize: '20px', color: '#ff5555', fontFamily: 'monospace',
     }).setInteractive({ useHandCursor: true })
       .on('pointerdown', () => this.hide())
@@ -105,7 +113,7 @@ export class EncyclopediaModal {
     this.container.add(closeBtn);
 
     // Scroll up button
-    const upBtn = this.scene.add.text(LIST_X + LIST_W - SCROLLBAR_W - 4, LIST_Y + 2, '▲', {
+    const upBtn = this.scene.add.text(this.listX + LIST_W - SCROLLBAR_W - 4, this.listY + 2, '▲', {
       fontSize: '12px', color: '#5599cc', fontFamily: 'monospace',
     }).setInteractive({ useHandCursor: true })
       .on('pointerdown', () => this.scroll(-ITEM_H * 3))
@@ -114,7 +122,7 @@ export class EncyclopediaModal {
     this.container.add(upBtn);
 
     // Scroll down button
-    const downBtn = this.scene.add.text(LIST_X + LIST_W - SCROLLBAR_W - 4, LIST_Y + LIST_H - 16, '▼', {
+    const downBtn = this.scene.add.text(this.listX + LIST_W - SCROLLBAR_W - 4, this.listY + LIST_H - 16, '▼', {
       fontSize: '12px', color: '#5599cc', fontFamily: 'monospace',
     }).setInteractive({ useHandCursor: true })
       .on('pointerdown', () => this.scroll(ITEM_H * 3))
@@ -124,35 +132,41 @@ export class EncyclopediaModal {
 
     // List panel bg
     this.container.add(
-      this.scene.add.rectangle(LIST_X, LIST_Y, LIST_W, LIST_H, 0x1e2a3a, 1)
+      this.scene.add.rectangle(this.listX, this.listY, LIST_W, LIST_H, 0x1e2a3a, 1)
         .setOrigin(0).setStrokeStyle(1, 0x335577)
     );
 
     // List mask
     const maskGfx = this.scene.add.graphics().setVisible(false);
     maskGfx.fillStyle(0xffffff);
-    maskGfx.fillRect(LIST_X + 2, LIST_Y + 2, LIST_W - SCROLLBAR_W - 6, LIST_H - 4);
+    maskGfx.fillRect(this.listX + 2, this.listY + 2, LIST_W - SCROLLBAR_W - 6, LIST_H - 4);
     const mask = new Phaser.Display.Masks.GeometryMask(this.scene, maskGfx);
 
     // Scrollbar
     this.scrollbar = this.scene.add.rectangle(
-      LIST_X + LIST_W - SCROLLBAR_W / 2 - 2, LIST_Y + 4,
+      this.listX + LIST_W - SCROLLBAR_W / 2 - 2, this.listY + 4,
       SCROLLBAR_W, 30, 0x5599cc, 0.9
-    ).setOrigin(0.5, 0).setDepth(201);
+    ).setOrigin(0.5, 0).setDepth(201).setInteractive({ useHandCursor: true });
+    this.scrollbar.on('pointerdown', (p: Phaser.Input.Pointer) => {
+      this.isDraggingScrollbar = true;
+      this.dragStartPointerY = p.y;
+      this.dragStartScrollY = this.scrollY;
+      p.event.stopPropagation();
+    });
     this.container.add(this.scrollbar);
 
     // List container
-    this.listContainer = this.scene.add.container(LIST_X + 4, LIST_Y + 4);
+    this.listContainer = this.scene.add.container(this.listX + 4, this.listY + 4);
     this.listContainer.setMask(mask);
     this.container.add(this.listContainer);
 
     // Detail panel bg
     this.container.add(
-      this.scene.add.rectangle(PANEL_X + 224, LIST_Y, PANEL_W - 236, LIST_H, 0x1e2a3a, 1)
+      this.scene.add.rectangle(this.panelX + 224, this.listY, PANEL_W - 236, LIST_H, 0x1e2a3a, 1)
         .setOrigin(0).setStrokeStyle(1, 0x335577)
     );
 
-    this.detailContainer = this.scene.add.container(PANEL_X + 228, LIST_Y + 8);
+    this.detailContainer = this.scene.add.container(this.panelX + 228, this.listY + 8);
     this.container.add(this.detailContainer);
 
     this.renderList();
@@ -184,12 +198,13 @@ export class EncyclopediaModal {
     this.visible = false;
     this.selectedPlantId = null;
     this.isDragging = false;
+    this.isDraggingScrollbar = false;
   }
 
   isVisible(): boolean { return this.visible; }
 
   private isInsideList(x: number, y: number): boolean {
-    return x >= LIST_X && x <= LIST_X + LIST_W && y >= LIST_Y && y <= LIST_Y + LIST_H;
+    return x >= this.listX && x <= this.listX + LIST_W && y >= this.listY && y <= this.listY + LIST_H;
   }
 
   private onPointerDown(p: Phaser.Input.Pointer) {
@@ -202,13 +217,33 @@ export class EncyclopediaModal {
   }
 
   private onPointerMove(p: Phaser.Input.Pointer) {
-    if (!this.isDragging || !this.visible) return;
-    const dy = p.y - this.dragStartPointerY;
-    this.scroll(this.dragStartScrollY - dy);
+    if (!this.visible) return;
+
+    if (this.isDraggingScrollbar) {
+      const totalH = this.allIds.length * ITEM_H;
+      const visH = LIST_H - 8;
+      const maxScroll = Math.max(0, totalH - visH);
+      if (maxScroll <= 0) return;
+
+      const barH = Math.max(30, (visH / totalH) * visH);
+      const trackH = visH - barH;
+      const dy = p.y - this.dragStartPointerY;
+      const scrollDelta = (dy / trackH) * maxScroll;
+      this.scrollY = Math.max(0, Math.min(maxScroll, this.dragStartScrollY + scrollDelta));
+      this.renderList();
+      this.updateScrollbar();
+      return;
+    }
+
+    if (this.isDragging) {
+      const dy = p.y - this.dragStartPointerY;
+      this.scroll(this.dragStartScrollY - dy);
+    }
   }
 
   private onPointerUp(_p: Phaser.Input.Pointer) {
     this.isDragging = false;
+    this.isDraggingScrollbar = false;
   }
 
   private onKeyDown(e: KeyboardEvent) {
@@ -240,9 +275,9 @@ export class EncyclopediaModal {
     this.scrollbar.setVisible(true);
     const barH = Math.max(30, (visH / totalH) * visH);
     const maxScroll = totalH - visH;
-    const barY = LIST_Y + 4 + (this.scrollY / maxScroll) * (visH - barH);
+    const barY = this.listY + 4 + (this.scrollY / maxScroll) * (visH - barH);
     this.scrollbar.setSize(SCROLLBAR_W, barH);
-    this.scrollbar.setPosition(LIST_X + LIST_W - SCROLLBAR_W / 2 - 2, barY);
+    this.scrollbar.setPosition(this.listX + LIST_W - SCROLLBAR_W / 2 - 2, barY);
   }
 
   private renderList() {

@@ -1,5 +1,5 @@
 import Phaser from 'phaser';
-import { CANVAS_WIDTH, CANVAS_HEIGHT } from '../config';
+import { getLayout } from '../ui/LayoutConfig';
 import { languageManager } from '../data/LanguageManager';
 import { QuestManager } from '../systems/QuestManager';
 
@@ -15,11 +15,12 @@ export class GameOverScreen {
 
   show(tickCount: number, onRestart: () => void, questManager?: QuestManager): void {
     this.destroy();
-    const cx = CANVAS_WIDTH / 2;
-    const cy = CANVAS_HEIGHT / 2;
+    const L = getLayout();
+    const cx = L.canvasW / 2;
+    const cy = L.canvasH / 2;
     this.container = this.scene.add.container(0, 0).setDepth(100);
 
-    const bg = this.scene.add.rectangle(0, 0, CANVAS_WIDTH, CANVAS_HEIGHT, 0x000000, 0.9)
+    const bg = this.scene.add.rectangle(0, 0, L.canvasW, L.canvasH, 0x000000, 0.9)
       .setOrigin(0);
     this.container.add(bg);
 

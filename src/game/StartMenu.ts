@@ -1,5 +1,5 @@
 import Phaser from 'phaser';
-import { CANVAS_WIDTH, CANVAS_HEIGHT } from '../config';
+import { getLayout } from '../ui/LayoutConfig';
 import { ReplayRecorder } from '../replay/ReplayRecorder';
 
 export type GameMode = 'story' | 'defense';
@@ -19,15 +19,16 @@ export class StartMenu {
 
   show(callbacks: StartMenuCallbacks): void {
     this.destroy();
-    const cx = CANVAS_WIDTH / 2;
-    const cy = CANVAS_HEIGHT / 2;
+    const L = getLayout();
+    const cx = L.canvasW / 2;
+    const cy = L.canvasH / 2;
     const menu = this.scene.add.container(0, 0).setDepth(100);
 
     // Background
-    const img = this.scene.add.image(cx, cy, 'startMenuBg').setDisplaySize(CANVAS_WIDTH, CANVAS_HEIGHT);
+    const img = this.scene.add.image(cx, cy, 'startMenuBg').setDisplaySize(L.canvasW, L.canvasH);
     menu.add(img);
 
-    const bg = this.scene.add.rectangle(cx, cy, CANVAS_WIDTH, CANVAS_HEIGHT, 0x0d1117, 0.6);
+    const bg = this.scene.add.rectangle(cx, cy, L.canvasW, L.canvasH, 0x0d1117, 0.6);
     menu.add(bg);
 
     // Title
@@ -163,11 +164,12 @@ export class StartMenu {
     // Remove mode buttons, keep background
     this.container.removeAll(true);
 
-    const cx = CANVAS_WIDTH / 2;
-    const cy = CANVAS_HEIGHT / 2;
+    const L = getLayout();
+    const cx = L.canvasW / 2;
+    const cy = L.canvasH / 2;
 
     // Re-add background
-    const bg = this.scene.add.rectangle(cx, cy, CANVAS_WIDTH, CANVAS_HEIGHT, 0x0d1117, 0.6);
+    const bg = this.scene.add.rectangle(cx, cy, L.canvasW, L.canvasH, 0x0d1117, 0.6);
     this.container.add(bg);
 
     const modeName = mode === 'story' ? 'ИСТОРИЯ' : 'ОБОРОНА';

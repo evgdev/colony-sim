@@ -25,6 +25,7 @@ import buildingsData from '../data/buildings.json';
 import { ReplayRecorder } from '../replay/ReplayRecorder';
 import { QuestModal } from './QuestModal';
 import { CraftPanel, CraftRecipe } from './CraftPanel';
+import { Tooltip } from './menu/Tooltip';
 
 type BuildingType = keyof typeof buildingsData;
 
@@ -618,7 +619,7 @@ export class UIManager {
     this.hudButtons.push(clearBtn);
     btnX += clearBtn.width + 4;
 
-    const encycBtn = this.scene.add.text(btnX, btnsY, `[Encyclopedia]`, {
+    const encycBtn = this.scene.add.text(L.fieldX + L.fieldW - 130, L.bottomHudY + L.bottomHudH - 28, `[Encyclopedia]`, {
       fontSize: '13px', color: '#44ddaa', fontFamily: 'monospace',
       backgroundColor: '#16213e', padding: { x: 5, y: 2 },
     }).setInteractive({ useHandCursor: true }).setDepth(btnDepth)
@@ -700,9 +701,12 @@ export class UIManager {
       .on('pointerdown', () => {
         if (!this.buildButtonsEnabled) return;
         this.buildMode = null;
+        this.hideBuildTooltip();
         this.updateBuildButtonStates();
       });
     this.buildButtons.push(cancelBtn);
+
+    const questManager = (this.scene as any).questManager;
 
     for (let i = 0; i < types.length; i++) {
       const type = types[i];
@@ -715,49 +719,68 @@ export class UIManager {
       const reqEntries = Object.entries(def.requires);
       const reqStr = reqEntries.map(([k, v]) => `${k}:${v}`).join(' ');
 
+      const isUnlocked = questManager ? questManager.isQuestUnlocked(type) : true;
+      const affordable = this.canAfford(type);
+
       const container = this.scene.add.container(xOff, btnY).setDepth(22);
 
       const bg = this.scene.add.rectangle(0, 0, ICON_SIZE + 8, ICON_SIZE + 8, 0x21262d, 0.9)
-        .setOrigin(0).setStrokeStyle(1, COLORS.panelBorder);
-      bg.setInteractive({ useHandCursor: true })
-        .on('pointerover', () => {
-          if (!this.buildButtonsEnabled) return;
-          bg.setStrokeStyle(2, 0x58a6ff);
-        })
-        .on('pointerout', () => {
-          if (!this.buildButtonsEnabled) return;
-          bg.setStrokeStyle(1, COLORS.panelBorder);
-        })
-        .on('pointerdown', () => {
-          if (!this.buildButtonsEnabled) return;
-          this.selectedBuilding = null;
-          this.selectionRect.setVisible(false);
-          this.infoPanel.setVisible(false);
-          if (!this.canAfford(type)) {
-            this.addLog(`${languageManager.ui.logBuild} ${def.name} \u2014 ${languageManager.ui.logNeed}...`);
-            return;
-          }
-          this.buildMode = type;
-          this.updateBuildButtonStates();
-          this.addLog(`${languageManager.ui.logBuild}: ${def.name} \u2014 ${languageManager.ui.logClickTile}`);
-        });
+        .setOrigin(0).setStrokeStyle(1, isUnlocked ? COLORS.panelBorder : 0x333333);
+
+      if (isUnlocked) {
+        bg.setInteractive({ useHandCursor: true })
+          .on('pointerover', () => {
+            if (!this.buildButtonsEnabled) return;
+            bg.setStrokeStyle(2, 0x58a6ff);
+            this.showBuildTooltip(type, bg.x + xOff, bg.y + btnY);
+          })
+          .on('pointerout', () => {
+            if (!this.buildButtonsEnabled) return;
+            bg.setStrokeStyle(1, COLORS.panelBorder);
+            this.hideBuildTooltip();
+          })
+          .on('pointerdown', () => {
+            if (!this.buildButtonsEnabled) return;
+            this.hideBuildTooltip();
+            this.selectedBuilding = null;
+            this.selectionRect.setVisible(false);
+            this.infoPanel.setVisible(false);
+            if (!this.canAfford(type)) {
+              this.addLog(`${languageManager.ui.logBuild} ${def.name} — ${languageManager.ui.logNeed}...`);
+              return;
+            }
+            this.buildMode = type;
+            this.updateBuildButtonStates();
+            this.addLog(`${languageManager.ui.logBuild}: ${def.name} — ${languageManager.ui.logClickTile}`);
+          });
+      }
       container.add(bg);
 
       const icon = this.scene.add.image(ICON_SIZE / 2, ICON_SIZE / 2, `icon_${type}`)
         .setDisplaySize(ICON_SIZE - 8, ICON_SIZE - 8);
+      if (!isUnlocked) icon.setAlpha(0.25);
       container.add(icon);
 
-      const costTooltip = this.scene.add.text(ICON_SIZE / 2, ICON_SIZE + 6, reqStr, {
-        fontSize: '10px', color: '#8b949e', fontFamily: 'monospace',
-      }).setOrigin(0.5, 0);
-      container.add(costTooltip);
+      // Lock icon for locked buildings
+      if (!isUnlocked) {
+        const lockText = this.scene.add.text(ICON_SIZE / 2, ICON_SIZE / 2, '🔒', {
+          fontSize: '18px',
+        }).setOrigin(0.5);
+        container.add(lockText);
+      }
 
-      const affordable = this.canAfford(type);
-      if (!affordable) {
+      const costText = this.scene.add.text(ICON_SIZE / 2, ICON_SIZE + 6, reqStr, {
+        fontSize: '10px', color: isUnlocked ? '#8b949e' : '#555555', fontFamily: 'monospace',
+      }).setOrigin(0.5, 0);
+      container.add(costText);
+
+      if (isUnlocked && !affordable) {
         icon.setAlpha(0.35);
         bg.setFillStyle(0x161b22, 0.9);
-      } else {
+      } else if (isUnlocked) {
         bg.setFillStyle(0x21262d, 0.9);
+      } else {
+        bg.setFillStyle(0x111111, 0.9);
       }
 
       container.setSize(ICON_SIZE + 8, ICON_SIZE + 20);
@@ -765,6 +788,34 @@ export class UIManager {
       this.buildTypeMap.set(container, type);
       this.buildButtons.push(container);
     }
+  }
+
+  private buildTooltip: import('./menu/Tooltip').Tooltip | null = null;
+
+  private showBuildTooltip(type: string, x: number, y: number): void {
+    if (!this.buildTooltip) {
+      this.buildTooltip = new Tooltip(this.scene, 50);
+    }
+    const def = (buildingsData as any)[type];
+    const lines: import('./menu/Tooltip').TooltipLine[] = [
+      { text: def.name, color: '#58a6ff', bold: true },
+      { text: def.description, color: '#c9d1d9' },
+      { text: '', color: '#c9d1d9' },
+      { text: `Стоимость:`, color: '#8b949e', bold: true },
+    ];
+    for (const [res, amt] of Object.entries(def.requires)) {
+      const has = this.simulation?.hasResource(res, amt as number);
+      lines.push({ text: `  ${res}: ${amt}`, color: has ? '#44ff44' : '#ff4444' });
+    }
+    if (def.size && def.size > 1) {
+      lines.push({ text: '', color: '#c9d1d9' });
+      lines.push({ text: `Размер: ${def.size}x${def.size}`, color: '#8b949e' });
+    }
+    this.buildTooltip.show(lines, x, y);
+  }
+
+  private hideBuildTooltip(): void {
+    this.buildTooltip?.hide();
   }
 
   private createDayNightWidget(): void {
@@ -886,8 +937,8 @@ export class UIManager {
     const active = qm.getActiveQuests();
     if (active.length === 0) return null;
     const questId = active[0].quest.id;
-    // q1_2: only walls and gates
-    if (questId === 'q1_2') return ['wall', 'gate'];
+    // q1_2: walls, gates, farms, warehouses
+    if (questId === 'q1_2') return ['wall', 'gate', 'farm', 'warehouse'];
     return null;
   }
 

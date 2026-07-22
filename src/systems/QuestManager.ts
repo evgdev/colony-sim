@@ -70,6 +70,7 @@ export interface QuestState {
   objectives: QuestObjective[];
   ticksRemaining?: number;
   startedAtTick: number;
+  skipFirstCheck?: boolean;
 }
 
 export interface DialogueLine {
@@ -180,6 +181,7 @@ export class QuestManager {
 
     state.status = 'active';
     state.startedAtTick = tickCount;
+    state.skipFirstCheck = true;
     if (this.quests.get(questId)?.timeLimit) {
       state.ticksRemaining = this.quests.get(questId)!.timeLimit!;
     }
@@ -280,8 +282,10 @@ export class QuestManager {
       // Update objectives based on quest type
       this.updateObjectives(questId, state, quest, simulation);
 
-      // Check if all objectives complete
-      if (this.areObjectivesComplete(state.objectives)) {
+      // Check if all objectives complete (skip first tick to avoid instant completion)
+      if (state.skipFirstCheck) {
+        state.skipFirstCheck = false;
+      } else if (this.areObjectivesComplete(state.objectives)) {
         this.completeQuest(questId);
       }
     }
@@ -326,16 +330,17 @@ export class QuestManager {
         case 'reach_tile':
           if (obj.x !== undefined && obj.y !== undefined && !obj.found) {
             const settlers = simulation.entityManager.getByType('settler') as Settler[];
-            const settler = settlers.find(s => s.isAlive);
-            if (settler) {
-              const baseX = Math.floor(simulation.tileGrid.width / 2);
-              const baseY = Math.floor(simulation.tileGrid.height / 2);
-              const targetX = baseX + obj.x;
-              const targetY = baseY + obj.y;
-              const dist = Math.abs(settler.x - targetX) + Math.abs(settler.y - targetY);
+            const baseX = Math.floor(simulation.tileGrid.width / 2);
+            const baseY = Math.floor(simulation.tileGrid.height / 2);
+            const targetX = baseX + obj.x;
+            const targetY = baseY + obj.y;
+            for (const s of settlers) {
+              if (!s.isAlive) continue;
+              const dist = Math.abs(s.x - targetX) + Math.abs(s.y - targetY);
               if (dist <= 2) {
                 obj.found = true;
                 this.emit({ type: 'quest_objective_progress', questId, message: `Точка найдена: ${obj.pointName}` });
+                break;
               }
             }
           }
@@ -843,7 +848,7 @@ export class QuestManager {
       }
     }
     // First act buildings are always available
-    return ['wall', 'gate', 'house', 'turret'].includes(buildingType);
+    return ['wall', 'gate', 'house', 'turret', 'farm', 'warehouse', 'lab', 'workshop'].includes(buildingType);
   }
 
   isQuestActive(questId: string): boolean {

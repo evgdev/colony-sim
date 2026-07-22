@@ -39,6 +39,7 @@ interface Decoration {
   depleted: boolean;
   regrowTime: number;
   regrowTimer: number;
+  stoneAmount?: number; // For rocks: remaining stone to mine
 }
 
 interface PlantDef {
@@ -185,7 +186,10 @@ export class DecorationGenerator {
           this.bottomContainer.add(sprite);
 
           const regrowTime = plant?.rarity === 'legendary' ? 2000 : plant?.rarity === 'rare' ? 1500 : plant?.rarity === 'uncommon' ? 1000 : 800;
-          this.decorations.push({ bottomSprite: sprite, topSprite: null, shadowSprite: null, tileX: x, tileY: y, isTree: false, chopProgress: 0, chopTime: 0, isChopping: false, plantId, harvestProgress: 0, harvestTime: plant?.harvestTime ?? 0, isHarvesting: false, depleted: false, regrowTime, regrowTimer: 0 });
+          // Rocks get stoneAmount (10-40 stone to mine)
+          const isRock = decType === 'rock_l' || decType === 'rock_s';
+          const stoneAmount = isRock ? (Math.floor(seededRandom(x + 50, y + 50, this.DECORATION_SEED) * 31) + 10) : undefined;
+          this.decorations.push({ bottomSprite: sprite, topSprite: null, shadowSprite: null, tileX: x, tileY: y, isTree: false, chopProgress: 0, chopTime: 0, isChopping: false, plantId, harvestProgress: 0, harvestTime: plant?.harvestTime ?? 0, isHarvesting: false, depleted: false, regrowTime, regrowTimer: 0, stoneAmount });
         }
       }
     }

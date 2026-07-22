@@ -386,6 +386,15 @@ export class GameScene extends Phaser.Scene {
     this.incubatorSystem.setOnHatch((dino) => {
       this.uiManager?.addLog(`🥚 ${dino.species} вылупился!`);
       this.toastManager?.show(`Новый динозавр!`);
+      // Show hatching dialogue
+      const hatchDialogue = this.questManager?.getDialogue('dino_hatch');
+      if (hatchDialogue) {
+        this.dialoguePaused = true;
+        this.inputHandler?.hideHover();
+        this.dialogueBox?.show(hatchDialogue, () => {
+          this.dialoguePaused = false;
+        });
+      }
     });
 
     this.workSystem.onSettlerSleep = (settler) => {
@@ -515,12 +524,18 @@ export class GameScene extends Phaser.Scene {
       this.scrollY = Math.max(0, world.centerY - Math.floor(getLayout().viewportTiles / 2));
       this.clampScroll();
 
-      if (mode === 'defense') {
+      if (mode === 'defense' && gameConfig.dinosaursEnabled) {
         // Defense mode: spawn initial dinosaurs immediately
         this.spawnDefenseModeDinos(world);
         this.uiManager?.addLog('Режим обороны: динозавры атакуют!');
       }
-      // Story mode: no dinosaurs at start — QuestManager controls spawning
+
+      // Spawn configured start dinos (for testing/preview)
+      if (gameConfig.startDinos.length > 0 && gameConfig.dinosaursEnabled) {
+        for (const species of gameConfig.startDinos) {
+          this.spawnStartDino(species, world);
+        }
+      }
 
       this.mapRenderer.drawMap();
       this.mapRenderer.updateScroll(this.scrollX, this.scrollY);
@@ -652,6 +667,30 @@ export class GameScene extends Phaser.Scene {
     });
   }
 
+  private spawnStartDino(species: string, world: { centerX: number; centerY: number }): void {
+    const def = (dinosaursData as any)[species];
+    if (!def) return;
+    const footprint = def.footprint ?? 1;
+    let sx = world.centerX + 6;
+    let sy = world.centerY;
+    for (let attempt = 0; attempt < 30; attempt++) {
+      if (this.simulation.tileGrid.isAreaWalkableForDino(sx, sy, footprint)) break;
+      sx += 1;
+      if (sx >= this.simulation.tileGrid.width - footprint) {
+        sx = world.centerX + 6;
+        sy += 1;
+      }
+    }
+    const dino = new Dinosaur(
+      sx, sy, species,
+      def.hp, def.speed, def.aggroRange,
+      def.size, def.attackDamage, def.wallDamage ?? 5, footprint
+    );
+    this.simulation.entityManager.add(dino);
+    this.simulation.tileGrid.setOccupiedArea(dino.x, dino.y, footprint, true);
+    this.uiManager?.addLog(`Тестовый спавн: ${def.name}`);
+  }
+
   update(time: number, delta: number): void {
     if (this.gameOver) return;
     if (!this.worldReady) return;
@@ -733,40 +772,9 @@ export class GameScene extends Phaser.Scene {
   }
 
   private spawnResources(): void {
-    this.resourceSpawnTimer++;
-    const interval = this.questManager?.isQuestActive('q1_2') ? 25 : this.resourceSpawnInterval;
-    if (this.resourceSpawnTimer < interval) return;
-    this.resourceSpawnTimer = 0;
-
-    const existing = this.simulation.entityManager.getByType('resource').length;
-    if (existing >= gameConfig.maxResourcesOnMap) return;
-
-    // During q1_2: more stone, spawn near base
-    const isWallQuest = this.questManager?.isQuestActive('q1_2');
-    const spawnCount = isWallQuest ? 3 : 1;
-
-    for (let i = 0; i < spawnCount; i++) {
-      for (let attempt = 0; attempt < 10; attempt++) {
-        let x: number, y: number;
-        if (isWallQuest) {
-          // Spawn near center (within 12 tiles)
-          x = Math.floor(MAP_WIDTH / 2 + (Math.random() - 0.5) * 24);
-          y = Math.floor(MAP_HEIGHT / 2 + (Math.random() - 0.5) * 24);
-        } else {
-          x = Math.floor(Math.random() * MAP_WIDTH);
-          y = Math.floor(Math.random() * MAP_HEIGHT);
-        }
-        const tile = this.simulation.tileGrid.get(x, y);
-        if (!tile || !tile.walkable || tile.type === 'water' || tile.occupied) continue;
-
-        const type = isWallQuest ? 'stone' : 'wood';
-        const qty = Math.floor(Math.random() * 12) + 5;
-        const res = new Resource(x, y, type, qty);
-        this.simulation.entityManager.add(res);
-        break;
-      }
-    }
+    // Resource respawning disabled
   }
+
 
   private isDinosEnabled(): boolean { return false; }
 
@@ -973,6 +981,15 @@ export class GameScene extends Phaser.Scene {
             species: e.killedSpecies,
             attacker: e.attacker,
           } as any);
+          // Auto-pickup artifact for the killer settler
+          const settlers = this.simulation.entityManager.getByType('settler') as Settler[];
+          const killer = settlers.find(s => s.name === e.attacker && s.isAlive);
+          if (killer) {
+            const artifact = this.simulation.entityManager.getAt(e.killedAt.x, e.killedAt.y, 'artifact') as Artifact | undefined;
+            if (artifact) {
+              this.workSystem.createPickUpArtifactTask(artifact, TaskPriority.High, killer);
+            }
+          }
         }
       } else if (e.type === 'dino_vs_dino') {
         const lines = languageManager.narrative.combat.dinoAttack;

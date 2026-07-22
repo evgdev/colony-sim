@@ -902,27 +902,17 @@ export class InputHandler {
     const drop = plantInfo?.plant.harvestDrop;
     const dropText = drop ? `${drop.resource} x${drop.amount}` : '';
 
-    const hasAxe = settler?.inventory.some((i: any) => i.resourceType === 'stone_axe');
-
     const items: import('./menu/MenuItem').MenuItem[] = [];
 
-    if (hasAxe) {
-      items.push({
-        icon: '⛏️',
-        label: `Добыть${dropText ? ` (${dropText})` : ''}`,
-        action: () => {
-          this.selectedTreeTile = null;
-          this.workSystem.createMineTask(tileX, tileY, TaskPriority.High, settler);
-          this.uiManager.addLog(`${settler ? settler.name : 'Поселенец'} направляется добывать камень`);
-        }
-      });
-    } else {
-      items.push({
-        icon: '🪓',
-        label: 'Нужна каменная секира',
-        disabled: true,
-      });
-    }
+    items.push({
+      icon: '⛏️',
+      label: `Добыть${dropText ? ` (${dropText})` : ''}`,
+      action: () => {
+        this.selectedTreeTile = null;
+        this.workSystem.createMineTask(tileX, tileY, TaskPriority.High, settler);
+        this.uiManager.addLog(`${settler ? settler.name : 'Поселенец'} направляется добывать камень`);
+      }
+    });
 
     this.menuSystem.showContextMenu(items, screenX, screenY);
   }
@@ -966,13 +956,6 @@ export class InputHandler {
       });
     }
 
-    // Show loyalty status
-    items.push({
-      icon: '❤️',
-      label: `Лояльность: ${Math.floor(dino.loyalty)}%`,
-      disabled: true,
-    });
-
     // Attack command (if loyalty >= 80)
     if (dino.loyalty >= 80) {
       // Find nearest wild predator
@@ -1003,36 +986,16 @@ export class InputHandler {
         label: 'Отправить в загон',
         action: () => {
           this.selectedTreeTile = null;
-          // Find ANY free tile near paddock (wider search)
-          const bldSize = paddock.size ?? 3;
-          const dirs = [
-            // Adjacent tiles
-            { dx: 0, dy: -1 }, { dx: 0, dy: bldSize },
-            { dx: -1, dy: 0 }, { dx: bldSize, dy: 0 },
-            // Diagonal tiles
-            { dx: -1, dy: -1 }, { dx: bldSize, dy: -1 },
-            { dx: -1, dy: bldSize }, { dx: bldSize, dy: bldSize },
-            // Further out
-            { dx: 0, dy: -2 }, { dx: 0, dy: bldSize + 1 },
-            { dx: -2, dy: 0 }, { dx: bldSize + 1, dy: 0 },
-          ];
-          let moved = false;
-          for (const d of dirs) {
-            const tx = paddock.x + d.dx;
-            const ty = paddock.y + d.dy;
-            if (this.simulation.tileGrid.isWalkable(tx, ty)) {
-              this.simulation.tileGrid.setOccupiedArea(dino.x, dino.y, dino.footprint, false);
-              dino.x = tx;
-              dino.y = ty;
-              this.simulation.tileGrid.setOccupiedArea(dino.x, dino.y, dino.footprint, true);
-              this.uiManager.addLog(`${dino.species} отправлен в загон`);
-              moved = true;
-              break;
-            }
-          }
-          if (!moved) {
-            this.uiManager.addLog('Нет свободного места рядом с загоном');
-          }
+          // Place dino at center of paddock (3x3 → center is +1,+1)
+          const centerX = paddock.x + 1;
+          const centerY = paddock.y + 1;
+          this.simulation.tileGrid.setOccupiedArea(dino.x, dino.y, dino.footprint, false);
+          dino.x = centerX;
+          dino.y = centerY;
+          dino.snapVisual();
+          this.simulation.tileGrid.setOccupiedArea(dino.x, dino.y, dino.footprint, true);
+          dino.isInPaddock = true;
+          this.uiManager.addLog(`${dino.species} помещён в загон`);
         }
       });
     }
@@ -1043,16 +1006,30 @@ export class InputHandler {
       label: 'Следовать за мной',
       action: () => {
         this.selectedTreeTile = null;
-        // Move dinosaur close to settler
         if (settler) {
-          const tx = settler.x + 1;
-          const ty = settler.y;
-          if (this.simulation.tileGrid.isWalkable(tx, ty)) {
-            this.simulation.tileGrid.setOccupiedArea(dino.x, dino.y, dino.footprint, false);
-            dino.x = tx;
-            dino.y = ty;
-            this.simulation.tileGrid.setOccupiedArea(dino.x, dino.y, dino.footprint, true);
-            this.uiManager.addLog(`${dino.species} следует за ${settler.name}`);
+          // Find free tile near settler
+          const dirs = [
+            { dx: 1, dy: 0 }, { dx: -1, dy: 0 },
+            { dx: 0, dy: 1 }, { dx: 0, dy: -1 },
+            { dx: 1, dy: 1 }, { dx: -1, dy: -1 },
+            { dx: 1, dy: -1 }, { dx: -1, dy: 1 },
+          ];
+          let moved = false;
+          for (const d of dirs) {
+            const tx = settler.x + d.dx;
+            const ty = settler.y + d.dy;
+            if (this.simulation.tileGrid.isAreaWalkableForDino(tx, ty, dino.footprint)) {
+              this.simulation.tileGrid.setOccupiedArea(dino.x, dino.y, dino.footprint, false);
+              dino.x = tx;
+              dino.y = ty;
+              this.simulation.tileGrid.setOccupiedArea(dino.x, dino.y, dino.footprint, true);
+              this.uiManager.addLog(`${dino.species} следует за ${settler.name}`);
+              moved = true;
+              break;
+            }
+          }
+          if (!moved) {
+            this.uiManager.addLog('Нет свободного места рядом');
           }
         }
       }
@@ -1130,27 +1107,132 @@ export class InputHandler {
 
     const items: import('./menu/MenuItem').MenuItem[] = [];
 
-    // Find dinosaurs near paddock (within 4 tiles)
+    // Find dinosaurs inside paddock (at center tiles of 3x3)
     const dinos = this.simulation.entityManager.getByType('dinosaur') as Dinosaur[];
-    const nearbyDinos = dinos.filter(d =>
-      d.isTamed && d.isAlive &&
-      Math.abs(d.x - building.x) + Math.abs(d.y - building.y) <= 4
+    const insideDinos = dinos.filter(d =>
+      d.isTamed && d.isAlive && d.isInPaddock &&
+      d.x >= building.x && d.x < building.x + 3 &&
+      d.y >= building.y && d.y < building.y + 3
     );
 
-    if (nearbyDinos.length === 0) {
+    // Also show tamed dinos nearby (not yet in paddock)
+    const nearbyDinos = dinos.filter(d =>
+      d.isTamed && d.isAlive && !d.isInPaddock &&
+      Math.abs(d.x - building.x - 1) + Math.abs(d.y - building.y - 1) <= 4
+    );
+
+    if (insideDinos.length === 0 && nearbyDinos.length === 0) {
       items.push({
         icon: '🦕',
         label: 'Загон пуст',
         disabled: true,
       });
     } else {
+      for (const dino of insideDinos) {
+        // Sub-header for each dino
+        items.push({
+          icon: '🦕',
+          label: `── ${dino.species} (внутри) ❤️${Math.floor(dino.loyalty)}% ──`,
+          disabled: true,
+        });
+
+        // Release from paddock
+        items.push({
+          icon: '🚪',
+          label: 'Выпустить из загона',
+          action: () => {
+            this.selectedTreeTile = null;
+            const dirs = [
+              { dx: 0, dy: -1 }, { dx: 0, dy: 3 },
+              { dx: -1, dy: 0 }, { dx: 3, dy: 0 },
+            ];
+            for (const d of dirs) {
+              const tx = building.x + d.dx;
+              const ty = building.y + d.dy;
+              if (this.simulation.tileGrid.isAreaWalkableForDino(tx, ty, dino.footprint)) {
+                this.simulation.tileGrid.setOccupiedArea(dino.x, dino.y, dino.footprint, false);
+                dino.x = tx;
+                dino.y = ty;
+                dino.snapVisual();
+                this.simulation.tileGrid.setOccupiedArea(dino.x, dino.y, dino.footprint, true);
+                dino.isInPaddock = false;
+                this.uiManager.addLog(`${dino.species} выпущен из загона`);
+                return;
+              }
+            }
+            this.uiManager.addLog('Нет свободного места для выхода');
+          }
+        });
+
+        // Follow settler
+        items.push({
+          icon: '👣',
+          label: 'Следовать за мной',
+          action: () => {
+            this.selectedTreeTile = null;
+            // Release from paddock first
+            const dirs = [
+              { dx: 0, dy: -1 }, { dx: 0, dy: 3 },
+              { dx: -1, dy: 0 }, { dx: 3, dy: 0 },
+            ];
+            for (const d of dirs) {
+              const tx = building.x + d.dx;
+              const ty = building.y + d.dy;
+              if (this.simulation.tileGrid.isAreaWalkableForDino(tx, ty, dino.footprint)) {
+                this.simulation.tileGrid.setOccupiedArea(dino.x, dino.y, dino.footprint, false);
+                dino.x = tx;
+                dino.y = ty;
+                dino.snapVisual();
+                this.simulation.tileGrid.setOccupiedArea(dino.x, dino.y, dino.footprint, true);
+                dino.isInPaddock = false;
+                break;
+              }
+            }
+            const s = (this.scene as any).getSelectedSettler() as Settler;
+            if (s) {
+              this.uiManager.addLog(`${dino.species} следует за ${s.name}`);
+            }
+          }
+        });
+
+        // Feed
+        const feedOptions = [
+          { type: 'herb', label: 'Плоды' },
+          { type: 'fiber', label: 'Волокно' },
+          { type: 'meat', label: 'Мясо' },
+        ];
+        for (const feed of feedOptions) {
+          const amount = this.simulation.getResourceAmount(feed.type);
+          if (amount > 0) {
+            items.push({
+              icon: '🍃',
+              label: `Накормить (${feed.label}) [${amount}]`,
+              action: () => {
+                this.selectedTreeTile = null;
+                this.simulation.removeFromInventory(feed.type, 1);
+                const gain = dino.feed(feed.type);
+                this.uiManager.addLog(`${dino.species} накормлен. Лояльность +${gain} (${Math.floor(dino.loyalty)}%)`);
+              }
+            });
+          }
+        }
+      }
+
       for (const dino of nearbyDinos) {
         items.push({
           icon: '🦕',
-          label: `${dino.species} (❤️${Math.floor(dino.loyalty)}%)`,
+          label: `${dino.species} (рядом) ❤️${Math.floor(dino.loyalty)}%`,
           action: () => {
-            // Release dinosaur from paddock - it will follow settler
-            this.uiManager.addLog(`${dino.species} выпущен из загона`);
+            this.selectedTreeTile = null;
+            const centerX = building.x + 1;
+            const centerY = building.y + 1;
+            this.simulation.tileGrid.setOccupiedArea(dino.x, dino.y, dino.footprint, false);
+            dino.x = centerX;
+            dino.y = centerY;
+            dino.snapVisual();
+            this.simulation.tileGrid.setOccupiedArea(dino.x, dino.y, dino.footprint, true);
+            dino.isInPaddock = true;
+            this.uiManager.addLog(`${dino.species} помещён в загон`);
           }
         });
       }
@@ -1159,7 +1241,7 @@ export class InputHandler {
     // Capacity info
     items.push({
       icon: '📊',
-      label: `Вместимость: ${nearbyDinos.length}/3`,
+      label: `Вместимость: ${insideDinos.length}/3`,
       disabled: true,
     });
 

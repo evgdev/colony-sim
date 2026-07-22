@@ -14,9 +14,21 @@
     "frameSize": 64,
     "spriteScale": 1.8,
     "animations": {
-      "idle": { "start": 0, "frames": 9, "rate": 6 },
-      "walk": { "start": 9, "frames": 9, "rate": 14 },
-      "attack": { "start": 18, "frames": 9, "rate": 18 }
+      "idle": {
+        "start": 0,
+        "frames": 9,
+        "rate": 6
+      },
+      "walk": {
+        "start": 9,
+        "frames": 9,
+        "rate": 14
+      },
+      "attack": {
+        "start": 18,
+        "frames": 9,
+        "rate": 18
+      }
     }
   },
   "raptor": {
@@ -33,9 +45,21 @@
     "frameSize": 64,
     "spriteScale": 1.0,
     "animations": {
-      "idle": { "start": 0, "frames": 4, "rate": 8 },
-      "walk": { "start": 4, "frames": 6, "rate": 14 },
-      "attack": { "start": 10, "frames": 3, "rate": 12 }
+      "idle": {
+        "start": 0,
+        "frames": 4,
+        "rate": 8
+      },
+      "walk": {
+        "start": 4,
+        "frames": 6,
+        "rate": 14
+      },
+      "attack": {
+        "start": 10,
+        "frames": 3,
+        "rate": 12
+      }
     }
   },
   "brontosaur": {
@@ -52,9 +76,21 @@
     "frameSize": 64,
     "spriteScale": 1.0,
     "animations": {
-      "idle": { "start": 0, "frames": 4, "rate": 6 },
-      "walk": { "start": 4, "frames": 6, "rate": 8 },
-      "attack": { "start": 10, "frames": 3, "rate": 8 }
+      "idle": {
+        "start": 0,
+        "frames": 4,
+        "rate": 6
+      },
+      "walk": {
+        "start": 4,
+        "frames": 6,
+        "rate": 8
+      },
+      "attack": {
+        "start": 10,
+        "frames": 3,
+        "rate": 8
+      }
     }
   },
   "pterodactyl": {
@@ -71,9 +107,21 @@
     "frameSize": 64,
     "spriteScale": 1.0,
     "animations": {
-      "idle": { "start": 0, "frames": 4, "rate": 10 },
-      "walk": { "start": 4, "frames": 6, "rate": 16 },
-      "attack": { "start": 10, "frames": 3, "rate": 14 }
+      "idle": {
+        "start": 0,
+        "frames": 4,
+        "rate": 10
+      },
+      "walk": {
+        "start": 4,
+        "frames": 6,
+        "rate": 16
+      },
+      "attack": {
+        "start": 10,
+        "frames": 3,
+        "rate": 14
+      }
     }
   }
 }

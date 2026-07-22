@@ -1,5 +1,6 @@
 import Phaser from 'phaser';
-import { CANVAS_WIDTH, CANVAS_HEIGHT, COLORS } from '../../config';
+import { getLayout } from '../LayoutConfig';
+import { COLORS } from '../../config';
 
 const PADDING = 8;
 const MAX_WIDTH = 240;
@@ -50,7 +51,8 @@ export class Tooltip {
 
     let px = x + 12;
     let py = y - totalHeight - 4;
-    if (px + tooltipWidth > CANVAS_WIDTH) px = CANVAS_WIDTH - tooltipWidth - 4;
+    const L = getLayout();
+    if (px + tooltipWidth > L.canvasW) px = L.canvasW - tooltipWidth - 4;
     if (py < 0) py = y + 20;
     if (px < 0) px = 4;
 

@@ -1,6 +1,7 @@
 import Phaser from 'phaser';
 import { GameScene } from './GameScene';
 import { languageManager } from '../data/LanguageManager';
+import { gameConfig } from '../gameConfig';
 
 const TUTORIAL_KEY = 'colonySim_tutorialSeen';
 
@@ -28,6 +29,14 @@ export class BootScene extends Phaser.Scene {
     const species = ['trex', 'raptor', 'brontosaur', 'pterodactyl'];
     for (const s of species) {
       this.load.spritesheet(s, `assets/dinosaurs/${s}.png`, {
+        frameWidth: 64,
+        frameHeight: 64,
+      });
+    }
+
+    // Load pixel skin if enabled
+    if (gameConfig.dinoSkin === 'pixel') {
+      this.load.spritesheet('trex_pixel_sheet', 'assets/dinosaurs/trex_pixel_sheet.png', {
         frameWidth: 64,
         frameHeight: 64,
       });

@@ -13,6 +13,7 @@ import { Dinosaur } from '../entities/Dinosaur';
 import { Artifact } from '../entities/Artifact';
 import buildingsData from '../data/buildings.json';
 import dinosaursData from '../data/dinosaurs.json';
+import { gameConfig } from '../gameConfig';
 
 export class EntityRenderer {
   private scene: Phaser.Scene;
@@ -415,6 +416,55 @@ export class EntityRenderer {
       g.fillCircle(bldCx + 3, bldCy + 2, 2);
     }
 
+    // Paddock — 3x3 with grass inside and thin wall border
+    if (bld.buildingType === 'paddock' && bld.built && bldSize > 1) {
+      const padLeft = bldCx - footprintPx / 2;
+      const padTop = bldCy - footprintPx / 2;
+      const wallThickness = 4;
+
+      // Grass texture inside
+      g.fillStyle(0x4a8c3f, 1);
+      g.fillRect(padLeft + wallThickness, padTop + wallThickness,
+        footprintPx - wallThickness * 2, footprintPx - wallThickness * 2);
+
+      // Grass blade details
+      const grassSeed = bld.id * 41;
+      g.fillStyle(0x5a9c4f, 0.6);
+      for (let i = 0; i < 20; i++) {
+        const gx = padLeft + wallThickness + ((grassSeed + i * 19) % Math.floor(footprintPx - wallThickness * 2));
+        const gy = padTop + wallThickness + ((grassSeed + i * 11) % Math.floor(footprintPx - wallThickness * 2));
+        g.fillRect(gx, gy, 2, 4);
+      }
+      g.fillStyle(0x3a7c2f, 0.4);
+      for (let i = 0; i < 15; i++) {
+        const gx = padLeft + wallThickness + ((grassSeed + i * 23 + 5) % Math.floor(footprintPx - wallThickness * 2));
+        const gy = padTop + wallThickness + ((grassSeed + i * 7 + 3) % Math.floor(footprintPx - wallThickness * 2));
+        g.fillRect(gx, gy, 1, 3);
+      }
+
+      // Thin wooden wall border (4px)
+      const wallColor = 0x6b4226;
+      g.fillStyle(wallColor, 1);
+      // Top wall
+      g.fillRect(padLeft, padTop, footprintPx, wallThickness);
+      // Bottom wall
+      g.fillRect(padLeft, padTop + footprintPx - wallThickness, footprintPx, wallThickness);
+      // Left wall
+      g.fillRect(padLeft, padTop, wallThickness, footprintPx);
+      // Right wall
+      g.fillRect(padLeft + footprintPx - wallThickness, padTop, wallThickness, footprintPx);
+
+      // Wall highlight
+      g.fillStyle(0x8b6244, 0.5);
+      g.fillRect(padLeft, padTop, footprintPx, 1);
+      g.fillRect(padLeft, padTop, 1, footprintPx);
+
+      // Wall shadow
+      g.fillStyle(0x4a2a10, 0.5);
+      g.fillRect(padLeft, padTop + footprintPx - 1, footprintPx, 1);
+      g.fillRect(padLeft + footprintPx - 1, padTop, 1, footprintPx);
+    }
+
     // Lab — special 2x2 rendering with noise texture
     if (bld.buildingType === 'lab' && bld.built && bldSize > 1) {
       const labLeft = bldCx - footprintPx / 2;
@@ -551,6 +601,13 @@ export class EntityRenderer {
 
   private drawDinoSprite(dino: Dinosaur, cx: number, cy: number): void {
     const def = (dinosaursData as any)[dino.species];
+
+    // Check for pixel skin override
+    if (gameConfig.dinoSkin === 'pixel' && dino.species === 'trex' && this.scene.textures.exists('trex_pixel_sheet')) {
+      this.drawDinoAsPixelSprite(dino, cx, cy);
+      return;
+    }
+
     const hasSprite = def?.sprite && this.scene.textures.exists(def.sprite);
 
     if (hasSprite) {
@@ -558,6 +615,50 @@ export class EntityRenderer {
     } else {
       this.drawDinoAsCircle(dino, cx, cy, def);
     }
+  }
+
+  private drawDinoAsPixelSprite(dino: Dinosaur, cx: number, cy: number): void {
+    const SPRITE_KEY = 'trex_pixel_sheet';
+    const FRAME_SIZE = 64;
+    const FRAMES_PER_ANIM = 8;
+
+    let sprite = this.dinoSprites.get(dino.id);
+    if (sprite && sprite.texture?.key !== SPRITE_KEY) {
+      this.entityContainer.remove(sprite);
+      sprite.destroy();
+      this.dinoSprites.delete(dino.id);
+      this.dinoLastX.delete(dino.id);
+      sprite = undefined;
+    }
+    if (!sprite) {
+      sprite = this.scene.add.sprite(cx, cy, SPRITE_KEY, 0);
+      this.entityContainer.add(sprite);
+      this.dinoSprites.set(dino.id, sprite);
+    }
+
+    // Map dino state to animation frames
+    const animMap: Record<string, number> = { idle: 0, walk: 1, attack: 2 };
+    const animIndex = animMap[dino.state] ?? 0;
+    const frameIndex = animIndex * FRAMES_PER_ANIM;
+    sprite.setFrame(frameIndex);
+
+    const footprint = dino.footprint;
+    const footprintCenterOffset = (footprint - 1) * TILE_SIZE / 2;
+    const scale = ((TILE_SIZE / 3) * dino.size * footprint) / (FRAME_SIZE / 2);
+    sprite.setScale(scale);
+    sprite.setPosition(cx + footprintCenterOffset, cy + footprintCenterOffset);
+    sprite.setVisible(true);
+
+    const lastX = this.dinoLastX.get(dino.id);
+    if (lastX !== undefined && dino.x !== lastX) {
+      sprite.setFlipX(dino.x < lastX);
+    }
+    this.dinoLastX.set(dino.id, dino.x);
+
+    const g = this.scene.add.graphics();
+    this.drawDinoOverlay(g, dino, cx + footprintCenterOffset, cy + footprintCenterOffset, (TILE_SIZE / 3) * dino.size * footprint);
+    this.entityContainer.add(g);
+    this.entityGraphics.push(g);
   }
 
   private drawDinoAsSprite(dino: Dinosaur, cx: number, cy: number, def: any): void {

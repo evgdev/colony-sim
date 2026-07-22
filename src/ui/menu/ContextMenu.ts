@@ -1,5 +1,6 @@
 import Phaser from 'phaser';
-import { CANVAS_WIDTH, CANVAS_HEIGHT, COLORS } from '../../config';
+import { getLayout } from '../LayoutConfig';
+import { COLORS } from '../../config';
 import { MenuItem } from './MenuItem';
 
 const ITEM_HEIGHT = 28;
@@ -48,8 +49,9 @@ export class ContextMenu {
 
     let px = x;
     let py = y;
-    if (px + menuWidth > CANVAS_WIDTH) px = CANVAS_WIDTH - menuWidth - 4;
-    if (py + totalHeight > CANVAS_HEIGHT) py = CANVAS_HEIGHT - totalHeight - 4;
+    const L = getLayout();
+    if (px + menuWidth > L.canvasW) px = L.canvasW - menuWidth - 4;
+    if (py + totalHeight > L.canvasH) py = L.canvasH - totalHeight - 4;
     if (px < 0) px = 4;
     if (py < 0) py = 4;
 

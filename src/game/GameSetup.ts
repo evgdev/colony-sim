@@ -5,7 +5,7 @@ import { Building } from '../entities/Building';
 import { TileGrid } from '../core/TileGrid';
 import { EntityManager } from '../core/EntityManager';
 import { ArtifactSystem } from '../systems/ArtifactSystem';
-import { MAP_WIDTH, FOG_REVEAL_RADIUS } from '../config';
+import { MAP_WIDTH, MAP_HEIGHT, FOG_REVEAL_RADIUS } from '../config';
 import buildingsData from '../data/buildings.json';
 
 export interface WorldConfig {
@@ -16,7 +16,7 @@ export interface WorldConfig {
 
 export function createInitialWorld(simulation: Simulation): WorldConfig {
   const centerX = Math.floor(MAP_WIDTH / 2);
-  const centerY = Math.floor(MAP_WIDTH / 2);
+  const centerY = Math.floor(MAP_HEIGHT / 2);
 
   // Find nearest walkable tile to center (not water)
   const findSpawn = (ox: number, oy: number): { x: number; y: number } => {

@@ -44,7 +44,10 @@
       "stone": 5
     },
     "storageCapacity": 50,
-    "description": "Stores resources. Settler auto-delivers here."
+    "produceType": "stone",
+    "produceRate": 1,
+    "produceInterval": 10,
+    "description": "Stores resources and mines stone automatically."
   },
   "farm": {
     "name": "Farm",

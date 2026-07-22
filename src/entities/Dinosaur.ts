@@ -33,6 +33,7 @@ export class Dinosaur extends Entity {
   isTamed: boolean = false;
   ownerId: number | null = null;
   hunger: number = 100; // 0-100
+  isInPaddock: boolean = false;
 
   // Combat properties
   attackTarget: Dinosaur | null = null;
@@ -153,6 +154,7 @@ export class Dinosaur extends Entity {
       tm: this.isTamed,
       ow: this.ownerId,
       hn: this.hunger,
+      ip: this.isInPaddock,
     };
   }
 
@@ -185,6 +187,7 @@ export class Dinosaur extends Entity {
     d.isTamed = data.tm ?? false;
     d.ownerId = data.ow ?? null;
     d.hunger = data.hn ?? 100;
+    d.isInPaddock = data.ip ?? false;
     d.snapVisual();
     return d;
   }
