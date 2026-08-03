@@ -810,12 +810,13 @@ export class GameScene extends Phaser.Scene {
         this.simulation.tileGrid.reveal(this.selectedSettler.x, this.selectedSettler.y, FOG_REVEAL_RADIUS);
       }
 
-      // Render - use existing renderer, just update simulation
+      // Render - use existing renderers, just update simulation
       this.mapRenderer.simulation = this.simulation;
       this.mapRenderer.drawMap();
       this.mapRenderer.updateScroll(this.scrollX, this.scrollY);
       this.decorationGenerator.generateDecorations(this.simulation.tileGrid, this.simulation.entityManager);
       this.decorationGenerator.updateScroll(this.scrollX, this.scrollY);
+      this.entityRenderer.simulation = this.simulation;
       this.entityRenderer.updateScroll(this.scrollX, this.scrollY);
       this.entityRenderer.drawEntities();
 
