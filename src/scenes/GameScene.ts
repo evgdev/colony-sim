@@ -767,23 +767,35 @@ export class GameScene extends Phaser.Scene {
   private handleMultiplayerInit(msg: any): void {
     try {
       console.log('[MP] Received init:', msg);
+      // Validate dimensions to prevent crash
+      const mapW = Math.min(Math.max(Number(msg.mapWidth) || 30, 5), 100);
+      const mapH = Math.min(Math.max(Number(msg.mapHeight) || 30, 5), 100);
+      console.log('[MP] Creating simulation:', mapW, 'x', mapH, 'seed:', msg.seed);
+
       // Client receives initial game state from host
-      this.simulation = new Simulation(msg.mapWidth || 30, msg.mapHeight || 30, msg.seed);
+      this.simulation = new Simulation(mapW, mapH, msg.seed);
       this.simulation.tickCount = msg.tickCount || 0;
 
-      // Restore entities
-      if (msg.entities) {
-        for (const d of msg.entities) {
-          let entity: any;
-          switch (d.entityType) {
-            case 'settler': entity = Settler.deserialize(d); break;
-            case 'resource': entity = Resource.deserialize(d); break;
-            case 'building': entity = Building.deserialize(d); break;
-            case 'dinosaur': entity = Dinosaur.deserialize(d); break;
-            case 'artifact': entity = Artifact.deserialize(d); break;
-            default: continue;
+      // Restore entities (limit to prevent crash)
+      if (msg.entities && Array.isArray(msg.entities)) {
+        console.log('[MP] Restoring', msg.entities.length, 'entities');
+        const maxEntities = 500;
+        const entitiesToRestore = msg.entities.slice(0, maxEntities);
+        for (const d of entitiesToRestore) {
+          try {
+            let entity: any;
+            switch (d.entityType) {
+              case 'settler': entity = Settler.deserialize(d); break;
+              case 'resource': entity = Resource.deserialize(d); break;
+              case 'building': entity = Building.deserialize(d); break;
+              case 'dinosaur': entity = Dinosaur.deserialize(d); break;
+              case 'artifact': entity = Artifact.deserialize(d); break;
+              default: continue;
+            }
+            this.simulation.entityManager.add(entity);
+          } catch (e) {
+            console.warn('[MP] Failed to deserialize entity:', d.entityType, e);
           }
-          this.simulation.entityManager.add(entity);
         }
       }
 
@@ -802,6 +814,7 @@ export class GameScene extends Phaser.Scene {
       }
 
       // Create textures (required for rendering)
+      console.log('[MP] Creating textures...');
       try {
         createTileTextures(this);
         createBuildingIcons(this);
@@ -818,7 +831,9 @@ export class GameScene extends Phaser.Scene {
       }
 
       // Rebind systems
+      console.log('[MP] Rebinding systems...');
       this.rebindSystems();
+      console.log('[MP] Systems rebound');
 
       // Find assigned settlers
       const settlers = this.simulation.entityManager.getByType('settler') as Settler[];
@@ -827,6 +842,7 @@ export class GameScene extends Phaser.Scene {
       }
 
       // Render
+      console.log('[MP] Creating renderers...');
       this.mapRenderer = new AnimatedMapRenderer(this, this.simulation);
       this.mapRenderer.drawMap();
       this.mapRenderer.updateScroll(this.scrollX, this.scrollY);
