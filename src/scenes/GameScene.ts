@@ -810,16 +810,23 @@ export class GameScene extends Phaser.Scene {
         this.simulation.tileGrid.reveal(this.selectedSettler.x, this.selectedSettler.y, FOG_REVEAL_RADIUS);
       }
 
-      // Render
-      this.mapRenderer = new AnimatedMapRenderer(this, this.simulation);
+      // Render - use existing renderer, just update simulation
+      this.mapRenderer.simulation = this.simulation;
       this.mapRenderer.drawMap();
       this.mapRenderer.updateScroll(this.scrollX, this.scrollY);
-      this.decorationGenerator = new DecorationGenerator(this);
       this.decorationGenerator.generateDecorations(this.simulation.tileGrid, this.simulation.entityManager);
       this.decorationGenerator.updateScroll(this.scrollX, this.scrollY);
-      this.entityRenderer = new EntityRenderer(this, this.simulation);
       this.entityRenderer.updateScroll(this.scrollX, this.scrollY);
       this.entityRenderer.drawEntities();
+
+      // Scroll to settler immediately
+      if (this.selectedSettler) {
+        this.scrollX = this.selectedSettler.x - Math.floor(getLayout().viewportTilesX / 2);
+        this.scrollY = this.selectedSettler.y - Math.floor(getLayout().viewportTilesY / 2);
+        this.mapRenderer.updateScroll(this.scrollX, this.scrollY);
+        this.decorationGenerator.updateScroll(this.scrollX, this.scrollY);
+        this.entityRenderer.updateScroll(this.scrollX, this.scrollY);
+      }
 
       this.worldReady = true;
       this.debugPanel.setEnabled(true);
