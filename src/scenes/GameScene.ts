@@ -758,90 +758,101 @@ export class GameScene extends Phaser.Scene {
   }
 
   private handleMultiplayerInit(msg: any): void {
-    // Client receives initial game state from host
-    this.simulation = new Simulation(msg.mapWidth || 30, msg.mapHeight || 30, msg.seed);
-    this.simulation.tickCount = msg.tickCount || 0;
+    try {
+      console.log('[MP] Received init:', msg);
+      // Client receives initial game state from host
+      this.simulation = new Simulation(msg.mapWidth || 30, msg.mapHeight || 30, msg.seed);
+      this.simulation.tickCount = msg.tickCount || 0;
 
-    // Restore entities
-    if (msg.entities) {
-      for (const d of msg.entities) {
-        let entity: any;
-        switch (d.entityType) {
-          case 'settler': entity = Settler.deserialize(d); break;
-          case 'resource': entity = Resource.deserialize(d); break;
-          case 'building': entity = Building.deserialize(d); break;
-          case 'dinosaur': entity = Dinosaur.deserialize(d); break;
-          case 'artifact': entity = Artifact.deserialize(d); break;
-          default: continue;
-        }
-        this.simulation.entityManager.add(entity);
-      }
-    }
-
-    // Restore inventory
-    if (msg.inventory) {
-      this.simulation.inventory = msg.inventory;
-    }
-
-    // Store remote players
-    if (msg.players) {
-      for (const p of msg.players) {
-        if (p.id !== msg.playerId) {
-          this.remotePlayers.set(p.id, p);
+      // Restore entities
+      if (msg.entities) {
+        for (const d of msg.entities) {
+          let entity: any;
+          switch (d.entityType) {
+            case 'settler': entity = Settler.deserialize(d); break;
+            case 'resource': entity = Resource.deserialize(d); break;
+            case 'building': entity = Building.deserialize(d); break;
+            case 'dinosaur': entity = Dinosaur.deserialize(d); break;
+            case 'artifact': entity = Artifact.deserialize(d); break;
+            default: continue;
+          }
+          this.simulation.entityManager.add(entity);
         }
       }
+
+      // Restore inventory
+      if (msg.inventory) {
+        this.simulation.inventory = msg.inventory;
+      }
+
+      // Store remote players
+      if (msg.players) {
+        for (const p of msg.players) {
+          if (p.id !== msg.playerId) {
+            this.remotePlayers.set(p.id, p);
+          }
+        }
+      }
+
+      // Create textures (required for rendering)
+      try {
+        createTileTextures(this);
+        createBuildingIcons(this);
+        createDecorationTextures(this);
+        createTrexSprite(this);
+        createRaptorSprite(this);
+        createBrontosaurSprite(this);
+        createPterodactylSprite(this);
+        createSettlerSprite(this);
+        this.createDinosaurAnims();
+        this.createSettlerAnims();
+      } catch (e) {
+        console.warn('[MP] Texture creation error (may already exist):', e);
+      }
+
+      // Rebind systems
+      this.rebindSystems();
+
+      // Find assigned settlers
+      const settlers = this.simulation.entityManager.getByType('settler') as Settler[];
+      if (settlers.length > 0) {
+        this.selectedSettler = settlers[0];
+      }
+
+      // Render
+      this.mapRenderer = new AnimatedMapRenderer(this, this.simulation);
+      this.mapRenderer.drawMap();
+      this.mapRenderer.updateScroll(this.scrollX, this.scrollY);
+      this.decorationGenerator = new DecorationGenerator(this);
+      this.decorationGenerator.generateDecorations(this.simulation.tileGrid, this.simulation.entityManager);
+      this.decorationGenerator.updateScroll(this.scrollX, this.scrollY);
+      this.entityRenderer = new EntityRenderer(this, this.simulation);
+      this.entityRenderer.updateScroll(this.scrollX, this.scrollY);
+      this.entityRenderer.drawEntities();
+
+      this.worldReady = true;
+      this.debugPanel.setEnabled(true);
+      this.uiManager.setBuildButtonsEnabled(true);
+      this.uiManager.setDayNightDimmed(false);
+      this.uiManager.setScrollButtonsEnabled(true);
+      this.uiManager.startMenuOpen = false;
+      this.needsInitialScroll = true;
+      this.scrollLockFrames = 10;
+
+      // Create chat UI
+      this.uiManager.createChatUI();
+
+      // Scroll to first settler
+      if (this.selectedSettler) {
+        this.scrollTo(this.selectedSettler.x, this.selectedSettler.y);
+      }
+
+      this.uiManager.addLog('Игра загружена от хоста');
+      console.log('[MP] Init complete. Settlers:', settlers.length, 'Map:', msg.mapWidth, 'x', msg.mapHeight);
+    } catch (err) {
+      console.error('[MP] Init error:', err);
+      this.uiManager?.addLog('Ошибка загрузки: ' + (err as Error).message);
     }
-
-    // Create textures (required for rendering)
-    createTileTextures(this);
-    createBuildingIcons(this);
-    createDecorationTextures(this);
-    createTrexSprite(this);
-    createRaptorSprite(this);
-    createBrontosaurSprite(this);
-    createPterodactylSprite(this);
-    createSettlerSprite(this);
-    this.createDinosaurAnims();
-    this.createSettlerAnims();
-
-    // Rebind systems
-    this.rebindSystems();
-
-    // Find assigned settlers
-    const settlers = this.simulation.entityManager.getByType('settler') as Settler[];
-    if (settlers.length > 0) {
-      this.selectedSettler = settlers[0];
-    }
-
-    // Render
-    this.mapRenderer = new AnimatedMapRenderer(this, this.simulation);
-    this.mapRenderer.drawMap();
-    this.mapRenderer.updateScroll(this.scrollX, this.scrollY);
-    this.decorationGenerator = new DecorationGenerator(this);
-    this.decorationGenerator.generateDecorations(this.simulation.tileGrid, this.simulation.entityManager);
-    this.decorationGenerator.updateScroll(this.scrollX, this.scrollY);
-    this.entityRenderer = new EntityRenderer(this, this.simulation);
-    this.entityRenderer.updateScroll(this.scrollX, this.scrollY);
-    this.entityRenderer.drawEntities();
-
-    this.worldReady = true;
-    this.debugPanel.setEnabled(true);
-    this.uiManager.setBuildButtonsEnabled(true);
-    this.uiManager.setDayNightDimmed(false);
-    this.uiManager.setScrollButtonsEnabled(true);
-    this.uiManager.startMenuOpen = false;
-    this.needsInitialScroll = true;
-    this.scrollLockFrames = 10;
-
-    // Create chat UI
-    this.uiManager.createChatUI();
-
-    // Scroll to first settler
-    if (this.selectedSettler) {
-      this.scrollTo(this.selectedSettler.x, this.selectedSettler.y);
-    }
-
-    this.uiManager.addLog('Игра загружена от хоста');
   }
 
   private handleStateSync(msg: any): void {
