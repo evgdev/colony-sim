@@ -1202,6 +1202,8 @@ export class GameScene extends Phaser.Scene {
   private runSystems(delta: number): void {
     // Pause during dialogue
     if (this.dialoguePaused || this.dialogueBox?.isVisible) return;
+    // Client in multiplayer doesn't run game logic — only host does
+    if (this.isMultiplayer && !this.isHost) return;
 
     const adjustedDelta = delta * this.debugPanel.speed;
     const ticked = this.simulation.update(adjustedDelta);
