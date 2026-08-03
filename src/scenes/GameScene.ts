@@ -617,14 +617,7 @@ export class GameScene extends Phaser.Scene {
       // Create chat UI
       this.uiManager.createChatUI();
 
-      // Setup network handlers
-      this.setupNetworkHandlers();
-
-      // Connect host to WebSocket server
-      const wsUrl = `ws://${window.location.hostname || 'localhost'}:3001`;
-      networkManager.connect(wsUrl, 'Host');
-
-      // Send init via HTTP (not WebSocket)
+      // Send init via HTTP to server (no WebSocket needed for host)
       this.broadcastInit();
       this.uiManager.addLog('Сервер запущен. Ожидание игроков...');
     } catch (err) {
@@ -786,18 +779,24 @@ export class GameScene extends Phaser.Scene {
         const entitiesToRestore = msg.entities.slice(0, maxEntities);
         for (const d of entitiesToRestore) {
           try {
+            const type = d.entityType || d.t;
             let entity: any;
-            switch (d.entityType) {
+            switch (type) {
               case 'settler': entity = Settler.deserialize(d); break;
               case 'resource': entity = Resource.deserialize(d); break;
               case 'building': entity = Building.deserialize(d); break;
               case 'dinosaur': entity = Dinosaur.deserialize(d); break;
               case 'artifact': entity = Artifact.deserialize(d); break;
-              default: continue;
+              default: {
+                // Try to create generic entity
+                entity = new Entity(type || 'unknown', d.x || 0, d.y || 0);
+                if (d.i || d.id) entity.id = d.i || d.id;
+                break;
+              }
             }
             this.simulation.entityManager.add(entity);
           } catch (e) {
-            console.warn('[MP] Failed to deserialize entity:', d.entityType, e);
+            console.warn('[MP] Failed to deserialize entity:', d.t || d.entityType, e);
           }
         }
       }
@@ -815,6 +814,12 @@ export class GameScene extends Phaser.Scene {
           }
         }
       }
+
+      // Debug: log entity types
+      const allEntities = this.simulation.entityManager.getAll();
+      const entityTypes = allEntities.map(e => e.entityType);
+      console.log('[MP] Entity types after restore:', entityTypes);
+      console.log('[MP] Settlers found:', this.simulation.entityManager.getByType('settler').length);
 
       // Create textures (required for rendering)
       console.log('[MP] Creating textures...');
