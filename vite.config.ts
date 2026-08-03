@@ -1,4 +1,6 @@
 import { defineConfig } from 'vite';
+import { createRequire } from 'module';
+const require = createRequire(import.meta.url);
 
 // ── Multiplayer WebSocket plugin ──
 function multiplayerPlugin() {
@@ -8,7 +10,7 @@ function multiplayerPlugin() {
   let nextId = 1;
   let hostWs: any = null;
   let gameSeed: number | null = null;
-  let lastInitMsg: any = null; // store init for late joiners
+  let lastInitMsg: any = null;
   const CHAT_COOLDOWN_MS = 500;
   const CHAT_MAX_LEN = 200;
 
