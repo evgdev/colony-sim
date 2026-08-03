@@ -176,6 +176,7 @@ wss.on('connection', (ws) => {
 
     // ── request_state ──
     if (msg.type === 'request_state') {
+      console.log(`[Server] Player ${id} requested state. lastInitMsg: ${lastInitMsg ? 'exists' : 'null'}`);
       if (lastInitMsg && !player.isHost) {
         sendTo(ws, {
           ...lastInitMsg,
@@ -219,12 +220,16 @@ wss.on('connection', (ws) => {
       return;
     }
 
+    // ── Log all messages for debugging ──
+    console.log(`[Server] Player ${id} msg: ${msg.type}`);
+
     // ── Host messages ──
     if (player.isHost) {
       // ── init (host sends initial game state) ──
       if (msg.type === 'init') {
         gameSeed = msg.seed;
         lastInitMsg = { ...msg, type: 'init' };
+        console.log(`[Server] Stored init message. Seed: ${msg.seed}, Entities: ${(msg.entities || []).length}`);
         // Assign settlers to clients
         const allSettlers = msg.settlerIds || [];
         const hostSettlers = allSettlers.slice(0, Math.ceil(allSettlers.length / 2));
