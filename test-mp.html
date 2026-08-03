@@ -16,7 +16,9 @@ h1 { color: #58a6ff; margin-bottom: 10px; }
 #controls { display: flex; gap: 10px; margin-bottom: 15px; }
 #controls button { font: bold 14px monospace; padding: 10px 20px; border: 2px solid #58a6ff; border-radius: 6px; background: #0d1117; color: #58a6ff; cursor: pointer; }
 #controls button:hover { background: #16213e; }
+#shootMode { color: #ff4444; font-weight: bold; display: none; margin-bottom: 10px; }
 canvas { border: 2px solid #30363d; border-radius: 4px; cursor: pointer; }
+canvas.crosshair { cursor: crosshair; }
 #log { margin-top: 15px; max-width: 500px; width: 100%; max-height: 200px; overflow-y: auto; background: #0d1117; border: 1px solid #30363d; border-radius: 6px; padding: 10px; }
 #log div { margin: 2px 0; }
 .log-info { color: #58a6ff; }
@@ -27,8 +29,9 @@ canvas { border: 2px solid #30363d; border-radius: 4px; cursor: pointer; }
 <body>
 
 <h1>Multiplayer Test</h1>
-<div id="info">10x10 grid, animated colonists, click to move</div>
+<div id="info">Z = shoot mode, click to fire | Move with click</div>
 <div id="status" class="status-disconnected">Отключено</div>
+<div id="shootMode">[ SHOOT MODE ] - Z to cancel</div>
 
 <div id="controls">
   <button id="btnHost">Создать (Хост)</button>
@@ -43,6 +46,7 @@ canvas { border: 2px solid #30363d; border-radius: 4px; cursor: pointer; }
 const canvas = document.getElementById('game');
 const ctx = canvas.getContext('2d');
 const statusEl = document.getElementById('status');
+const shootModeEl = document.getElementById('shootMode');
 const logEl = document.getElementById('log');
 const btnHost = document.getElementById('btnHost');
 const btnJoin = document.getElementById('btnJoin');
@@ -58,7 +62,10 @@ const state = {
   isHost: false,
 };
 
-// ── Colonist Drawing (from main game) ──
+let shootMode = false;
+const projectiles = []; // { x, y, vx, vy, color, life }
+
+// ── Colonist Drawing ──
 const COLONIST_COLORS = {
   '#58a6ff': { SUIT: '#4488cc', SUIT_DARK: '#336699', HELMET: '#4488cc' },
   '#44ff44': { SUIT: '#33aa33', SUIT_DARK: '#228822', HELMET: '#33aa33' },
@@ -75,7 +82,7 @@ function drawColonist(cx, cy, color, anim, facing) {
   const SKIN = '#c8a060';
   const VISOR = '#3a6ea5';
 
-  const scale = 0.55; // scale down to fit tile
+  const scale = 0.55;
   const bob = Math.sin(anim * Math.PI * 2) * 1.5;
   const legSwing = Math.sin(anim * Math.PI * 2) * 0.8;
   const armSwing = -Math.sin(anim * Math.PI * 2) * 0.6;
@@ -101,7 +108,7 @@ function drawColonist(cx, cy, color, anim, facing) {
   const groundY = 48;
   const bodyCx = 0;
 
-  // ── LEGS ──
+  // Legs
   const legTopY = groundY - 18;
   const legBotY = groundY;
   const swing = legSwing * 6;
@@ -109,98 +116,78 @@ function drawColonist(cx, cy, color, anim, facing) {
     const topX = bodyCx + side * 4;
     const botX = bodyCx + side * 5 + side * swing;
     ctx.fillStyle = SUIT_DARK;
-    ctx.beginPath();
-    ctx.moveTo(topX - 3, legTopY);
-    ctx.lineTo(topX + 3, legTopY);
-    ctx.lineTo(botX + 3, legBotY);
-    ctx.lineTo(botX - 3, legBotY);
-    ctx.closePath();
-    ctx.fill();
+    ctx.beginPath(); ctx.moveTo(topX - 3, legTopY); ctx.lineTo(topX + 3, legTopY); ctx.lineTo(botX + 3, legBotY); ctx.lineTo(botX - 3, legBotY); ctx.closePath(); ctx.fill();
     outline(() => { ctx.beginPath(); ctx.moveTo(topX - 3, legTopY); ctx.lineTo(topX + 3, legTopY); ctx.lineTo(botX + 3, legBotY); ctx.lineTo(botX - 3, legBotY); ctx.closePath(); });
     ctx.fillStyle = SUIT_DARK;
-    ctx.beginPath();
-    ctx.ellipse(botX, legBotY, 4, 2.5, 0, 0, Math.PI * 2);
-    ctx.fill();
+    ctx.beginPath(); ctx.ellipse(botX, legBotY, 4, 2.5, 0, 0, Math.PI * 2); ctx.fill();
   }
-  drawLeg(-1);
-  drawLeg(1);
+  drawLeg(-1); drawLeg(1);
 
-  // ── TORSO ──
+  // Torso
   const torsoTopY = groundY - 40;
   const torsoBotY = legTopY;
   ctx.fillStyle = SUIT;
-  ctx.beginPath();
-  ctx.moveTo(bodyCx - 9, torsoTopY);
-  ctx.lineTo(bodyCx + 9, torsoTopY);
-  ctx.lineTo(bodyCx + 8, torsoBotY);
-  ctx.lineTo(bodyCx - 8, torsoBotY);
-  ctx.closePath();
-  ctx.fill();
+  ctx.beginPath(); ctx.moveTo(bodyCx - 9, torsoTopY); ctx.lineTo(bodyCx + 9, torsoTopY); ctx.lineTo(bodyCx + 8, torsoBotY); ctx.lineTo(bodyCx - 8, torsoBotY); ctx.closePath(); ctx.fill();
   ctx.fillStyle = SUIT_DARK;
-  ctx.beginPath();
-  ctx.moveTo(bodyCx + 2, torsoTopY + 2);
-  ctx.lineTo(bodyCx + 9, torsoTopY + 2);
-  ctx.lineTo(bodyCx + 8, torsoBotY);
-  ctx.lineTo(bodyCx + 2, torsoBotY);
-  ctx.closePath();
-  ctx.fill();
+  ctx.beginPath(); ctx.moveTo(bodyCx + 2, torsoTopY + 2); ctx.lineTo(bodyCx + 9, torsoTopY + 2); ctx.lineTo(bodyCx + 8, torsoBotY); ctx.lineTo(bodyCx + 2, torsoBotY); ctx.closePath(); ctx.fill();
   outline(() => { ctx.beginPath(); ctx.moveTo(bodyCx - 9, torsoTopY); ctx.lineTo(bodyCx + 9, torsoTopY); ctx.lineTo(bodyCx + 8, torsoBotY); ctx.lineTo(bodyCx - 8, torsoBotY); ctx.closePath(); });
 
-  // ── ARMS ──
+  // Arms
   const shoulderY = torsoTopY + 4;
   const armSwingPx = armSwing * 5;
   function drawArm(side) {
     const sx = bodyCx + side * 9;
     const handX = sx + side * (4 + armSwingPx);
     const handY = shoulderY + 12 + side * armSwingPx * 0.3;
-    // outline
-    ctx.lineWidth = 6;
-    ctx.strokeStyle = OUTLINE;
-    ctx.beginPath();
-    ctx.moveTo(sx, shoulderY);
-    ctx.lineTo(handX, handY);
-    ctx.stroke();
-    // arm
-    ctx.lineWidth = 4;
-    ctx.strokeStyle = SUIT;
-    ctx.beginPath();
-    ctx.moveTo(sx, shoulderY);
-    ctx.lineTo(handX, handY);
-    ctx.stroke();
-    // hand
+    ctx.lineWidth = 6; ctx.strokeStyle = OUTLINE;
+    ctx.beginPath(); ctx.moveTo(sx, shoulderY); ctx.lineTo(handX, handY); ctx.stroke();
+    ctx.lineWidth = 4; ctx.strokeStyle = SUIT;
+    ctx.beginPath(); ctx.moveTo(sx, shoulderY); ctx.lineTo(handX, handY); ctx.stroke();
     ctx.fillStyle = SKIN;
-    ctx.beginPath();
-    ctx.arc(handX, handY, 3, 0, Math.PI * 2);
-    ctx.fill();
+    ctx.beginPath(); ctx.arc(handX, handY, 3, 0, Math.PI * 2); ctx.fill();
   }
-  drawArm(-1);
-  drawArm(1);
+  drawArm(-1); drawArm(1);
 
-  // ── HEAD + HELMET ──
+  // Head + Helmet
   const headR = 9;
   const headCY = torsoTopY - 2;
   ctx.fillStyle = SKIN;
   ctx.fillRect(bodyCx - 3, torsoTopY - 4, 6, 5);
   ctx.fillStyle = SKIN;
-  ctx.beginPath();
-  ctx.arc(bodyCx, headCY, headR, 0, Math.PI * 2);
-  ctx.fill();
+  ctx.beginPath(); ctx.arc(bodyCx, headCY, headR, 0, Math.PI * 2); ctx.fill();
   outline(() => { ctx.beginPath(); ctx.arc(bodyCx, headCY, headR, 0, Math.PI * 2); });
   ctx.fillStyle = HELMET;
-  ctx.beginPath();
-  ctx.arc(bodyCx, headCY - 1, headR + 1, Math.PI, Math.PI * 2);
-  ctx.closePath();
-  ctx.fill();
+  ctx.beginPath(); ctx.arc(bodyCx, headCY - 1, headR + 1, Math.PI, Math.PI * 2); ctx.closePath(); ctx.fill();
   ctx.fillRect(bodyCx - headR - 1, headCY - 1, (headR + 1) * 2, 2);
   ctx.fillStyle = VISOR;
   ctx.fillRect(bodyCx - 5, headCY - 1, 10, 3);
   outline(() => { ctx.beginPath(); ctx.arc(bodyCx, headCY - 1, headR + 1, Math.PI, Math.PI * 2); ctx.closePath(); });
 
-  // backpack
+  // Backpack
   ctx.fillStyle = SUIT_DARK;
   ctx.fillRect(bodyCx - 11, torsoTopY + 6, 3, 14);
 
   ctx.restore();
+}
+
+// ── Health Bar ──
+function drawHealthBar(cx, cy, hp, maxHp) {
+  const barW = 36;
+  const barH = 4;
+  const barY = cy - 32;
+  const pct = Math.max(0, Math.min(1, hp / maxHp));
+
+  // Background
+  ctx.fillStyle = '#333';
+  ctx.fillRect(cx - barW / 2, barY, barW, barH);
+  // Fill
+  const hpColor = pct > 0.5 ? '#44ff44' : pct > 0.25 ? '#ffaa00' : '#ff4444';
+  ctx.fillStyle = hpColor;
+  ctx.fillRect(cx - barW / 2, barY, barW * pct, barH);
+  // Border
+  ctx.strokeStyle = '#111';
+  ctx.lineWidth = 1;
+  ctx.strokeRect(cx - barW / 2, barY, barW, barH);
 }
 
 // ── Generate Grid ──
@@ -214,7 +201,7 @@ function generateGrid() {
   state.grid[7][2] = 2;
 }
 
-// ── Animation State ──
+// ── Animation ──
 let animTime = 0;
 let lastFrameTime = performance.now();
 
@@ -232,7 +219,6 @@ function draw(timestamp) {
       const px = x * TILE;
       const py = y * TILE;
 
-      // Grass with subtle variation
       const shade = ((x + y) % 2 === 0) ? '#3a5a2a' : '#346024';
       ctx.fillStyle = shade;
       ctx.fillRect(px, py, TILE, TILE);
@@ -248,49 +234,30 @@ function draw(timestamp) {
       // Stone
       if (state.grid[y][x] === 1) {
         ctx.fillStyle = '#707070';
-        ctx.beginPath();
-        ctx.ellipse(px + 25, py + 28, 16, 14, 0, 0, Math.PI * 2);
-        ctx.fill();
+        ctx.beginPath(); ctx.ellipse(px + 25, py + 28, 16, 14, 0, 0, Math.PI * 2); ctx.fill();
         ctx.fillStyle = '#888888';
-        ctx.beginPath();
-        ctx.ellipse(px + 23, py + 25, 10, 8, -0.3, 0, Math.PI * 2);
-        ctx.fill();
-        ctx.fillStyle = '#666666';
-        ctx.beginPath();
-        ctx.ellipse(px + 28, py + 30, 6, 5, 0.5, 0, Math.PI * 2);
-        ctx.fill();
+        ctx.beginPath(); ctx.ellipse(px + 23, py + 25, 10, 8, -0.3, 0, Math.PI * 2); ctx.fill();
       }
 
       // Tree
       if (state.grid[y][x] === 2) {
-        // trunk
         ctx.fillStyle = '#5a3a1a';
         ctx.fillRect(px + 21, py + 28, 8, 18);
-        ctx.fillStyle = '#4a2a0a';
-        ctx.fillRect(px + 21, py + 28, 4, 18);
-        // crown layers
         ctx.fillStyle = '#1a5a1a';
-        ctx.beginPath();
-        ctx.arc(px + 25, py + 20, 18, 0, Math.PI * 2);
-        ctx.fill();
+        ctx.beginPath(); ctx.arc(px + 25, py + 20, 18, 0, Math.PI * 2); ctx.fill();
         ctx.fillStyle = '#2a7a2a';
-        ctx.beginPath();
-        ctx.arc(px + 22, py + 17, 12, 0, Math.PI * 2);
-        ctx.fill();
+        ctx.beginPath(); ctx.arc(px + 22, py + 17, 12, 0, Math.PI * 2); ctx.fill();
         ctx.fillStyle = '#3a8a3a';
-        ctx.beginPath();
-        ctx.arc(px + 28, py + 15, 8, 0, Math.PI * 2);
-        ctx.fill();
+        ctx.beginPath(); ctx.arc(px + 28, py + 15, 8, 0, Math.PI * 2); ctx.fill();
       }
 
-      // Grid lines
       ctx.strokeStyle = '#2a4a1a';
       ctx.lineWidth = 1;
       ctx.strokeRect(px, py, TILE, TILE);
     }
   }
 
-  // Draw players with animation
+  // Draw players
   for (const [id, p] of Object.entries(state.players)) {
     // Smooth movement
     if (p.targetX !== undefined) {
@@ -298,10 +265,8 @@ function draw(timestamp) {
       p.visualX += (p.targetX - p.visualX) * Math.min(speed, 1);
       p.visualY += (p.targetY - p.visualY) * Math.min(speed, 1);
       if (Math.abs(p.targetX - p.visualX) < 0.01 && Math.abs(p.targetY - p.visualY) < 0.01) {
-        p.visualX = p.targetX;
-        p.visualY = p.targetY;
-        p.targetX = undefined;
-        p.targetY = undefined;
+        p.visualX = p.targetX; p.visualY = p.targetY;
+        p.targetX = undefined; p.targetY = undefined;
         p.animState = 'idle';
       } else {
         p.animState = 'walk';
@@ -309,22 +274,22 @@ function draw(timestamp) {
     }
 
     const drawX = (p.visualX + 0.5) * TILE;
-    const drawY = (p.visualY + 0.5) * TILE;
+    const drawY = (p.visualY + 0.35) * TILE; // shifted up
 
-    // Idle: slow breathing, Walk: fast cycle
     const animSpeed = p.animState === 'walk' ? 3 : 0.5;
     const animCycle = (animTime * animSpeed) % 1;
-
-    // Facing direction
     const facing = p.facing || 1;
 
     drawColonist(drawX, drawY, p.color, animCycle, facing);
+
+    // Health bar
+    drawHealthBar(drawX, drawY, p.hp, p.maxHp);
 
     // Name tag
     ctx.fillStyle = '#fff';
     ctx.font = 'bold 10px monospace';
     ctx.textAlign = 'center';
-    ctx.fillText(p.name, drawX, drawY - 20);
+    ctx.fillText(p.name, drawX, drawY - 36);
 
     // Selection ring for my player
     if (id === state.myId) {
@@ -336,9 +301,32 @@ function draw(timestamp) {
     }
   }
 
+  // Draw projectiles
+  for (let i = projectiles.length - 1; i >= 0; i--) {
+    const p = projectiles[i];
+    p.x += p.vx * dt;
+    p.y += p.vy * dt;
+    p.life -= dt;
+    if (p.life <= 0) { projectiles.splice(i, 1); continue; }
+
+    ctx.fillStyle = p.color;
+    ctx.beginPath();
+    ctx.arc(p.x * TILE, p.y * TILE, 3, 0, Math.PI * 2);
+    ctx.fill();
+    // Trail
+    ctx.strokeStyle = p.color;
+    ctx.globalAlpha = 0.4;
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    ctx.moveTo(p.x * TILE, p.y * TILE);
+    ctx.lineTo((p.x - p.vx * 0.03) * TILE, (p.y - p.vy * 0.03) * TILE);
+    ctx.stroke();
+    ctx.globalAlpha = 1;
+  }
+
   // Hover highlight
   if (hoverTile) {
-    ctx.strokeStyle = 'rgba(255,255,255,0.4)';
+    ctx.strokeStyle = shootMode ? 'rgba(255,68,68,0.6)' : 'rgba(255,255,255,0.4)';
     ctx.lineWidth = 2;
     ctx.strokeRect(hoverTile.x * TILE, hoverTile.y * TILE, TILE, TILE);
   }
@@ -357,23 +345,53 @@ canvas.addEventListener('mousemove', (e) => {
 
 canvas.addEventListener('mouseleave', () => { hoverTile = null; });
 
-// ── Click to move ──
+// ── Click ──
 canvas.addEventListener('click', (e) => {
   if (!state.myId || !ws || ws.readyState !== 1) return;
   const rect = canvas.getBoundingClientRect();
   const x = Math.floor((e.clientX - rect.left) / TILE);
   const y = Math.floor((e.clientY - rect.top) / TILE);
   if (x < 0 || x >= GRID || y < 0 || y >= GRID) return;
-  if (state.grid[y][x] !== 0) return;
 
   const p = state.players[state.myId];
   if (!p) return;
 
-  // Determine facing
+  if (shootMode) {
+    // Fire projectile
+    const fromX = p.visualX + 0.5;
+    const fromY = p.visualY + 0.35;
+    const toX = x + 0.5;
+    const toY = y + 0.5;
+    const dx = toX - fromX;
+    const dy = toY - fromY;
+    const dist = Math.sqrt(dx * dx + dy * dy);
+    if (dist < 0.1) return;
+    const speed = 12;
+    ws.send(JSON.stringify({
+      type: 'shoot',
+      fromX, fromY,
+      vx: (dx / dist) * speed,
+      vy: (dy / dist) * speed,
+    }));
+    log(`Выстрел!`, 'log-action');
+    return;
+  }
+
+  // Move
+  if (state.grid[y][x] !== 0) return;
   if (x > p.x) p.facing = 1;
   else if (x < p.x) p.facing = -1;
-
   ws.send(JSON.stringify({ type: 'move', x, y }));
+});
+
+// ── Keyboard ──
+document.addEventListener('keydown', (e) => {
+  if (e.key === 'z' || e.key === 'Z' || e.key === 'я' || e.key === 'Я') {
+    shootMode = !shootMode;
+    shootModeEl.style.display = shootMode ? 'block' : 'none';
+    canvas.classList.toggle('crosshair', shootMode);
+    log(shootMode ? 'Режим стрельбы ВКЛ' : 'Режим стрельбы ВЫКЛ', 'log-info');
+  }
 });
 
 // ── Logging ──
@@ -399,13 +417,7 @@ function connect(url) {
   };
 
   ws.onmessage = (e) => handleMessage(JSON.parse(e.data));
-
-  ws.onclose = () => {
-    statusEl.textContent = 'Отключено';
-    statusEl.className = 'status-disconnected';
-    log('Отключено', 'log-error');
-  };
-
+  ws.onclose = () => { statusEl.textContent = 'Отключено'; statusEl.className = 'status-disconnected'; };
   ws.onerror = () => log('Ошибка подключения', 'log-error');
 }
 
@@ -417,9 +429,8 @@ function handleMessage(msg) {
     state.players = {};
     for (const p of msg.players) {
       state.players[p.id] = {
-        x: p.x, y: p.y,
-        visualX: p.x, visualY: p.y,
-        color: p.color, name: p.name,
+        x: p.x, y: p.y, visualX: p.x, visualY: p.y,
+        color: p.color, name: p.name, hp: 100, maxHp: 100,
         facing: 1, animState: 'idle'
       };
     }
@@ -430,9 +441,8 @@ function handleMessage(msg) {
 
   if (msg.type === 'player_joined') {
     state.players[msg.player.id] = {
-      x: msg.player.x, y: msg.player.y,
-      visualX: msg.player.x, visualY: msg.player.y,
-      color: msg.player.color, name: msg.player.name,
+      x: msg.player.x, y: msg.player.y, visualX: msg.player.x, visualY: msg.player.y,
+      color: msg.player.color, name: msg.player.name, hp: 100, maxHp: 100,
       facing: 1, animState: 'idle'
     };
     log(`${msg.player.name} присоединился`, 'log-action');
@@ -447,16 +457,46 @@ function handleMessage(msg) {
   if (msg.type === 'move') {
     const p = state.players[msg.playerId];
     if (p) {
-      // Set target for smooth animation
       if (msg.x > p.x) p.facing = 1;
       else if (msg.x < p.x) p.facing = -1;
-      p.x = msg.x;
-      p.y = msg.y;
-      p.targetX = msg.x;
-      p.targetY = msg.y;
+      p.x = msg.x; p.y = msg.y;
+      p.targetX = msg.x; p.targetY = msg.y;
       p.animState = 'walk';
+    }
+  }
+
+  if (msg.type === 'shoot') {
+    const p = state.players[msg.playerId];
+    if (p) {
+      projectiles.push({
+        x: msg.fromX, y: msg.fromY,
+        vx: msg.vx, vy: msg.vy,
+        color: p.color, life: 2,
+      });
       if (msg.playerId !== state.myId) {
-        log(`${p.name} -> (${msg.x}, ${msg.y})`, 'log-action');
+        log(`${p.name} стреляет!`, 'log-error');
+      }
+    }
+  }
+
+  if (msg.type === 'hit') {
+    const p = state.players[msg.targetId];
+    if (p) {
+      p.hp = Math.max(0, p.hp - msg.damage);
+      log(`${p.name} получил ${msg.damage} урона! (${p.hp}/${p.maxHp})`, 'log-error');
+      if (p.hp <= 0) {
+        log(`${p.name} погиб!`, 'log-error');
+        // Respawn after 2 seconds
+        setTimeout(() => {
+          if (state.players[msg.targetId]) {
+            state.players[msg.targetId].hp = 100;
+            state.players[msg.targetId].x = msg.spawnX;
+            state.players[msg.targetId].y = msg.spawnY;
+            state.players[msg.targetId].targetX = msg.spawnX;
+            state.players[msg.targetId].targetY = msg.spawnY;
+            log(`${p.name} возродился!`, 'log-action');
+          }
+        }, 2000);
       }
     }
   }

@@ -31,7 +31,6 @@ const wss = new WebSocketServer({ server });
 
 const players = new Map();
 let nextId = 1;
-let hostId = null;
 let gameGrid = null;
 
 function send(ws, msg) {
@@ -51,34 +50,108 @@ function getPlayerList() {
   }));
 }
 
+function generateDefaultGrid() {
+  const grid = [];
+  for (let y = 0; y < 10; y++) {
+    grid[y] = [];
+    for (let x = 0; x < 10; x++) grid[y][x] = 0;
+  }
+  grid[3][5] = 1;
+  grid[7][2] = 2;
+  return grid;
+}
+
+// ── Collision Detection ──
+function checkProjectileHits(proj) {
+  for (const [id, p] of players) {
+    // Player hitbox: 0.5 tile radius
+    const dx = proj.x - (p.x + 0.5);
+    const dy = proj.y - (p.y + 0.35);
+    const dist = Math.sqrt(dx * dx + dy * dy);
+    if (dist < 0.5) {
+      return { hit: true, targetId: id, player: p };
+    }
+  }
+  return { hit: false };
+}
+
+// ── Active Projectiles (server-side) ──
+const activeProjectiles = [];
+const TICK_RATE = 50; // ms
+
+function tickProjectiles() {
+  const dt = TICK_RATE / 1000;
+  for (let i = activeProjectiles.length - 1; i >= 0; i--) {
+    const proj = activeProjectiles[i];
+    proj.x += proj.vx * dt;
+    proj.y += proj.vy * dt;
+    proj.life -= dt;
+
+    // Remove if expired or out of bounds
+    if (proj.life <= 0 || proj.x < 0 || proj.x > 10 || proj.y < 0 || proj.y > 10) {
+      activeProjectiles.splice(i, 1);
+      continue;
+    }
+
+    // Check collision with walls (stone)
+    const tileX = Math.floor(proj.x);
+    const tileY = Math.floor(proj.y);
+    if (tileX >= 0 && tileX < 10 && tileY >= 0 && tileY < 10) {
+      if (gameGrid && gameGrid[tileY] && gameGrid[tileY][tileX] === 1) {
+        activeProjectiles.splice(i, 1);
+        continue;
+      }
+    }
+
+    // Check hit
+    const result = checkProjectileHits(proj);
+    if (result.hit) {
+      activeProjectiles.splice(i, 1);
+      const target = result.player;
+      target.hp -= 25;
+
+      // Find spawn point
+      const spawnIdx = (target.id - 1) % 4;
+      const spawnX = START_X[spawnIdx];
+      const spawnY = START_Y[spawnIdx];
+
+      broadcast({
+        type: 'hit',
+        targetId: result.targetId,
+        damage: 25,
+        spawnX, spawnY,
+      });
+
+      console.log(`[Server] ${target.name} hit! HP: ${target.hp}`);
+
+      // Respawn if dead
+      if (target.hp <= 0) {
+        target.hp = 100;
+        target.x = spawnX;
+        target.y = spawnY;
+        console.log(`[Server] ${target.name} respawned at (${spawnX}, ${spawnY})`);
+      }
+    }
+  }
+}
+
+setInterval(tickProjectiles, TICK_RATE);
+
+// ── Connection Handler ──
 wss.on('connection', (ws) => {
   const id = nextId++;
   const isHost = players.size === 0;
   const color = COLORS[(id - 1) % COLORS.length];
   const name = NAMES[(id - 1) % NAMES.length];
-  const x = START_X[(id - 1) % 4];
-  const y = START_Y[(id - 1) % 4];
+  const startX = START_X[(id - 1) % 4];
+  const startY = START_Y[(id - 1) % 4];
 
-  const player = { id, ws, name, color, x, y, isHost };
+  const player = { id, ws, name, color, x: startX, y: startY, hp: 100, isHost };
   players.set(id, player);
-
-  if (isHost) {
-    hostId = id;
-    // Host sends grid on connect
-    ws.on('message', (raw) => {
-      try {
-        const msg = JSON.parse(raw);
-        if (msg.type === 'grid') {
-          gameGrid = msg.grid;
-          console.log(`[Server] Received grid from host`);
-        }
-      } catch {}
-    });
-  }
 
   console.log(`[Server] Player ${id} "${name}" ${isHost ? 'HOST' : 'CLIENT'} connected`);
 
-  // Send init to this player
+  // Send init
   send(ws, {
     type: 'init',
     playerId: id,
@@ -88,20 +161,42 @@ wss.on('connection', (ws) => {
   });
 
   // Notify others
-  broadcast({ type: 'player_joined', player: { id, name, color, x, y } }, ws);
+  broadcast({ type: 'player_joined', player: { id, name, color, x: startX, y: startY } }, ws);
 
   ws.on('message', (raw) => {
     let msg;
     try { msg = JSON.parse(raw); } catch { return; }
+
+    if (msg.type === 'grid') {
+      gameGrid = msg.grid;
+      console.log(`[Server] Grid received from host`);
+      return;
+    }
 
     if (msg.type === 'move') {
       const p = players.get(id);
       if (!p) return;
       p.x = msg.x;
       p.y = msg.y;
-      // Broadcast to ALL (including sender for confirmation)
       broadcast({ type: 'move', playerId: id, x: msg.x, y: msg.y });
       console.log(`[Server] Player ${id} moved to (${msg.x}, ${msg.y})`);
+      return;
+    }
+
+    if (msg.type === 'shoot') {
+      // Add projectile to server-side tracking
+      activeProjectiles.push({
+        x: msg.fromX,
+        y: msg.fromY,
+        vx: msg.vx,
+        vy: msg.vy,
+        ownerId: id,
+        life: 2,
+      });
+      // Broadcast to all for visual effect
+      broadcast({ type: 'shoot', playerId: id, fromX: msg.fromX, fromY: msg.fromY, vx: msg.vx, vy: msg.vy });
+      console.log(`[Server] Player ${id} shot`);
+      return;
     }
   });
 
@@ -115,21 +210,8 @@ wss.on('connection', (ws) => {
   });
 });
 
-function generateDefaultGrid() {
-  const grid = [];
-  for (let y = 0; y < 10; y++) {
-    grid[y] = [];
-    for (let x = 0; x < 10; x++) {
-      grid[y][x] = 0;
-    }
-  }
-  grid[3][5] = 1; // stone
-  grid[7][2] = 2; // tree
-  return grid;
-}
-
 server.listen(PORT, '0.0.0.0', () => {
-  console.log(`[Test Server] Multiplayer Test`);
+  console.log(`[Test Server] Multiplayer Test v2`);
   console.log(`[Test Server] http://0.0.0.0:${PORT}`);
   console.log(`[Test Server] Waiting for players...`);
 });
