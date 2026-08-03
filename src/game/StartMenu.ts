@@ -176,49 +176,34 @@ export class StartMenu {
     const bg = this.scene.add.rectangle(cx, cy, L.canvasW, L.canvasH, 0x0d1117, 0.8);
     this.container.add(bg);
 
-    const title = this.scene.add.text(cx, cy - 60, 'ПРИСОЕДИНИТЬСЯ К ИГРЕ', {
+    const title = this.scene.add.text(cx, cy - 50, 'ПРИСОЕДИНИТЬСЯ К ИГРЕ', {
       fontSize: isMobile ? '16px' : '20px', color: '#4488ff', fontFamily: 'monospace', fontStyle: 'bold',
     }).setOrigin(0.5);
     this.container.add(title);
 
-    const label = this.scene.add.text(cx, cy - 20, 'Адрес сервера:', {
+    const defaultUrl = `http://${window.location.hostname || '192.168.43.1'}:3000`;
+
+    const addrLabel = this.scene.add.text(cx, cy - 10, 'Сервер:', {
       fontSize: isMobile ? '12px' : '14px', color: '#8b949e', fontFamily: 'monospace',
     }).setOrigin(0.5);
-    this.container.add(label);
+    this.container.add(addrLabel);
 
-    // Input field
-    const inputBg = this.scene.add.rectangle(cx, cy + 20, 280, 36, 0x21262d)
-      .setStrokeStyle(1, 0x30363d);
-    this.container.add(inputBg);
-
-    const defaultUrl = `http://${window.location.hostname || '192.168.43.1'}:3000`;
-    const inputText = this.scene.add.text(cx, cy + 20, defaultUrl, {
-      fontSize: '14px', color: '#c9d1d9', fontFamily: 'monospace',
+    const addrText = this.scene.add.text(cx, cy + 12, defaultUrl, {
+      fontSize: isMobile ? '13px' : '15px', color: '#c9d1d9', fontFamily: 'monospace',
+      backgroundColor: '#21262d', padding: { x: 8, y: 4 },
     }).setOrigin(0.5);
-    this.container.add(inputText);
-
-    // Use Phaser DOM element for actual input
-    const input = this.scene.add.dom(cx, cy + 20).createElement('input')
-      .setOrigin(0.5)
-      .node as HTMLInputElement;
-    input.value = defaultUrl;
-    input.style.cssText = `
-      width: 260px; padding: 6px 10px; font: 14px monospace;
-      background: #0d1117; color: #c9d1d9; border: 1px solid #30363d;
-      border-radius: 4px; outline: none; text-align: center;
-    `;
-    this.container.add(input as any);
+    this.container.add(addrText);
 
     // Connect button
-    const connectBtn = this.scene.add.text(cx, cy + 70, '[ ПОДКЛЮЧИТЬСЯ ]', {
-      fontSize: isMobile ? '14px' : '16px', color: '#44ff44', fontFamily: 'monospace', fontStyle: 'bold',
+    const connectBtn = this.scene.add.text(cx, cy + 60, '[ ПОДКЛЮЧИТЬСЯ ]', {
+      fontSize: isMobile ? '16px' : '18px', color: '#44ff44', fontFamily: 'monospace', fontStyle: 'bold',
+      backgroundColor: '#1a3a1a', padding: { x: 12, y: 8 },
     }).setOrigin(0.5).setInteractive({ useHandCursor: true });
     connectBtn.on('pointerover', () => connectBtn.setColor('#88ff88'));
     connectBtn.on('pointerout', () => connectBtn.setColor('#44ff44'));
     connectBtn.on('pointerdown', () => {
-      const url = input.value.trim();
-      if (url && callbacks.onJoinGame) {
-        callbacks.onJoinGame(url);
+      if (callbacks.onJoinGame) {
+        callbacks.onJoinGame(defaultUrl);
       }
     });
     this.container.add(connectBtn);
