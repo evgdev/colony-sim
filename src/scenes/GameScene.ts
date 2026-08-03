@@ -764,66 +764,24 @@ export class GameScene extends Phaser.Scene {
     this.initReceived = true;
     try {
       console.log('[MP] Received init:', msg);
-      // Validate dimensions to prevent crash
       const mapW = Math.min(Math.max(Number(msg.mapWidth) || 30, 5), 100);
       const mapH = Math.min(Math.max(Number(msg.mapHeight) || 30, 5), 100);
-      console.log('[MP] Creating simulation:', mapW, 'x', mapH, 'seed:', msg.seed);
 
-      // Client receives initial game state from host
+      // Create same world from seed (same map, same settlers)
       this.simulation = new Simulation(mapW, mapH, msg.seed);
-      this.simulation.tickCount = msg.tickCount || 0;
+      const world = createInitialWorld(this.simulation);
 
-      // Restore entities (limit to prevent crash)
-      if (msg.entities && Array.isArray(msg.entities)) {
-        console.log('[MP] Restoring', msg.entities.length, 'entities');
-        const maxEntities = 500;
-        const entitiesToRestore = msg.entities.slice(0, maxEntities);
-        for (const d of entitiesToRestore) {
-          try {
-            const type = d.entityType || d.t;
-            let entity: any;
-            switch (type) {
-              case 'settler': entity = Settler.deserialize(d); break;
-              case 'resource': entity = Resource.deserialize(d); break;
-              case 'building': entity = Building.deserialize(d); break;
-              case 'dinosaur': entity = Dinosaur.deserialize(d); break;
-              case 'artifact': entity = Artifact.deserialize(d); break;
-              default: {
-                // Try to create generic entity
-                entity = new Entity(type || 'unknown', d.x || 0, d.y || 0);
-                if (d.i || d.id) entity.id = d.i || d.id;
-                break;
-              }
-            }
-            this.simulation.entityManager.add(entity);
-          } catch (e) {
-            console.warn('[MP] Failed to deserialize entity:', d.t || d.entityType, e);
-          }
-        }
+      // Assign this player's settler
+      const mySettlerIndex = msg.mySettlerIndex ?? 0;
+      if (world.settlers[mySettlerIndex]) {
+        this.selectedSettler = world.settlers[mySettlerIndex];
+      } else {
+        this.selectedSettler = world.settlers[0];
       }
 
-      // Restore inventory
-      if (msg.inventory) {
-        this.simulation.inventory = msg.inventory;
-      }
+      console.log('[MP] World created. My settler:', this.selectedSettler?.name, 'index:', mySettlerIndex);
 
-      // Store remote players
-      if (msg.players) {
-        for (const p of msg.players) {
-          if (p.id !== msg.playerId) {
-            this.remotePlayers.set(p.id, p);
-          }
-        }
-      }
-
-      // Debug: log entity types
-      const allEntities = this.simulation.entityManager.getAll();
-      const entityTypes = allEntities.map(e => e.entityType);
-      console.log('[MP] Entity types after restore:', entityTypes);
-      console.log('[MP] Settlers found:', this.simulation.entityManager.getByType('settler').length);
-
-      // Create textures (required for rendering)
-      console.log('[MP] Creating textures...');
+      // Create textures
       try {
         createTileTextures(this);
         createBuildingIcons(this);
@@ -836,22 +794,13 @@ export class GameScene extends Phaser.Scene {
         this.createDinosaurAnims();
         this.createSettlerAnims();
       } catch (e) {
-        console.warn('[MP] Texture creation error (may already exist):', e);
+        console.warn('[MP] Texture creation error:', e);
       }
 
       // Rebind systems
-      console.log('[MP] Rebinding systems...');
       this.rebindSystems();
-      console.log('[MP] Systems rebound');
-
-      // Find assigned settlers
-      const settlers = this.simulation.entityManager.getByType('settler') as Settler[];
-      if (settlers.length > 0) {
-        this.selectedSettler = settlers[0];
-      }
 
       // Render
-      console.log('[MP] Creating renderers...');
       this.mapRenderer = new AnimatedMapRenderer(this, this.simulation);
       this.mapRenderer.drawMap();
       this.mapRenderer.updateScroll(this.scrollX, this.scrollY);
@@ -874,13 +823,13 @@ export class GameScene extends Phaser.Scene {
       // Create chat UI
       this.uiManager.createChatUI();
 
-      // Scroll to first settler
+      // Scroll to my settler
       if (this.selectedSettler) {
         this.scrollTo(this.selectedSettler.x, this.selectedSettler.y);
       }
 
-      this.uiManager.addLog('Игра загружена от хоста');
-      console.log('[MP] Init complete. Settlers:', settlers.length, 'Map:', msg.mapWidth, 'x', msg.mapHeight);
+      this.uiManager.addLog(`Игра загружена. Вы: ${this.selectedSettler?.name}`);
+      console.log('[MP] Init complete. Settler:', this.selectedSettler?.name);
     } catch (err) {
       console.error('[MP] Init error:', err);
       this.uiManager?.addLog('Ошибка загрузки: ' + (err as Error).message);
@@ -1170,13 +1119,17 @@ export class GameScene extends Phaser.Scene {
   update(time: number, delta: number): void {
     if (this.gameOver) return;
     if (!this.worldReady) return;
-    if (!this.selectedSettler) return;
 
     // Force scroll to settler on the first frame after game start
     if (this.needsInitialScroll) {
       this.needsInitialScroll = false;
       if (this.selectedSettler) {
         this.scrollTo(this.selectedSettler.x, this.selectedSettler.y);
+      } else {
+        // Fallback: scroll to center of map
+        const cx = Math.floor(this.simulation.tileGrid.width / 2);
+        const cy = Math.floor(this.simulation.tileGrid.height / 2);
+        this.scrollTo(cx, cy);
       }
     }
 
@@ -1214,7 +1167,6 @@ export class GameScene extends Phaser.Scene {
   private runSystems(delta: number): void {
     // Pause during dialogue
     if (this.dialoguePaused || this.dialogueBox?.isVisible) return;
-    if (!this.selectedSettler) return;
 
     const adjustedDelta = delta * this.debugPanel.speed;
     const ticked = this.simulation.update(adjustedDelta);

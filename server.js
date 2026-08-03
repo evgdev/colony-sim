@@ -210,13 +210,19 @@ wss.on('connection', (ws) => {
     if (msg.type === 'request_state') {
       console.log(`[Server] Player ${id} requested state. lastInitMsg: ${lastInitMsg ? 'exists' : 'null'}`);
       if (lastInitMsg) {
+        // Assign settler index: first client gets 1, second gets 2, host gets 0
+        const nonHostPlayers = [...players.values()].filter(p => !p.isHost);
+        const playerIndex = nonHostPlayers.indexOf(player);
+        const mySettlerIndex = player.isHost ? 0 : (playerIndex + 1);
+
         sendTo(ws, {
           ...lastInitMsg,
           playerId: id,
           playerName: player.name,
           playerColor: player.color,
+          mySettlerIndex: mySettlerIndex,
         });
-        console.log(`[Server] Sent init to player ${id}`);
+        console.log(`[Server] Sent init to player ${id} (settler ${mySettlerIndex})`);
       }
       return;
     }
