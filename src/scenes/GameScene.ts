@@ -759,7 +759,7 @@ export class GameScene extends Phaser.Scene {
 
   private handleMultiplayerInit(msg: any): void {
     // Client receives initial game state from host
-    this.simulation = new Simulation(msg.mapWidth, msg.mapHeight, msg.seed);
+    this.simulation = new Simulation(msg.mapWidth || 30, msg.mapHeight || 30, msg.seed);
     this.simulation.tickCount = msg.tickCount || 0;
 
     // Restore entities
@@ -792,6 +792,18 @@ export class GameScene extends Phaser.Scene {
       }
     }
 
+    // Create textures (required for rendering)
+    createTileTextures(this);
+    createBuildingIcons(this);
+    createDecorationTextures(this);
+    createTrexSprite(this);
+    createRaptorSprite(this);
+    createBrontosaurSprite(this);
+    createPterodactylSprite(this);
+    createSettlerSprite(this);
+    this.createDinosaurAnims();
+    this.createSettlerAnims();
+
     // Rebind systems
     this.rebindSystems();
 
@@ -804,20 +816,30 @@ export class GameScene extends Phaser.Scene {
     // Render
     this.mapRenderer = new AnimatedMapRenderer(this, this.simulation);
     this.mapRenderer.drawMap();
+    this.mapRenderer.updateScroll(this.scrollX, this.scrollY);
     this.decorationGenerator = new DecorationGenerator(this);
     this.decorationGenerator.generateDecorations(this.simulation.tileGrid, this.simulation.entityManager);
+    this.decorationGenerator.updateScroll(this.scrollX, this.scrollY);
     this.entityRenderer = new EntityRenderer(this, this.simulation);
+    this.entityRenderer.updateScroll(this.scrollX, this.scrollY);
     this.entityRenderer.drawEntities();
 
     this.worldReady = true;
     this.debugPanel.setEnabled(true);
     this.uiManager.setBuildButtonsEnabled(true);
     this.uiManager.setDayNightDimmed(false);
+    this.uiManager.setScrollButtonsEnabled(true);
+    this.uiManager.startMenuOpen = false;
     this.needsInitialScroll = true;
     this.scrollLockFrames = 10;
 
     // Create chat UI
     this.uiManager.createChatUI();
+
+    // Scroll to first settler
+    if (this.selectedSettler) {
+      this.scrollTo(this.selectedSettler.x, this.selectedSettler.y);
+    }
 
     this.uiManager.addLog('Игра загружена от хоста');
   }
