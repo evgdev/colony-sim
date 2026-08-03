@@ -161,6 +161,30 @@ wss.on('connection', (ws) => {
       console.log(`[Server] Player ${id} "${player.name}" joined`);
       // Send updated player list to all
       broadcast({ type: 'player_list', players: getPlayerList() });
+      // Send init to this player if game already started
+      if (lastInitMsg && !player.isHost) {
+        sendTo(ws, {
+          ...lastInitMsg,
+          playerId: id,
+          playerName: player.name,
+          playerColor: player.color,
+        });
+        console.log(`[Server] Sent init to player ${id} on join`);
+      }
+      return;
+    }
+
+    // ── request_state ──
+    if (msg.type === 'request_state') {
+      if (lastInitMsg && !player.isHost) {
+        sendTo(ws, {
+          ...lastInitMsg,
+          playerId: id,
+          playerName: player.name,
+          playerColor: player.color,
+        });
+        console.log(`[Server] Sent init to player ${id} on request`);
+      }
       return;
     }
 

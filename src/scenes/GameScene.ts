@@ -644,6 +644,7 @@ export class GameScene extends Phaser.Scene {
   private startJoinGame(serverUrl: string): void {
     this.isMultiplayer = true;
     this.isHost = false;
+    this.isHost = false;
     this.startMenu.destroy();
     this.gameMode = 'story';
     this.worldReady = false; // wait for init from host
@@ -668,6 +669,8 @@ export class GameScene extends Phaser.Scene {
     networkManager.onMessage((msg) => this.handleNetworkMessage(msg));
     networkManager.onConnect(() => {
       this.uiManager?.addLog('Подключено к серверу');
+      // Request game state from server
+      networkManager.send({ type: 'request_state' } as any);
     });
     networkManager.onDisconnect(() => {
       this.uiManager?.addLog('Отключено от сервера');
