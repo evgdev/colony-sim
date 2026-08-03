@@ -6,6 +6,9 @@ export const gameConfig = {
   debug: false,
   debugSpeed: 1,
 
+  // Quests — set to false for free play mode (no quest interruptions)
+  questsEnabled: false,
+
   // Quest skip (set to quest id to skip, null for normal start)
   //skipToQuest: 'q_dino_3' as string | null,
   skipToQuest: null as string | null,

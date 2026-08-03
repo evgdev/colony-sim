@@ -1091,11 +1091,14 @@ export class GameScene extends Phaser.Scene {
   update(time: number, delta: number): void {
     if (this.gameOver) return;
     if (!this.worldReady) return;
+    if (!this.selectedSettler) return;
 
     // Force scroll to settler on the first frame after game start
     if (this.needsInitialScroll) {
       this.needsInitialScroll = false;
-      this.scrollTo(this.selectedSettler.x, this.selectedSettler.y);
+      if (this.selectedSettler) {
+        this.scrollTo(this.selectedSettler.x, this.selectedSettler.y);
+      }
     }
 
     try {
@@ -1132,6 +1135,7 @@ export class GameScene extends Phaser.Scene {
   private runSystems(delta: number): void {
     // Pause during dialogue
     if (this.dialoguePaused || this.dialogueBox?.isVisible) return;
+    if (!this.selectedSettler) return;
 
     const adjustedDelta = delta * this.debugPanel.speed;
     const ticked = this.simulation.update(adjustedDelta);

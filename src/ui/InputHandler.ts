@@ -67,10 +67,24 @@ export class InputHandler {
   private isDragging = false;
   private dragGfx!: Phaser.GameObjects.Graphics;
 
+  // ── Mobile drag-to-pan state ──
+  private isPanning = false;
+  private panStartX = 0;
+  private panStartY = 0;
+  private panScrollStartX = 0;
+  private panScrollStartY = 0;
+
   // ── Hover tooltip state ──
   private lastHoverEntity: import('../core/Entity').Entity | null = null;
   private lastPointerWasRight = false;
   selectedTreeTile: { x: number; y: number } | null = null;
+
+  // ── Long-press state (mobile context menu) ──
+  private longPressTimer: Phaser.Time.TimerEvent | null = null;
+  private longPressX = 0;
+  private longPressY = 0;
+  private longPressFired = false;
+  private static LONG_PRESS_MS = 400;
 
   constructor(
     scene: Phaser.Scene,
@@ -120,6 +134,31 @@ export class InputHandler {
     };
   }
 
+  /** Returns true if pointer is in a UI area (top bar, portrait row, bottom HUD, info panel) — not the game field. */
+  isInUIArea(px: number, py: number): boolean {
+    const L = getLayout();
+    if (L.mode === 'mobile') {
+      // Top bar
+      if (py < L.eventH) return true;
+      // Portrait row (between top bar and field)
+      if (py >= L.eventH && py < L.fieldY) return true;
+      // Bottom HUD
+      if (py >= L.bottomHudY) return true;
+      return false;
+    }
+    // Desktop: check if click is on info panel
+    if (this.uiManager.infoPanel?.visible) {
+      const panel = this.uiManager.infoPanel;
+      const bounds = panel.getBounds();
+      if (bounds.contains(px, py)) return true;
+    }
+    // Desktop: left panel area
+    if (px < L.fieldX) return true;
+    // Desktop: bottom HUD area
+    if (py >= L.bottomHudY) return true;
+    return false;
+  }
+
   createHoverRect(): void {
     const L = getLayout();
     this.hoverRect = this.scene.add.rectangle(L.fieldX, L.fieldY, L.tileSize, L.tileSize)
@@ -158,6 +197,28 @@ export class InputHandler {
       if (this.uiManager.startMenuOpen) return;
       if ((this.scene as any).dialoguePaused) return;
       if (this.encyclopediaOpen) return;
+      if (this.uiManager.craftPanel?.isVisible()) return;
+      if ((this.scene as any).branchChoiceModal?.isVisible()) return;
+      if (this.uiManager.questModal?.isVisible) return;
+      // Skip field processing if pointer is on a UI panel (mobile)
+      if (this.isInUIArea(pointer.x, pointer.y)) return;
+      // Skip if a UI button was just clicked (prevents click propagation)
+      if (this.uiManager.uiClickConsumed) {
+        this.uiManager.uiClickConsumed = false;
+        return;
+      }
+
+      // Long-press detection for mobile context menu (skip during build mode)
+      if (!this.uiManager.buildMode) {
+        this.longPressFired = false;
+        this.longPressX = pointer.x;
+        this.longPressY = pointer.y;
+        if (this.longPressTimer) this.longPressTimer.destroy();
+        this.longPressTimer = this.scene.time.delayedCall(InputHandler.LONG_PRESS_MS, () => {
+          this.longPressFired = true;
+          this.handleLongPress(this.longPressX, this.longPressY);
+        });
+      }
 
       // Right-click
       if (pointer.rightButtonDown()) {
@@ -223,21 +284,50 @@ export class InputHandler {
       if (!coords) return;
 
       if (this.uiManager.buildMode) {
+        // Skip the first click after build mode was activated (button click propagates to field)
+        if (this.uiManager.buildModeJustSet) {
+          this.uiManager.buildModeJustSet = false;
+          return;
+        }
         this.isPainting = true;
         this.paintAt(coords.tileX, coords.tileY);
         return;
       }
 
-      // ── Start drag-select ──
+      // ── Start drag-select / mobile pan ──
       this.dragStartX = pointer.x;
       this.dragStartY = pointer.y;
       this.isDragging = false;
+      this.isPanning = false;
+      this.panStartX = pointer.x;
+      this.panStartY = pointer.y;
+      this.panScrollStartX = this.scrollX;
+      this.panScrollStartY = this.scrollY;
     });
 
     // ── Pointer MOVE ──
     this.scene.input.on('pointermove', (pointer: Phaser.Input.Pointer) => {
-      if (this.uiManager.startMenuOpen || (this.scene as any).dialoguePaused || this.encyclopediaOpen) {
+      // Cancel long-press if pointer moved too much
+      if (this.longPressTimer && !this.longPressFired) {
+        const dx = pointer.x - this.longPressX;
+        const dy = pointer.y - this.longPressY;
+        if (Math.abs(dx) > DRAG_THRESHOLD || Math.abs(dy) > DRAG_THRESHOLD) {
+          this.longPressTimer.destroy();
+          this.longPressTimer = null;
+        }
+      }
+
+      if (this.uiManager.startMenuOpen || (this.scene as any).dialoguePaused || this.encyclopediaOpen || this.uiManager.craftPanel?.isVisible() || (this.scene as any).branchChoiceModal?.isVisible() || this.uiManager.questModal?.isVisible) {
         this.hoverRect.setVisible(false);
+        this.menuSystem.hideTooltip();
+        return;
+      }
+
+      // Hide hover when pointer is on a UI panel (mobile)
+      if (this.isInUIArea(pointer.x, pointer.y)) {
+        this.hoverRect.setVisible(false);
+        this.blockedTilesGfx.clear();
+        this.lastHoverEntity = null;
         this.menuSystem.hideTooltip();
         return;
       }
@@ -302,12 +392,14 @@ export class InputHandler {
           }
         }
 
-        // Show tooltip for entity under cursor
+        // Show tooltip for entity under cursor (desktop only)
         const hoverEntity = this.simulation.entityManager.getAt(coords.tileX, coords.tileY);
         if (hoverEntity && hoverEntity !== this.lastHoverEntity) {
           this.lastHoverEntity = hoverEntity;
-          const lines = getTooltipForEntity(hoverEntity);
-          this.menuSystem.showTooltip(lines, pointer.x, pointer.y);
+          if (getLayout().mode !== 'mobile') {
+            const lines = getTooltipForEntity(hoverEntity);
+            this.menuSystem.showTooltip(lines, pointer.x, pointer.y);
+          }
         } else if (!hoverEntity) {
           this.lastHoverEntity = null;
           this.menuSystem.hideTooltip();
@@ -325,15 +417,31 @@ export class InputHandler {
         return;
       }
 
-      // ── Drag-select rectangle ──
+      // ── Drag-select rectangle / mobile pan ──
       if (pointer.leftButtonDown() && !this.uiManager.buildMode && !this.shootMode) {
         const dx = pointer.x - this.dragStartX;
         const dy = pointer.y - this.dragStartY;
 
-        if (!this.isDragging && (Math.abs(dx) > DRAG_THRESHOLD || Math.abs(dy) > DRAG_THRESHOLD)) {
-          this.isDragging = true;
+        if (!this.isDragging && !this.isPanning && (Math.abs(dx) > DRAG_THRESHOLD || Math.abs(dy) > DRAG_THRESHOLD)) {
+          const L = getLayout();
+          if (L.mode === 'mobile') {
+            // Mobile: start panning instead of drag-select
+            this.isPanning = true;
+          } else {
+            this.isDragging = true;
+          }
           this.hoverRect.setVisible(false);
           this.menuSystem.hideTooltip();
+        }
+
+        if (this.isPanning) {
+          // Mobile: scroll the map by converting pixel delta to tile delta
+          const L = getLayout();
+          const tileDeltaX = (pointer.x - this.panStartX) / L.tileSize;
+          const tileDeltaY = (pointer.y - this.panStartY) / L.tileSize;
+          const newScrollX = this.panScrollStartX - Math.round(tileDeltaX);
+          const newScrollY = this.panScrollStartY - Math.round(tileDeltaY);
+          this.scrollTo?.(newScrollX + Math.floor(L.viewportTilesX / 2), newScrollY + Math.floor(L.viewportTilesY / 2));
         }
 
         if (this.isDragging) {
@@ -344,6 +452,21 @@ export class InputHandler {
 
     // ── Pointer UP ──
     this.scene.input.on('pointerup', (pointer: Phaser.Input.Pointer) => {
+      // Cancel long-press timer ONLY if pointer is not on a UI panel
+      // (build strip has its own long-press timer that must not be cancelled)
+      if (!this.isInUIArea(pointer.x, pointer.y)) {
+        if (this.longPressTimer) {
+          this.longPressTimer.destroy();
+          this.longPressTimer = null;
+        }
+      }
+
+      // If long-press already fired, suppress the tap-up
+      if (this.longPressFired) {
+        this.longPressFired = false;
+        return;
+      }
+
       if (this.lastPointerWasRight) return;
       if (this.encyclopediaOpen) return;
 
@@ -351,6 +474,12 @@ export class InputHandler {
       this.isPainting = false;
       this.lastPaintX = -1;
       this.lastPaintY = -1;
+
+      // ── End mobile pan ──
+      if (this.isPanning) {
+        this.isPanning = false;
+        return;
+      }
 
       // ── End drag-select ──
       if (this.isDragging) {
@@ -363,7 +492,11 @@ export class InputHandler {
 
       // ── Single click select ──
       if (this.uiManager.startMenuOpen || (this.scene as any).dialoguePaused) return;
+      if (this.uiManager.craftPanel?.isVisible()) return;
+      if ((this.scene as any).branchChoiceModal?.isVisible()) return;
+      if (this.uiManager.questModal?.isVisible) return;
       if (this.shootMode) return; // no selection in shoot mode
+      if (this.isInUIArea(pointer.x, pointer.y)) return;
       const coords = this.screenToTile(pointer.x, pointer.y);
       if (!coords) return;
 
@@ -385,6 +518,63 @@ export class InputHandler {
     this.scene.input.mouse?.disableContextMenu();
     const canvas = this.scene.game.canvas;
     canvas.addEventListener('contextmenu', (e: Event) => { e.preventDefault(); });
+
+    // ── Pinch-to-zoom & two-finger pan ──
+    this.setupPinchZoom();
+  }
+
+  // ── Pinch-to-zoom for mobile ──
+  private pinchStartDist = 0;
+  private pinchStartZoom = 1;
+  private pinchMidX = 0;
+  private pinchMidY = 0;
+  private isPinching = false;
+
+  private setupPinchZoom(): void {
+    const pointers = new Map<number, { x: number; y: number }>();
+
+    this.scene.input.on('pointerdown', (pointer: Phaser.Input.Pointer) => {
+      pointers.set(pointer.id, { x: pointer.x, y: pointer.y });
+      if (pointers.size === 2) {
+        const pts = Array.from(pointers.values());
+        this.pinchStartDist = Math.hypot(pts[1].x - pts[0].x, pts[1].y - pts[0].y);
+        this.pinchStartZoom = this.scene.cameras.main.zoom;
+        this.pinchMidX = (pts[0].x + pts[1].x) / 2;
+        this.pinchMidY = (pts[0].y + pts[1].y) / 2;
+        this.isPinching = true;
+      }
+    });
+
+    this.scene.input.on('pointermove', (pointer: Phaser.Input.Pointer) => {
+      if (!pointers.has(pointer.id)) return;
+      pointers.set(pointer.id, { x: pointer.x, y: pointer.y });
+
+      if (this.isPinching && pointers.size === 2) {
+        const pts = Array.from(pointers.values());
+        const dist = Math.hypot(pts[1].x - pts[0].x, pts[1].y - pts[0].y);
+        const scale = dist / this.pinchStartDist;
+        const cam = this.scene.cameras.main;
+        const newZoom = Phaser.Math.Clamp(this.pinchStartZoom * scale, 0.5, 3);
+        cam.setZoom(newZoom);
+
+        // Two-finger pan
+        const newMidX = (pts[0].x + pts[1].x) / 2;
+        const newMidY = (pts[0].y + pts[1].y) / 2;
+        const dx = newMidX - this.pinchMidX;
+        const dy = newMidY - this.pinchMidY;
+        cam.scrollX -= dx / cam.zoom;
+        cam.scrollY -= dy / cam.zoom;
+        this.pinchMidX = newMidX;
+        this.pinchMidY = newMidY;
+      }
+    });
+
+    this.scene.input.on('pointerup', (pointer: Phaser.Input.Pointer) => {
+      pointers.delete(pointer.id);
+      if (pointers.size < 2) {
+        this.isPinching = false;
+      }
+    });
   }
 
   // ── Draw drag selection rectangle ──
@@ -488,7 +678,9 @@ export class InputHandler {
     if (box.settlers.length > 0) {
       const s = box.settlers[0];
       (this.scene as any).selectSettler(s);
-      this.uiManager.addLog(`${languageManager.ui.selected}: ${s.name} (${s.settlerClass})`);
+      if (getLayout().mode !== 'mobile') {
+        this.uiManager.addLog(`${languageManager.ui.selected}: ${s.name} (${s.settlerClass})`);
+      }
       this.showSelectionRing(s.x, s.y, 0x44ff44);
       return;
     }
@@ -604,18 +796,23 @@ export class InputHandler {
 
     const settlerAtTile = this.simulation.entityManager.getAt(tileX, tileY, 'settler') as Settler | undefined;
     if (settlerAtTile) {
-      // Double-select: if already selected, show context menu
+      const L = getLayout();
+      // Double-select: on desktop show context menu, on mobile just re-select
       if (this.uiManager.selectedEntity === settlerAtTile ||
         ((this.scene as any).getSelectedSettler?.() === settlerAtTile &&
           !this.uiManager.selectedBuilding && !this.uiManager.selectedEntity)) {
-        this.showEntityContextMenu(settlerAtTile, tileX, tileY);
+        if (L.mode !== 'mobile') {
+          this.showEntityContextMenu(settlerAtTile, tileX, tileY);
+        }
         return;
       }
       this.recorder?.record(ReplayActionType.SelectSettler, { settlerId: settlerAtTile.id });
       (this.scene as any).selectSettler(settlerAtTile);
       this.uiManager.selectedBuilding = null;
       this.uiManager.selectedEntity = null;
-      this.uiManager.addLog(`${languageManager.ui.selected}: ${settlerAtTile.name} (${settlerAtTile.settlerClass})`);
+      if (getLayout().mode !== 'mobile') {
+        this.uiManager.addLog(`${languageManager.ui.selected}: ${settlerAtTile.name} (${settlerAtTile.settlerClass})`);
+      }
       this.showSelectionRing(tileX, tileY, 0x44ff44);
       return;
     }
@@ -628,7 +825,9 @@ export class InputHandler {
         if (bldSize > 1 && tileX >= b.x && tileX < b.x + bldSize &&
             tileY >= b.y && tileY < b.y + bldSize) {
           if (this.uiManager.selectedBuilding === b) {
-            this.showEntityContextMenu(b, b.x, b.y);
+            if (getLayout().mode !== 'mobile') {
+              this.showEntityContextMenu(b, b.x, b.y);
+            }
             return;
           }
           this.uiManager.selectedBuilding = b;
@@ -645,9 +844,11 @@ export class InputHandler {
 
     const buildingAtTile = this.simulation.entityManager.getAt(tileX, tileY, 'building') as Building | undefined;
     if (buildingAtTile) {
-      // Double-select: if already selected, show context menu
+      // Double-select: on desktop show context menu, on mobile just keep selected
       if (this.uiManager.selectedBuilding === buildingAtTile) {
-        this.showEntityContextMenu(buildingAtTile, tileX, tileY);
+        if (getLayout().mode !== 'mobile') {
+          this.showEntityContextMenu(buildingAtTile, tileX, tileY);
+        }
         return;
       }
       this.uiManager.selectedBuilding = buildingAtTile;
@@ -664,9 +865,11 @@ export class InputHandler {
       .find(e => e.entityType === 'resource' || e.entityType === 'dinosaur' || e.entityType === 'artifact');
 
     if (entityAtTile) {
-      // Double-select: if already selected, show context menu
+      // Double-select: on desktop show context menu, on mobile just keep selected
       if (this.uiManager.selectedEntity === entityAtTile) {
-        this.showEntityContextMenu(entityAtTile, tileX, tileY);
+        if (getLayout().mode !== 'mobile') {
+          this.showEntityContextMenu(entityAtTile, tileX, tileY);
+        }
         return;
       }
       this.uiManager.selectedBuilding = null;
@@ -687,6 +890,15 @@ export class InputHandler {
         }
       } else if (entityAtTile.entityType === 'resource') {
         const res = entityAtTile as Resource;
+        const L = getLayout();
+        const selectedSettler = (this.scene as any).getSelectedSettler() as Settler | undefined;
+        if (L.mode === 'mobile' && selectedSettler?.isAlive) {
+          // Mobile: tap resource → immediately collect
+          this.uiManager.selectedEntity = entityAtTile;
+          this.uiManager.onCollectCallback?.(entityAtTile, false);
+          this.showCommandMarker(tileX, tileY, 0xffaa00);
+          return;
+        }
         this.uiManager.addLog(`${languageManager.ui.selected}: ${res.resourceType} (${res.quantity})`);
         this.showSelectionRing(tileX, tileY, 0xffaa00);
       } else {
@@ -744,10 +956,67 @@ export class InputHandler {
       }
     }
 
+    // Mobile: if a settler is selected and tile is walkable, issue move command
+    const L = getLayout();
+    if (L.mode === 'mobile') {
+      const settler = (this.scene as any).getSelectedSettler() as Settler | undefined;
+      if (settler && settler.isAlive && tile.walkable) {
+        this.handleCommand(tileX, tileY, false);
+        return;
+      }
+    }
+
     this.selectedTreeTile = null;
     this.uiManager.deselectAll();
     this.uiManager.buildMode = null;
     this.uiManager.updateBuildButtonStates();
+  }
+
+  // ── Long-press handler (mobile context menu) ──
+  private handleLongPress(px: number, py: number): void {
+    if (this.uiManager.startMenuOpen || this.encyclopediaOpen) return;
+
+    const coords = this.screenToTile(px, py);
+    if (!coords) return;
+
+    const { tileX, tileY } = coords;
+    const grid = this.simulation.tileGrid;
+
+    // Check for entity at tile
+    const building = this.simulation.entityManager.getAt(tileX, tileY, 'building') as Building | undefined;
+    const dino = this.simulation.entityManager.getAt(tileX, tileY, 'dinosaur') as Dinosaur | undefined;
+    const resource = this.simulation.entityManager.getAt(tileX, tileY, 'resource') as Resource | undefined;
+    const settler = this.simulation.entityManager.getAt(tileX, tileY, 'settler') as Settler | undefined;
+
+    // Show context menu for the entity
+    const entity = building || dino || resource || settler;
+    if (entity) {
+      this.showEntityContextMenu(entity, tileX, tileY);
+      return;
+    }
+
+    // Check for tree/rock/plant at tile
+    const tile = grid.get(tileX, tileY);
+    if (tile) {
+      // Trees
+      if ((tile as any).hasTree) {
+        this.showTreeContextMenu(tileX, tileY);
+        return;
+      }
+      // Plants
+      const decGen = (this.scene as any).decorationGenerator;
+      const plantInfo = decGen?.getPlantAt(tileX, tileY);
+      if (plantInfo) {
+        this.showPlantContextMenu(tileX, tileY, plantInfo);
+        return;
+      }
+    }
+
+    // If a settler is selected and tile is walkable, issue move command
+    const selectedSettler = (this.scene as any).getSelectedSettler() as Settler | undefined;
+    if (selectedSettler && selectedSettler.isAlive && tile?.walkable) {
+      this.handleCommand(tileX, tileY, false);
+    }
   }
 
   private showEntityContextMenu(entity: import('../core/Entity').Entity, tileX: number, tileY: number): void {
@@ -764,7 +1033,7 @@ export class InputHandler {
     const items = getContextMenuForEntity(entity, ctx);
     if (items.length > 0) {
       const { sx, sy } = this.tileToScreen(tileX, tileY);
-      this.menuSystem.showContextMenu(items, sx + TILE_SIZE, sy);
+      this.menuSystem.showContextMenu(items, sx, sy);
     }
   }
 
@@ -820,7 +1089,7 @@ export class InputHandler {
 
   private showTreeContextMenu(tileX: number, tileY: number): void {
     const { sx, sy } = this.tileToScreen(tileX, tileY);
-    const screenX = sx + TILE_SIZE;
+    const screenX = sx;
     const screenY = sy;
 
     const settler = (this.scene as any).getSelectedSettler() as Settler;
@@ -858,7 +1127,7 @@ export class InputHandler {
 
   private showPlantContextMenu(tileX: number, tileY: number, plantInfo: { id: string; plant: any }): void {
     const { sx, sy } = this.tileToScreen(tileX, tileY);
-    const screenX = sx + TILE_SIZE;
+    const screenX = sx;
     const screenY = sy;
 
     const settler = (this.scene as any).getSelectedSettler() as Settler;
@@ -893,7 +1162,7 @@ export class InputHandler {
 
   private showRockContextMenu(tileX: number, tileY: number): void {
     const { sx, sy } = this.tileToScreen(tileX, tileY);
-    const screenX = sx + TILE_SIZE;
+    const screenX = sx;
     const screenY = sy;
 
     const settler = (this.scene as any).getSelectedSettler() as Settler;
@@ -902,24 +1171,34 @@ export class InputHandler {
     const drop = plantInfo?.plant.harvestDrop;
     const dropText = drop ? `${drop.resource} x${drop.amount}` : '';
 
+    const hasAxe = settler?.inventory.some((i: any) => i.resourceType === 'stone_axe') ?? false;
+
     const items: import('./menu/MenuItem').MenuItem[] = [];
 
-    items.push({
-      icon: '⛏️',
-      label: `Добыть${dropText ? ` (${dropText})` : ''}`,
-      action: () => {
-        this.selectedTreeTile = null;
-        this.workSystem.createMineTask(tileX, tileY, TaskPriority.High, settler);
-        this.uiManager.addLog(`${settler ? settler.name : 'Поселенец'} направляется добывать камень`);
-      }
-    });
+    if (hasAxe) {
+      items.push({
+        icon: '⛏️',
+        label: `Добыть${dropText ? ` (${dropText})` : ''}`,
+        action: () => {
+          this.selectedTreeTile = null;
+          this.workSystem.createMineTask(tileX, tileY, TaskPriority.High, settler);
+          this.uiManager.addLog(`${settler ? settler.name : 'Поселенец'} направляется добывать камень`);
+        }
+      });
+    } else {
+      items.push({
+        icon: '⛏️',
+        label: 'Нужен каменный топор',
+        disabled: true,
+      });
+    }
 
     this.menuSystem.showContextMenu(items, screenX, screenY);
   }
 
   private showDinoContextMenu(tileX: number, tileY: number, dino: Dinosaur): void {
     const { sx, sy } = this.tileToScreen(tileX, tileY);
-    const screenX = sx + TILE_SIZE;
+    const screenX = sx;
     const screenY = sy;
 
     const settler = (this.scene as any).getSelectedSettler() as Settler;
@@ -1047,7 +1326,7 @@ export class InputHandler {
 
   private showIncubatorContextMenu(building: Building, tileX: number, tileY: number): void {
     const { sx, sy } = this.tileToScreen(tileX, tileY);
-    const screenX = sx + TILE_SIZE;
+    const screenX = sx;
     const screenY = sy;
 
     const incubatorSystem = (this.scene as any).incubatorSystem;
@@ -1102,7 +1381,7 @@ export class InputHandler {
 
   private showPaddockContextMenu(building: Building, tileX: number, tileY: number): void {
     const { sx, sy } = this.tileToScreen(tileX, tileY);
-    const screenX = sx + TILE_SIZE;
+    const screenX = sx;
     const screenY = sy;
 
     const items: import('./menu/MenuItem').MenuItem[] = [];
@@ -1371,7 +1650,9 @@ export class InputHandler {
         if (entityAt && entityAt.entityType === 'settler') {
           const s = entityAt as Settler;
           (this.scene as any).selectSettler(s);
-          this.uiManager.addLog(`${languageManager.ui.selected}: ${s.name} (${s.settlerClass})`);
+          if (getLayout().mode !== 'mobile') {
+            this.uiManager.addLog(`${languageManager.ui.selected}: ${s.name} (${s.settlerClass})`);
+          }
           return;
         }
         if (entityAt) {

@@ -1,5 +1,6 @@
 import Phaser from 'phaser';
 import { COLORS } from '../config';
+import { getLayout } from './LayoutConfig';
 import { Simulation } from '../core/Simulation';
 import { Building } from '../entities/Building';
 import { Settler } from '../entities/Settler';
@@ -31,13 +32,19 @@ const RECIPE_ICONS: Record<string, string> = {
 export class CraftPanel {
   private scene: Phaser.Scene;
   private container!: Phaser.GameObjects.Container;
+  private contentContainer: Phaser.GameObjects.Container | null = null;
+  private backdrop: Phaser.GameObjects.Rectangle | null = null;
   private maskGraphics: Phaser.GameObjects.Graphics | null = null;
   private visible: boolean = false;
+  private pointerDownOutside: boolean = false;
   private recipeButtons: Phaser.GameObjects.Container[] = [];
   private onCraft: ((recipeId: string, workshop: Building) => void) | null = null;
   private onUse: ((recipeId: string, workshop: Building) => void) | null = null;
   private workshop: Building | null = null;
   private simulation: Simulation | null = null;
+  private scrollY = 0;
+  private maxScroll = 0;
+  private wheelHandler: ((e: WheelEvent) => void) | null = null;
 
   constructor(scene: Phaser.Scene) {
     this.scene = scene;
@@ -57,18 +64,38 @@ export class CraftPanel {
     this.onUse = onUse ?? null;
     this.visible = true;
 
-    const cx = 750;
-    const cy = 450;
+    const L = getLayout();
+    const cx = L.canvasW / 2;
+    const cy = L.canvasH / 2;
+
+    // Fullscreen backdrop — blocks background input, closes only on click OUTSIDE the panel
+    this.pointerDownOutside = false;
+    this.backdrop = this.scene.add.rectangle(
+      cx, cy, L.canvasW, L.canvasH, 0x000000, 0.6
+    ).setInteractive().setDepth(99)
+      .on('pointerdown', (pointer: Phaser.Input.Pointer) => {
+        // Check if click is outside the panel area
+        const inPanel = pointer.x >= cx - PANEL_WIDTH / 2 && pointer.x <= cx + PANEL_WIDTH / 2 &&
+                        pointer.y >= cy - PANEL_HEIGHT / 2 && pointer.y <= cy + PANEL_HEIGHT / 2;
+        this.pointerDownOutside = !inPanel;
+      })
+      .on('pointerup', () => {
+        if (this.pointerDownOutside) {
+          this.hide();
+        }
+        this.pointerDownOutside = false;
+      });
 
     this.container = this.scene.add.container(0, 0).setDepth(100);
 
-    // Add mask to clip items within panel bounds
+    // Mask for scrollable content area (below title, above panel bottom)
+    const contentTop = cy - PANEL_HEIGHT / 2 + 40;
+    const contentH = PANEL_HEIGHT - 48;
     this.maskGraphics = this.scene.add.graphics();
     this.maskGraphics.fillStyle(0xffffff);
-    this.maskGraphics.fillRect(cx - PANEL_WIDTH / 2, cy - PANEL_HEIGHT / 2, PANEL_WIDTH, PANEL_HEIGHT);
+    this.maskGraphics.fillRect(cx - PANEL_WIDTH / 2, contentTop, PANEL_WIDTH, contentH);
     this.maskGraphics.setVisible(false);
     const mask = this.maskGraphics.createGeometryMask();
-    this.container.setMask(mask);
 
     const bg = this.scene.add.rectangle(cx, cy, PANEL_WIDTH, PANEL_HEIGHT, 0x0d1117, 0.97)
       .setOrigin(0.5).setStrokeStyle(2, COLORS.panelBorder);
@@ -85,13 +112,18 @@ export class CraftPanel {
       .on('pointerdown', () => this.hide());
     this.container.add(closeBtn);
 
-    let y = cy - PANEL_HEIGHT / 2 + 44;
+    // Scrollable content container
+    this.contentContainer = this.scene.add.container(0, 0);
+    this.contentContainer.setMask(mask);
+    this.scrollY = 0;
+
+    let y = contentTop;
 
     if (recipes.length === 0) {
       const emptyText = this.scene.add.text(cx, y + 40, 'No recipes available', {
         fontSize: '13px', color: '#8b949e', fontFamily: 'monospace',
       }).setOrigin(0.5);
-      this.container.add(emptyText);
+      this.contentContainer.add(emptyText);
     }
 
     for (const recipe of recipes) {
@@ -152,7 +184,7 @@ export class CraftPanel {
       });
       itemContainer.add(timeText);
 
-      this.container.add(itemContainer);
+      this.contentContainer.add(itemContainer);
       this.recipeButtons.push(itemContainer);
       y += ITEM_HEIGHT;
     }
@@ -162,7 +194,7 @@ export class CraftPanel {
       const storageTitle = this.scene.add.text(cx - PANEL_WIDTH / 2 + 12, y, '── Storage ──', {
         fontSize: '13px', color: '#58a6ff', fontFamily: 'monospace', fontStyle: 'bold',
       });
-      this.container.add(storageTitle);
+      this.contentContainer.add(storageTitle);
       y += 20;
 
       for (const item of this.workshop.craftedItems) {
@@ -172,12 +204,12 @@ export class CraftPanel {
         const iconText = this.scene.add.text(cx - PANEL_WIDTH / 2 + 14, y + 10, itemIcon, {
           fontSize: '16px',
         });
-        this.container.add(iconText);
+        this.contentContainer.add(iconText);
 
         const itemText = this.scene.add.text(cx - PANEL_WIDTH / 2 + 36, y, `${item.resourceType} x${item.quantity}`, {
           fontSize: '12px', color: '#c9d1d9', fontFamily: 'monospace',
         });
-        this.container.add(itemText);
+        this.contentContainer.add(itemText);
 
         if (this.onUse && this.workshop) {
           const useBtn = this.scene.add.text(cx + PANEL_WIDTH / 2 - 60, y - 2, '[Use]', {
@@ -192,12 +224,26 @@ export class CraftPanel {
             })
             .on('pointerover', () => useBtn.setColor('#ffffff'))
             .on('pointerout', () => useBtn.setColor('#44ff44'));
-          this.container.add(useBtn);
+          this.contentContainer.add(useBtn);
         }
 
         y += 22;
       }
     }
+
+    // Calculate max scroll
+    const totalContentH = y - contentTop;
+    this.maxScroll = Math.max(0, totalContentH - contentH);
+    this.contentContainer.setDepth(100);
+
+    // Wheel scrolling
+    this.wheelHandler = (e: WheelEvent) => {
+      if (!this.visible) return;
+      e.preventDefault();
+      this.scrollY = Math.max(0, Math.min(this.maxScroll, this.scrollY + e.deltaY * 0.5));
+      this.contentContainer!.setPosition(0, -this.scrollY);
+    };
+    this.scene.game.canvas.addEventListener('wheel', this.wheelHandler, { passive: false });
   }
 
   private checkAfford(recipe: CraftRecipe): boolean {
@@ -208,6 +254,18 @@ export class CraftPanel {
   }
 
   hide(): void {
+    if (this.wheelHandler) {
+      this.scene.game.canvas.removeEventListener('wheel', this.wheelHandler);
+      this.wheelHandler = null;
+    }
+    if (this.backdrop) {
+      this.backdrop.destroy();
+      this.backdrop = null;
+    }
+    if (this.contentContainer) {
+      this.contentContainer.destroy();
+      this.contentContainer = null;
+    }
     if (this.container) {
       this.container.destroy();
     }
@@ -216,6 +274,8 @@ export class CraftPanel {
       this.maskGraphics = null;
     }
     this.visible = false;
+    this.scrollY = 0;
+    this.maxScroll = 0;
     this.recipeButtons = [];
     this.workshop = null;
     this.onCraft = null;

@@ -60,8 +60,8 @@ export class EntityRenderer {
 
   private isInViewport(x: number, y: number): boolean {
     const L = getLayout();
-    return x >= this.scrollX && x < this.scrollX + L.viewportTiles
-      && y >= this.scrollY && y < this.scrollY + L.viewportTiles;
+    return x >= this.scrollX && x < this.scrollX + L.viewportTilesX
+      && y >= this.scrollY && y < this.scrollY + L.viewportTilesY;
   }
 
   private worldToScreen(wx: number, wy: number): { sx: number; sy: number } {

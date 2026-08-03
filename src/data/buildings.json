@@ -77,6 +77,20 @@
     "description": "Craft advanced items from raw resources.",
     "craftRecipes": [
       {
+        "id": "stone_axe",
+        "name": "Stone Axe",
+        "description": "Required to mine rocks for stone",
+        "cost": {
+          "wood": 3,
+          "fiber": 2
+        },
+        "effect": {
+          "type": "tool",
+          "toolType": "axe"
+        },
+        "craftTime": 4
+      },
+      {
         "id": "medkit",
         "name": "Medical Kit",
         "description": "Restores 30 HP to the settler",
@@ -174,20 +188,6 @@
           "value": 1
         },
         "craftTime": 8
-      },
-      {
-        "id": "stone_axe",
-        "name": "Stone Axe",
-        "description": "Required to mine rocks for stone",
-        "cost": {
-          "wood": 3,
-          "fiber": 2
-        },
-        "effect": {
-          "type": "tool",
-          "toolType": "axe"
-        },
-        "craftTime": 4
       }
     ]
   },

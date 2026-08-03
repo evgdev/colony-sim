@@ -10,10 +10,10 @@
  */
 import Phaser from 'phaser';
 import {
-  TILE_SIZE, MAP_WIDTH, MAP_HEIGHT, VIEWPORT_TILES,
-  FIELD_X, FIELD_Y, FIELD_W, FIELD_H,
+  TILE_SIZE, MAP_WIDTH, MAP_HEIGHT,
   NIGHT_TINT, nightAlpha,
 } from '../config';
+import { getLayout } from '../ui/LayoutConfig';
 import { Simulation } from '../core/Simulation';
 import { TileType } from '../core/TileGrid';
 
@@ -94,11 +94,12 @@ export class AnimatedMapRenderer {
   constructor(scene: Phaser.Scene, simulation: Simulation) {
     this.scene = scene;
     this.simulation = simulation;
+    const L = getLayout();
 
     // Viewport mask
     this.viewportMask = scene.add.graphics();
     this.viewportMask.fillStyle(0xffffff);
-    this.viewportMask.fillRect(FIELD_X, FIELD_Y, FIELD_W, FIELD_H);
+    this.viewportMask.fillRect(L.fieldX, L.fieldY, L.fieldW, L.fieldH);
     this.viewportMask.setVisible(false);
     const mask = new Phaser.Display.Masks.GeometryMask(scene, this.viewportMask);
 
@@ -110,14 +111,14 @@ export class AnimatedMapRenderer {
     this.fogGfx = scene.add.graphics().setDepth(3);
 
     // Night overlay
-    this.nightOverlay = scene.add.rectangle(FIELD_X, FIELD_Y, FIELD_W, FIELD_H, NIGHT_TINT, 0)
+    this.nightOverlay = scene.add.rectangle(L.fieldX, L.fieldY, L.fieldW, L.fieldH, NIGHT_TINT, 0)
       .setOrigin(0).setDepth(4);
 
     // Generate water shimmer points
     for (let i = 0; i < 50; i++) {
       this.waterShimmer.push({
-        x: Math.random() * MAP_WIDTH * TILE_SIZE,
-        y: Math.random() * MAP_HEIGHT * TILE_SIZE,
+        x: Math.random() * MAP_WIDTH * L.tileSize,
+        y: Math.random() * MAP_HEIGHT * L.tileSize,
         phase: Math.random() * Math.PI * 2,
         speed: 0.5 + Math.random() * 1.5,
       });
@@ -189,6 +190,7 @@ export class AnimatedMapRenderer {
     this.tileBlendSprites = [];
     this.grassBlades = [];
 
+    const L = getLayout();
     const grid = this.simulation.tileGrid;
 
     for (let y = 0; y < MAP_HEIGHT; y++) {
@@ -205,12 +207,12 @@ export class AnimatedMapRenderer {
         let sprite: Phaser.GameObjects.Rectangle | Phaser.GameObjects.Image;
         if (hasTexture) {
           sprite = this.scene.add.image(0, 0, texKey)
-            .setOrigin(0).setDisplaySize(TILE_SIZE, TILE_SIZE).setDepth(0);
+            .setOrigin(0).setDisplaySize(L.tileSize, L.tileSize).setDepth(0);
         } else {
           // Fallback to solid color
           const baseColors = BIOME_COLORS[tile.type] || BIOME_COLORS.grass;
           const variant = Math.floor(seeded(x, y, 42) * baseColors.length);
-          sprite = this.scene.add.rectangle(0, 0, TILE_SIZE, TILE_SIZE, baseColors[variant])
+          sprite = this.scene.add.rectangle(0, 0, L.tileSize, L.tileSize, baseColors[variant])
             .setOrigin(0).setDepth(0);
         }
         this.tileSprites[y][x] = sprite;
@@ -223,11 +225,11 @@ export class AnimatedMapRenderer {
           let blendSprite: Phaser.GameObjects.Rectangle | Phaser.GameObjects.Image;
           if (hasSecTexture) {
             blendSprite = this.scene.add.image(0, 0, secTexKey)
-              .setOrigin(0).setDisplaySize(TILE_SIZE, TILE_SIZE).setDepth(0.1).setAlpha(blend.ratio * 0.6);
+              .setOrigin(0).setDisplaySize(L.tileSize, L.tileSize).setDepth(0.1).setAlpha(blend.ratio * 0.6);
           } else {
             const secColors = BIOME_COLORS[blend.secondary as TileType] || BIOME_COLORS.grass;
             const secVar = Math.floor(seeded(x + 100, y + 100, 42) * secColors.length);
-            blendSprite = this.scene.add.rectangle(0, 0, TILE_SIZE, TILE_SIZE, secColors[secVar])
+            blendSprite = this.scene.add.rectangle(0, 0, L.tileSize, L.tileSize, secColors[secVar])
               .setOrigin(0).setDepth(0.1).setAlpha(blend.ratio * 0.6);
           }
           this.tileBlendSprites[y][x] = blendSprite;
@@ -243,8 +245,8 @@ export class AnimatedMapRenderer {
           for (let i = 0; i < count; i++) {
             this.grassBlades.push({
               tileX: x, tileY: y,
-              localX: seeded(x + i * 7, y, 6666) * TILE_SIZE,
-              localY: seeded(x, y + i * 11, 7777) * TILE_SIZE * 0.5 + TILE_SIZE * 0.5,
+              localX: seeded(x + i * 7, y, 6666) * L.tileSize,
+              localY: seeded(x, y + i * 11, 7777) * L.tileSize * 0.5 + L.tileSize * 0.5,
               height: 6 + seeded(x + i, y, 8888) * 10,
               color: [0x4a8a3a, 0x5a9a4a, 0x3a7a2a, 0x6aaa5a][Math.floor(seeded(x + i, y, 9999) * 4)],
               phase: seeded(x + i, y, 1111) * Math.PI * 2,
@@ -261,15 +263,16 @@ export class AnimatedMapRenderer {
   updateScroll(sx: number, sy: number): void {
     this.scrollX = sx;
     this.scrollY = sy;
+    const L = getLayout();
 
     for (let y = 0; y < MAP_HEIGHT; y++) {
       for (let x = 0; x < MAP_WIDTH; x++) {
-        const inView = x >= sx && x < sx + VIEWPORT_TILES && y >= sy && y < sy + VIEWPORT_TILES;
+        const inView = x >= sx && x < sx + L.viewportTilesX && y >= sy && y < sy + L.viewportTilesY;
 
         const sprite = this.tileSprites[y]?.[x];
         if (sprite) {
           if (inView) {
-            sprite.setPosition(FIELD_X + (x - sx) * TILE_SIZE, FIELD_Y + (y - sy) * TILE_SIZE);
+            sprite.setPosition(L.fieldX + (x - sx) * L.tileSize, L.fieldY + (y - sy) * L.tileSize);
             sprite.setVisible(true);
           } else {
             sprite.setVisible(false);
@@ -279,7 +282,7 @@ export class AnimatedMapRenderer {
         const blend = this.tileBlendSprites[y]?.[x];
         if (blend) {
           if (inView) {
-            blend.setPosition(FIELD_X + (x - sx) * TILE_SIZE, FIELD_Y + (y - sy) * TILE_SIZE);
+            blend.setPosition(L.fieldX + (x - sx) * L.tileSize, L.fieldY + (y - sy) * L.tileSize);
             blend.setVisible(true);
           } else {
             blend.setVisible(false);
@@ -318,10 +321,11 @@ export class AnimatedMapRenderer {
 
   // ─── Smooth biome transitions ────────────────────────────
   private drawTransitions(sx: number, sy: number, grid: any): void {
+    const L = getLayout();
     const minX = Math.max(0, sx - 1);
-    const maxX = Math.min(MAP_WIDTH, sx + VIEWPORT_TILES + 1);
+    const maxX = Math.min(MAP_WIDTH, sx + L.viewportTilesX + 1);
     const minY = Math.max(0, sy - 1);
-    const maxY = Math.min(MAP_HEIGHT, sy + VIEWPORT_TILES + 1);
+    const maxY = Math.min(MAP_HEIGHT, sy + L.viewportTilesY + 1);
 
     for (let y = minY; y < maxY; y++) {
       for (let x = minX; x < maxX; x++) {
@@ -330,8 +334,8 @@ export class AnimatedMapRenderer {
         const blend = tile.blend;
         if (!blend || blend.ratio < 0.08 || blend.secondary === blend.primary) continue;
 
-        const px = FIELD_X + (x - sx) * TILE_SIZE;
-        const py = FIELD_Y + (y - sy) * TILE_SIZE;
+        const px = L.fieldX + (x - sx) * L.tileSize;
+        const py = L.fieldY + (y - sy) * L.tileSize;
 
         const secColor = (BIOME_COLORS[blend.secondary as TileType] || [0x333333])[0];
 
@@ -374,18 +378,19 @@ export class AnimatedMapRenderer {
 
   // ─── Water animation ─────────────────────────────────────
   private drawWater(sx: number, sy: number, grid: any, time: number): void {
+    const L = getLayout();
     const minX = Math.max(0, sx);
-    const maxX = Math.min(MAP_WIDTH, sx + VIEWPORT_TILES);
+    const maxX = Math.min(MAP_WIDTH, sx + L.viewportTilesX);
     const minY = Math.max(0, sy);
-    const maxY = Math.min(MAP_HEIGHT, sy + VIEWPORT_TILES);
+    const maxY = Math.min(MAP_HEIGHT, sy + L.viewportTilesY);
 
     for (let vy = minY; vy < maxY; vy++) {
       for (let vx = minX; vx < maxX; vx++) {
         const tile = grid.get(vx, vy);
         if (!tile || tile.type !== 'water') continue;
 
-        const px = FIELD_X + (vx - sx) * TILE_SIZE;
-        const py = FIELD_Y + (vy - sy) * TILE_SIZE;
+        const px = L.fieldX + (vx - sx) * L.tileSize;
+        const py = L.fieldY + (vy - sy) * L.tileSize;
 
         // Wave line 1
         this.animGfx.lineStyle(1.5, 0x5599ee, 0.3);
@@ -421,15 +426,15 @@ export class AnimatedMapRenderer {
 
     // Shimmer sparkles on water
     for (const shimmer of this.waterShimmer) {
-      const tileX = Math.floor(shimmer.x / TILE_SIZE);
-      const tileY = Math.floor(shimmer.y / TILE_SIZE);
-      if (tileX < sx || tileX >= sx + VIEWPORT_TILES) continue;
-      if (tileY < sy || tileY >= sy + VIEWPORT_TILES) continue;
+      const tileX = Math.floor(shimmer.x / L.tileSize);
+      const tileY = Math.floor(shimmer.y / L.tileSize);
+      if (tileX < sx || tileX >= sx + L.viewportTilesX) continue;
+      if (tileY < sy || tileY >= sy + L.viewportTilesY) continue;
       const tile = grid.get(tileX, tileY);
       if (!tile || tile.type !== 'water') continue;
 
-      const screenX = FIELD_X + (tileX - sx) * TILE_SIZE + (shimmer.x % TILE_SIZE);
-      const screenY = FIELD_Y + (tileY - sy) * TILE_SIZE + (shimmer.y % TILE_SIZE);
+      const screenX = L.fieldX + (tileX - sx) * L.tileSize + (shimmer.x % L.tileSize);
+      const screenY = L.fieldY + (tileY - sy) * L.tileSize + (shimmer.y % L.tileSize);
       const brightness = Math.sin(time * shimmer.speed + shimmer.phase) * 0.5 + 0.5;
 
       if (brightness > 0.55) {
@@ -441,13 +446,14 @@ export class AnimatedMapRenderer {
 
   // ─── Grass blades (animated) ─────────────────────────────
   private drawGrass(sx: number, sy: number, time: number): void {
+    const L = getLayout();
     for (const blade of this.grassBlades) {
       // Skip if not in viewport
-      if (blade.tileX < sx - 1 || blade.tileX >= sx + VIEWPORT_TILES + 1) continue;
-      if (blade.tileY < sy - 1 || blade.tileY >= sy + VIEWPORT_TILES + 1) continue;
+      if (blade.tileX < sx - 1 || blade.tileX >= sx + L.viewportTilesX + 1) continue;
+      if (blade.tileY < sy - 1 || blade.tileY >= sy + L.viewportTilesY + 1) continue;
 
-      const baseX = FIELD_X + (blade.tileX - sx) * TILE_SIZE + blade.localX;
-      const baseY = FIELD_Y + (blade.tileY - sy) * TILE_SIZE + blade.localY;
+      const baseX = L.fieldX + (blade.tileX - sx) * L.tileSize + blade.localX;
+      const baseY = L.fieldY + (blade.tileY - sy) * L.tileSize + blade.localY;
 
       // Wind sway
       const sway1 = Math.sin(this.windOffset * 2 + blade.phase) * 3;
@@ -465,20 +471,21 @@ export class AnimatedMapRenderer {
 
   // ─── Ambient particles ───────────────────────────────────
   private updateParticles(delta: number, sx: number, sy: number, grid: any, time: number): void {
+    const L = getLayout();
     // Spawn
     this.particleTimer += delta;
     if (this.particleTimer > 600 && this.particles.length < 12) {
       this.particleTimer = 0;
 
-      const tx = sx + Math.random() * VIEWPORT_TILES;
-      const ty = sy + Math.random() * VIEWPORT_TILES;
+      const tx = sx + Math.random() * L.viewportTilesX;
+      const ty = sy + Math.random() * L.viewportTilesY;
       const tile = grid.get(Math.floor(tx), Math.floor(ty));
 
       if (tile && (tile.type === 'grass' || tile.type === 'dirt' || tile.type === 'sand')) {
         const isLeaf = tile.type !== 'sand';
         this.particles.push({
-          x: tx * TILE_SIZE,
-          y: ty * TILE_SIZE,
+          x: tx * L.tileSize,
+          y: ty * L.tileSize,
           vx: (Math.random() - 0.5) * 0.2,
           vy: -0.08 - Math.random() * 0.15,
           life: 0,
@@ -504,12 +511,12 @@ export class AnimatedMapRenderer {
       p.rotation += p.rotSpeed;
 
       // Screen coords
-      const screenX = FIELD_X + p.x - sx * TILE_SIZE;
-      const screenY = FIELD_Y + p.y - sy * TILE_SIZE;
+      const screenX = L.fieldX + p.x - sx * L.tileSize;
+      const screenY = L.fieldY + p.y - sy * L.tileSize;
 
       // Cull
-      if (screenX < FIELD_X - 20 || screenX > FIELD_X + FIELD_W + 20) continue;
-      if (screenY < FIELD_Y - 20 || screenY > FIELD_Y + FIELD_H + 20) continue;
+      if (screenX < L.fieldX - 20 || screenX > L.fieldX + L.fieldW + 20) continue;
+      if (screenY < L.fieldY - 20 || screenY > L.fieldY + L.fieldH + 20) continue;
 
       // Fade
       const lr = p.life / p.maxLife;
@@ -532,20 +539,21 @@ export class AnimatedMapRenderer {
   // ─── Fog of war ──────────────────────────────────────────
   drawFog(): void {
     this.fogGfx.clear();
+    const L = getLayout();
     const grid = this.simulation.tileGrid;
     const sx = this.scrollX;
     const sy = this.scrollY;
 
     const minX = Math.max(0, sx);
-    const maxX = Math.min(MAP_WIDTH, sx + VIEWPORT_TILES);
+    const maxX = Math.min(MAP_WIDTH, sx + L.viewportTilesX);
     const minY = Math.max(0, sy);
-    const maxY = Math.min(MAP_HEIGHT, sy + VIEWPORT_TILES);
+    const maxY = Math.min(MAP_HEIGHT, sy + L.viewportTilesY);
 
     for (let y = minY; y < maxY; y++) {
       for (let x = minX; x < maxX; x++) {
         if (grid.isRevealed(x, y)) continue;
-        const px = FIELD_X + (x - sx) * TILE_SIZE;
-        const py = FIELD_Y + (y - sy) * TILE_SIZE;
+        const px = L.fieldX + (x - sx) * L.tileSize;
+        const py = L.fieldY + (y - sy) * L.tileSize;
 
         const dirs: [number, number][] = [[0, -1], [0, 1], [-1, 0], [1, 0]];
         let rev = 0;
@@ -555,12 +563,12 @@ export class AnimatedMapRenderer {
 
         if (rev > 0) {
           this.fogGfx.fillStyle(0x000000, 0.35 + (1 - rev / 4) * 0.3);
-          this.fogGfx.fillRect(px, py, TILE_SIZE, TILE_SIZE);
+          this.fogGfx.fillRect(px, py, L.tileSize, L.tileSize);
           this.fogGfx.fillStyle(0x000000, 0.12);
-          this.fogGfx.fillRect(px + 4, py + 4, TILE_SIZE - 8, TILE_SIZE - 8);
+          this.fogGfx.fillRect(px + 4, py + 4, L.tileSize - 8, L.tileSize - 8);
         } else {
           this.fogGfx.fillStyle(0x000000, 0.9);
-          this.fogGfx.fillRect(px, py, TILE_SIZE, TILE_SIZE);
+          this.fogGfx.fillRect(px, py, L.tileSize, L.tileSize);
         }
       }
     }

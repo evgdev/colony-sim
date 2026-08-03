@@ -237,11 +237,11 @@ export class DecorationGenerator {
         if (r < 0.60) return 'shore';
         return 'grass_tall';
       }
-      if (r < 0.12) return 'dead_tree';
-      if (r < 0.22) return 'skull';
-      if (r < 0.32) return 'tumbleweed';
-      if (r < 0.45) return 'rock_s';
-      if (r < 0.60) return 'rock_l';
+      if (r < 0.08) return 'dead_tree';
+      if (r < 0.14) return 'skull';
+      if (r < 0.20) return 'tumbleweed';
+      if (r < 0.40) return 'rock_s';
+      if (r < 0.65) return 'rock_l';
       if (r < 0.75) return 'dry_bush';
       return 'grass_tall';
     }
@@ -270,15 +270,15 @@ export class DecorationGenerator {
       return 'grass_tall';
     }
 
-    if (r < 0.10) return 'palm';
-    if (r < 0.18) return 'palm_tall';
-    if (r < 0.26) return 'coconut';
-    if (r < 0.34) return 'round';
-    if (r < 0.42) return 'fern';
-    if (r < 0.50) return 'bush';
-    if (r < 0.56) return 'flower';
-    if (r < 0.64) return 'rock_s';
-    if (r < 0.72) return 'rock_l';
+    if (r < 0.08) return 'palm';
+    if (r < 0.14) return 'palm_tall';
+    if (r < 0.20) return 'coconut';
+    if (r < 0.26) return 'round';
+    if (r < 0.32) return 'fern';
+    if (r < 0.38) return 'bush';
+    if (r < 0.42) return 'flower';
+    if (r < 0.58) return 'rock_s';
+    if (r < 0.80) return 'rock_l';
     return 'grass_tall';
   }
 
@@ -383,8 +383,8 @@ export class DecorationGenerator {
 
     for (const dec of this.decorations) {
       const L = getLayout();
-      const inView = dec.tileX >= sx - 2 && dec.tileX < sx + L.viewportTiles + 2
-                  && dec.tileY >= sy - 2 && dec.tileY < sy + L.viewportTiles + 2;
+      const inView = dec.tileX >= sx - 2 && dec.tileX < sx + L.viewportTilesX + 2
+                  && dec.tileY >= sy - 2 && dec.tileY < sy + L.viewportTilesY + 2;
 
       if (!inView) {
         dec.bottomSprite.setVisible(false);

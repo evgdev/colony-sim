@@ -1,9 +1,9 @@
 import Phaser from 'phaser';
 import {
-  TILE_SIZE, MAP_WIDTH, MAP_HEIGHT, VIEWPORT_TILES, COLORS,
-  FIELD_X, FIELD_Y, FIELD_W, FIELD_H,
+  TILE_SIZE, MAP_WIDTH, MAP_HEIGHT, COLORS,
   NIGHT_TINT, nightAlpha,
 } from '../config';
+import { getLayout } from '../ui/LayoutConfig';
 import { Simulation } from '../core/Simulation';
 import { TextureCache } from './TextureCache';
 import { TileType } from '../core/TileGrid';
@@ -87,7 +87,8 @@ export class MapRenderer {
   }
 
   private createNightOverlay(): void {
-    this.nightOverlay = this.scene.add.rectangle(FIELD_X, FIELD_Y, FIELD_W, FIELD_H, NIGHT_TINT, 0)
+    const L = getLayout();
+    this.nightOverlay = this.scene.add.rectangle(L.fieldX, L.fieldY, L.fieldW, L.fieldH, NIGHT_TINT, 0)
       .setOrigin(0)
       .setDepth(4);
   }
@@ -98,9 +99,10 @@ export class MapRenderer {
   }
 
   private setViewportClip(): void {
+    const L = getLayout();
     const mask = this.scene.add.graphics();
     mask.fillStyle(0xffffff);
-    mask.fillRect(FIELD_X, FIELD_Y, FIELD_W, FIELD_H);
+    mask.fillRect(L.fieldX, L.fieldY, L.fieldW, L.fieldH);
     mask.setVisible(false);
     this.transitionGraphics.setMask(new Phaser.Display.Masks.GeometryMask(this.scene, mask));
   }
@@ -139,6 +141,7 @@ export class MapRenderer {
 
   drawMap(): void {
     this.textureCache.clear();
+    const L = getLayout();
 
     for (const row of this.tileSprites) {
       for (const rect of row) {
@@ -157,10 +160,10 @@ export class MapRenderer {
         let sprite: Phaser.GameObjects.Rectangle | Phaser.GameObjects.Image;
         if (hasTexture) {
           sprite = this.scene.add.image(0, 0, texKey)
-            .setOrigin(0).setDisplaySize(TILE_SIZE, TILE_SIZE);
+            .setOrigin(0).setDisplaySize(L.tileSize, L.tileSize);
         } else {
           const color = COLORS[tile.type as keyof typeof COLORS] || 0x333333;
-          sprite = this.scene.add.rectangle(0, 0, TILE_SIZE, TILE_SIZE, color)
+          sprite = this.scene.add.rectangle(0, 0, L.tileSize, L.tileSize, color)
             .setOrigin(0).setStrokeStyle(1, 0x222222);
         }
         this.tileSprites[y][x] = sprite;
@@ -192,12 +195,13 @@ export class MapRenderer {
     this.waterTimer = 0;
     this.waterPhase = (this.waterPhase + 1) % 3;
 
+    const L = getLayout();
     const sx = this.scrollX;
     const sy = this.scrollY;
     const grid = this.simulation.tileGrid;
 
-    for (let y = sy; y < sy + VIEWPORT_TILES; y++) {
-      for (let x = sx; x < sx + VIEWPORT_TILES; x++) {
+    for (let y = sy; y < sy + L.viewportTilesY; y++) {
+      for (let x = sx; x < sx + L.viewportTilesX; x++) {
         const tile = grid.get(x, y);
         if (!tile || tile.type !== 'water') continue;
         const sprite = this.tileSprites[y]?.[x];
@@ -214,10 +218,11 @@ export class MapRenderer {
     this.scrollX = sx;
     this.scrollY = sy;
 
+    const L = getLayout();
     const minX = sx;
-    const maxX = sx + VIEWPORT_TILES;
+    const maxX = sx + L.viewportTilesX;
     const minY = sy;
-    const maxY = sy + VIEWPORT_TILES;
+    const maxY = sy + L.viewportTilesY;
 
     for (let y = 0; y < MAP_HEIGHT; y++) {
       for (let x = 0; x < MAP_WIDTH; x++) {
@@ -226,8 +231,8 @@ export class MapRenderer {
 
         if (x >= minX && x < maxX && y >= minY && y < maxY) {
           sprite.setPosition(
-            FIELD_X + (x - sx) * TILE_SIZE,
-            FIELD_Y + (y - sy) * TILE_SIZE
+            L.fieldX + (x - sx) * L.tileSize,
+            L.fieldY + (y - sy) * L.tileSize
           );
           sprite.setVisible(true);
         } else {
@@ -243,12 +248,13 @@ export class MapRenderer {
 
   private drawDebugDots(): void {
     this.debugGraphics.clear();
+    const L = getLayout();
     const sx = this.scrollX;
     const sy = this.scrollY;
     const grid = this.simulation.tileGrid;
 
-    for (let y = sy; y < sy + VIEWPORT_TILES; y++) {
-      for (let x = sx; x < sx + VIEWPORT_TILES; x++) {
+    for (let y = sy; y < sy + L.viewportTilesY; y++) {
+      for (let x = sx; x < sx + L.viewportTilesX; x++) {
         const tile = grid.get(x, y);
         if (!tile) continue;
 
@@ -271,8 +277,8 @@ export class MapRenderer {
                        right === upRight && upRight === up;
 
         if (case1 || case2) {
-          const px = FIELD_X + (x - sx) * TILE_SIZE + TILE_SIZE / 2;
-          const py = FIELD_Y + (y - sy) * TILE_SIZE + TILE_SIZE / 2;
+          const px = L.fieldX + (x - sx) * L.tileSize + L.tileSize / 2;
+          const py = L.fieldY + (y - sy) * L.tileSize + L.tileSize / 2;
           this.debugGraphics.fillStyle(0xff0000, 1);
           this.debugGraphics.fillCircle(px, py, 6);
         }
@@ -282,20 +288,21 @@ export class MapRenderer {
 
   private drawFog(): void {
     this.fogGraphics.clear();
+    const L = getLayout();
     const sx = this.scrollX;
     const sy = this.scrollY;
     const grid = this.simulation.tileGrid;
 
     const minX = Math.max(0, sx);
-    const maxX = Math.min(MAP_WIDTH, sx + VIEWPORT_TILES);
+    const maxX = Math.min(MAP_WIDTH, sx + L.viewportTilesX);
     const minY = Math.max(0, sy);
-    const maxY = Math.min(MAP_HEIGHT, sy + VIEWPORT_TILES);
+    const maxY = Math.min(MAP_HEIGHT, sy + L.viewportTilesY);
 
     for (let y = minY; y < maxY; y++) {
       for (let x = minX; x < maxX; x++) {
         if (grid.isRevealed(x, y)) continue;
-        const px = FIELD_X + (x - sx) * TILE_SIZE;
-        const py = FIELD_Y + (y - sy) * TILE_SIZE;
+        const px = L.fieldX + (x - sx) * L.tileSize;
+        const py = L.fieldY + (y - sy) * L.tileSize;
 
         // Check adjacent revealed tiles for soft edge
         let hasRevealedNeighbor = false;
@@ -310,11 +317,11 @@ export class MapRenderer {
         if (hasRevealedNeighbor) {
           // Soft fog edge (semi-transparent)
           this.fogGraphics.fillStyle(0x000000, 0.6);
-          this.fogGraphics.fillRect(px, py, TILE_SIZE, TILE_SIZE);
+          this.fogGraphics.fillRect(px, py, L.tileSize, L.tileSize);
         } else {
           // Solid fog
           this.fogGraphics.fillStyle(0x000000, 1);
-          this.fogGraphics.fillRect(px, py, TILE_SIZE, TILE_SIZE);
+          this.fogGraphics.fillRect(px, py, L.tileSize, L.tileSize);
         }
       }
     }
@@ -322,7 +329,8 @@ export class MapRenderer {
 
   private drawTileTransitions(): void {
     this.transitionGraphics.clear();
-    const tileSize = TILE_SIZE;
+    const L = getLayout();
+    const tileSize = L.tileSize;
     const sx = this.scrollX;
     const sy = this.scrollY;
 
@@ -344,9 +352,9 @@ export class MapRenderer {
     };
 
     const minX = Math.max(0, sx - 1);
-    const maxX = Math.min(MAP_WIDTH, sx + VIEWPORT_TILES + 1);
+    const maxX = Math.min(MAP_WIDTH, sx + L.viewportTilesX + 1);
     const minY = Math.max(0, sy - 1);
-    const maxY = Math.min(MAP_HEIGHT, sy + VIEWPORT_TILES + 2);
+    const maxY = Math.min(MAP_HEIGHT, sy + L.viewportTilesY + 2);
 
     for (let y = minY; y < maxY; y++) {
       for (let x = minX; x < maxX; x++) {
@@ -354,8 +362,8 @@ export class MapRenderer {
         const myPriority = priority[tile.type] ?? 0;
         if (myPriority === 0) continue;
 
-        const px = FIELD_X + (x - sx) * tileSize;
-        const py = FIELD_Y + (y - sy) * tileSize;
+        const px = L.fieldX + (x - sx) * tileSize;
+        const py = L.fieldY + (y - sy) * tileSize;
         const seed = x * 100 + y;
         const c = getColor(tile.type);
 

@@ -7,7 +7,7 @@ const PANEL_H = 520;
 const LIST_W = 210;
 const LIST_H = PANEL_H - 52;
 const ITEM_H = 28;
-const SCROLLBAR_W = 14;
+const SCROLLBAR_W = 22;
 
 const RARITY_COLORS: Record<string, string> = {
   common: '#66cc66', uncommon: '#44aaff', rare: '#cc66ff', legendary: '#ffcc00',
@@ -41,6 +41,10 @@ export class EncyclopediaModal {
   private listY = 0;
   private panelX = 0;
   private panelY = 0;
+  private currentPanelW = PANEL_W;
+  private currentPanelH = PANEL_H;
+  private currentListW = LIST_W;
+  private currentListH = LIST_H;
 
   // Drag state
   private isDragging = false;
@@ -79,8 +83,16 @@ export class EncyclopediaModal {
     const L = getLayout();
     const CANVAS_WIDTH = L.canvasW;
     const CANVAS_HEIGHT = L.canvasH;
-    this.panelX = (CANVAS_WIDTH - PANEL_W) / 2;
-    this.panelY = (CANVAS_HEIGHT - PANEL_H) / 2;
+
+    // Use fullscreen on mobile, fixed size on desktop
+    const isMobile = L.mode === 'mobile';
+    this.currentPanelW = isMobile ? CANVAS_WIDTH - 16 : PANEL_W;
+    this.currentPanelH = isMobile ? CANVAS_HEIGHT - 16 : PANEL_H;
+    this.currentListW = isMobile ? Math.floor(this.currentPanelW * 0.45) : LIST_W;
+    this.currentListH = this.currentPanelH - 52;
+
+    this.panelX = (CANVAS_WIDTH - this.currentPanelW) / 2;
+    this.panelY = (CANVAS_HEIGHT - this.currentPanelH) / 2;
     this.listX = this.panelX + 10;
     this.listY = this.panelY + 40;
 
@@ -93,18 +105,18 @@ export class EncyclopediaModal {
 
     // Panel bg
     this.container.add(
-      this.scene.add.rectangle(this.panelX, this.panelY, PANEL_W, PANEL_H, 0x1a2233, 1)
+      this.scene.add.rectangle(this.panelX, this.panelY, this.currentPanelW, this.currentPanelH, 0x1a2233, 1)
         .setOrigin(0).setStrokeStyle(2, 0x4488cc)
     );
 
     // Title
-    this.container.add(this.scene.add.text(this.panelX + PANEL_W / 2, this.panelY + 16,
+    this.container.add(this.scene.add.text(this.panelX + this.currentPanelW / 2, this.panelY + 16,
       `── Encyclopedia (${this.encyclopedia.getDiscoveryCount()}/${this.encyclopedia.getTotalPlants()}) ──`, {
       fontSize: '16px', color: '#66bbff', fontFamily: 'monospace', fontStyle: 'bold',
     }).setOrigin(0.5, 0));
 
     // Close button
-    const closeBtn = this.scene.add.text(this.panelX + PANEL_W - 28, this.panelY + 8, '✕', {
+    const closeBtn = this.scene.add.text(this.panelX + this.currentPanelW - 28, this.panelY + 8, '✕', {
       fontSize: '20px', color: '#ff5555', fontFamily: 'monospace',
     }).setInteractive({ useHandCursor: true })
       .on('pointerdown', () => this.hide())
@@ -113,7 +125,7 @@ export class EncyclopediaModal {
     this.container.add(closeBtn);
 
     // Scroll up button
-    const upBtn = this.scene.add.text(this.listX + LIST_W - SCROLLBAR_W - 4, this.listY + 2, '▲', {
+    const upBtn = this.scene.add.text(this.listX + this.currentListW - SCROLLBAR_W - 4, this.listY + 2, '▲', {
       fontSize: '12px', color: '#5599cc', fontFamily: 'monospace',
     }).setInteractive({ useHandCursor: true })
       .on('pointerdown', () => this.scroll(-ITEM_H * 3))
@@ -122,7 +134,7 @@ export class EncyclopediaModal {
     this.container.add(upBtn);
 
     // Scroll down button
-    const downBtn = this.scene.add.text(this.listX + LIST_W - SCROLLBAR_W - 4, this.listY + LIST_H - 16, '▼', {
+    const downBtn = this.scene.add.text(this.listX + this.currentListW - SCROLLBAR_W - 4, this.listY + this.currentListH - 16, '▼', {
       fontSize: '12px', color: '#5599cc', fontFamily: 'monospace',
     }).setInteractive({ useHandCursor: true })
       .on('pointerdown', () => this.scroll(ITEM_H * 3))
@@ -132,19 +144,19 @@ export class EncyclopediaModal {
 
     // List panel bg
     this.container.add(
-      this.scene.add.rectangle(this.listX, this.listY, LIST_W, LIST_H, 0x1e2a3a, 1)
+      this.scene.add.rectangle(this.listX, this.listY, this.currentListW, this.currentListH, 0x1e2a3a, 1)
         .setOrigin(0).setStrokeStyle(1, 0x335577)
     );
 
     // List mask
     const maskGfx = this.scene.add.graphics().setVisible(false);
     maskGfx.fillStyle(0xffffff);
-    maskGfx.fillRect(this.listX + 2, this.listY + 2, LIST_W - SCROLLBAR_W - 6, LIST_H - 4);
+    maskGfx.fillRect(this.listX + 2, this.listY + 2, this.currentListW - SCROLLBAR_W - 6, this.currentListH - 4);
     const mask = new Phaser.Display.Masks.GeometryMask(this.scene, maskGfx);
 
     // Scrollbar
     this.scrollbar = this.scene.add.rectangle(
-      this.listX + LIST_W - SCROLLBAR_W / 2 - 2, this.listY + 4,
+      this.listX + this.currentListW - SCROLLBAR_W / 2 - 2, this.listY + 4,
       SCROLLBAR_W, 30, 0x5599cc, 0.9
     ).setOrigin(0.5, 0).setDepth(201).setInteractive({ useHandCursor: true });
     this.scrollbar.on('pointerdown', (p: Phaser.Input.Pointer) => {
@@ -161,12 +173,14 @@ export class EncyclopediaModal {
     this.container.add(this.listContainer);
 
     // Detail panel bg
+    const detailX = this.panelX + this.currentListW + 14;
+    const detailW = this.currentPanelW - this.currentListW - 26;
     this.container.add(
-      this.scene.add.rectangle(this.panelX + 224, this.listY, PANEL_W - 236, LIST_H, 0x1e2a3a, 1)
+      this.scene.add.rectangle(detailX, this.listY, detailW, this.currentListH, 0x1e2a3a, 1)
         .setOrigin(0).setStrokeStyle(1, 0x335577)
     );
 
-    this.detailContainer = this.scene.add.container(this.panelX + 228, this.listY + 8);
+    this.detailContainer = this.scene.add.container(detailX + 4, this.listY + 8);
     this.container.add(this.detailContainer);
 
     this.renderList();
@@ -204,11 +218,12 @@ export class EncyclopediaModal {
   isVisible(): boolean { return this.visible; }
 
   private isInsideList(x: number, y: number): boolean {
-    return x >= this.listX && x <= this.listX + LIST_W && y >= this.listY && y <= this.listY + LIST_H;
+    return x >= this.listX && x <= this.listX + this.currentListW && y >= this.listY && y <= this.listY + this.currentListH;
   }
 
   private onPointerDown(p: Phaser.Input.Pointer) {
     if (!this.visible) return;
+    // Start drag from anywhere inside the list area
     if (this.isInsideList(p.x, p.y)) {
       this.isDragging = true;
       this.dragStartPointerY = p.y;
@@ -221,7 +236,7 @@ export class EncyclopediaModal {
 
     if (this.isDraggingScrollbar) {
       const totalH = this.allIds.length * ITEM_H;
-      const visH = LIST_H - 8;
+      const visH = this.currentListH - 8;
       const maxScroll = Math.max(0, totalH - visH);
       if (maxScroll <= 0) return;
 
@@ -237,7 +252,10 @@ export class EncyclopediaModal {
 
     if (this.isDragging) {
       const dy = p.y - this.dragStartPointerY;
-      this.scroll(this.dragStartScrollY - dy);
+      // Only scroll if moved enough (prevents accidental scroll on tap)
+      if (Math.abs(dy) > 4) {
+        this.scroll(this.dragStartScrollY - dy);
+      }
     }
   }
 
@@ -255,14 +273,14 @@ export class EncyclopediaModal {
     if (e.key === 'ArrowDown') { this.scroll(ITEM_H * 2); return; }
     if (e.key === 'Home') { this.scrollY = 0; this.renderList(); this.updateScrollbar(); return; }
     if (e.key === 'End') {
-      const max = Math.max(0, this.allIds.length * ITEM_H - (LIST_H - 8));
+      const max = Math.max(0, this.allIds.length * ITEM_H - (this.currentListH - 8));
       this.scrollY = max; this.renderList(); this.updateScrollbar(); return;
     }
   }
 
   private scroll(delta: number) {
     const totalH = this.allIds.length * ITEM_H;
-    const max = Math.max(0, totalH - (LIST_H - 8));
+    const max = Math.max(0, totalH - (this.currentListH - 8));
     this.scrollY = Math.max(0, Math.min(max, this.scrollY + delta));
     this.renderList();
     this.updateScrollbar();
@@ -270,14 +288,14 @@ export class EncyclopediaModal {
 
   private updateScrollbar() {
     const totalH = this.allIds.length * ITEM_H;
-    const visH = LIST_H - 8;
+    const visH = this.currentListH - 8;
     if (totalH <= visH) { this.scrollbar.setVisible(false); return; }
     this.scrollbar.setVisible(true);
     const barH = Math.max(30, (visH / totalH) * visH);
     const maxScroll = totalH - visH;
     const barY = this.listY + 4 + (this.scrollY / maxScroll) * (visH - barH);
     this.scrollbar.setSize(SCROLLBAR_W, barH);
-    this.scrollbar.setPosition(this.listX + LIST_W - SCROLLBAR_W / 2 - 2, barY);
+    this.scrollbar.setPosition(this.listX + this.currentListW - SCROLLBAR_W / 2 - 2, barY);
   }
 
   private renderList() {
@@ -287,14 +305,14 @@ export class EncyclopediaModal {
     for (let i = 0; i < this.allIds.length; i++) {
       const plantId = this.allIds[i];
       const itemY = startY + i * ITEM_H;
-      if (itemY + ITEM_H < -10 || itemY > LIST_H) continue;
+      if (itemY + ITEM_H < -10 || itemY > this.currentListH) continue;
 
       const discovered = this.encyclopedia.isDiscovered(plantId);
       const info = this.encyclopedia.getPlantInfo(plantId);
       if (!info) continue;
 
       const isSelected = this.selectedPlantId === plantId;
-      const w = LIST_W - SCROLLBAR_W - 12;
+      const w = this.currentListW - SCROLLBAR_W - 12;
 
       const itemBg = this.scene.add.rectangle(0, itemY, w, ITEM_H - 2,
         isSelected ? 0x2a4a6a : 0x141e2a, 1)
@@ -303,10 +321,13 @@ export class EncyclopediaModal {
 
       if (discovered) {
         itemBg.on('pointerdown', (p: Phaser.Input.Pointer) => {
-          p.event.stopPropagation();
           this.selectedPlantId = plantId;
           this.renderList();
           this.renderDetail(plantId);
+          // Start drag from item tap too (for drag-to-scroll)
+          this.isDragging = true;
+          this.dragStartPointerY = p.y;
+          this.dragStartScrollY = this.scrollY;
         });
         itemBg.on('pointerover', () => {
           if (this.selectedPlantId !== plantId) itemBg.setFillStyle(0x1a3050);
@@ -331,7 +352,7 @@ export class EncyclopediaModal {
     if (!plantId) {
       this.detailContainer.add(this.scene.add.text(0, 100, 'Select a plant\nfrom the list', {
         fontSize: '14px', color: '#556677', fontFamily: 'monospace', align: 'center',
-      }).setOrigin(0.5, 0).setPosition((PANEL_W - 236) / 2, 100));
+      }).setOrigin(0.5, 0).setPosition((this.currentPanelW - 236) / 2, 100));
       return;
     }
 
@@ -389,7 +410,7 @@ export class EncyclopediaModal {
     y += 18;
     this.detailContainer.add(this.scene.add.text(0, y, info.description, {
       fontSize: '13px', color: '#ddeeff', fontFamily: 'monospace',
-      wordWrap: { width: PANEL_W - 250 }, lineSpacing: 4,
+      wordWrap: { width: this.currentPanelW - 250 }, lineSpacing: 4,
     }));
   }
 }
