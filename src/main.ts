@@ -15,6 +15,9 @@ const config = {
   parent: document.body,
   scene: [BootScene, GameScene, ReplayScene],
   resolution: DPR,
+  dom: {
+    createContainer: true,
+  },
   scale: {
     mode: Phaser.Scale.FIT,
     autoCenter: Phaser.Scale.CENTER_BOTH,
