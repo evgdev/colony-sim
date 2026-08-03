@@ -157,6 +157,7 @@ wss.on('connection', (ws) => {
   // Send current player list to new player
   sendTo(ws, {
     type: 'player_list',
+    playerId: id,
     players: getPlayerList(),
     isHost,
   });

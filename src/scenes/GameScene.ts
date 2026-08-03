@@ -586,6 +586,7 @@ export class GameScene extends Phaser.Scene {
   private startHostGame(): void {
     this.isMultiplayer = true;
     this.isHost = true;
+    this.initReceived = true; // host already has the world
     this.startMenu.destroy();
     this.gameMode = 'story';
     this.worldReady = true;

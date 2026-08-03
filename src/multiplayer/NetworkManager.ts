@@ -67,8 +67,8 @@ export class NetworkManager {
     this.ws.onmessage = (e) => {
       try {
         const msg = JSON.parse(e.data) as HostMessage;
-        if (msg.type === 'init') {
-          this._playerId = msg.playerId;
+        if (msg.type === 'init' || msg.type === 'player_list') {
+          if (msg.playerId) this._playerId = msg.playerId;
         }
         for (const h of this.messageHandlers) h(msg);
       } catch (err) {
