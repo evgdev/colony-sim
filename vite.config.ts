@@ -8,6 +8,7 @@ function multiplayerPlugin() {
   let nextId = 1;
   let hostWs: any = null;
   let gameSeed: number | null = null;
+  let lastInitMsg: any = null; // store init for late joiners
   const CHAT_COOLDOWN_MS = 500;
   const CHAT_MAX_LEN = 200;
 
@@ -84,6 +85,17 @@ function multiplayerPlugin() {
         console.log(`[WS] Player ${id} "${player.name}" ${isHost ? 'HOST' : 'CLIENT'} (${players.size} total)`);
 
         sendTo(ws, { type: 'player_list', players: getPlayerList(), isHost });
+
+        // If game already started, send init to new client
+        if (!isHost && lastInitMsg) {
+          sendTo(ws, {
+            ...lastInitMsg,
+            playerId: id,
+            playerName: player.name,
+            playerColor: player.color,
+          });
+        }
+
         broadcast({ type: 'player_join', player: { id: player.id, name: player.name, color: player.color, isHost } }, ws);
 
         ws.on('error', (err: any) => console.error(`[WS] Player ${id} error:`, err.message));
@@ -122,6 +134,7 @@ function multiplayerPlugin() {
           if (player.isHost) {
             if (msg.type === 'init') {
               gameSeed = msg.seed;
+              lastInitMsg = { ...msg };
               const allSettlers = msg.settlerIds || [];
               const hostSettlers = allSettlers.slice(0, Math.ceil(allSettlers.length / 2));
               const clientSettlers = allSettlers.slice(Math.ceil(allSettlers.length / 2));
@@ -145,6 +158,12 @@ function multiplayerPlugin() {
             }
 
             if (msg.type === 'state_sync') {
+              // Update lastInitMsg with latest state for late joiners
+              if (lastInitMsg) {
+                lastInitMsg.entities = msg.entities || lastInitMsg.entities;
+                lastInitMsg.inventory = msg.inventory || lastInitMsg.inventory;
+                lastInitMsg.tickCount = msg.tick || lastInitMsg.tickCount;
+              }
               broadcast({ type: 'state_sync', tick: msg.tick, entities: msg.entities || [], buildings: msg.buildings || [], inventory: msg.inventory || [] }, hostWs);
               return;
             }
