@@ -2250,8 +2250,8 @@ export class GameScene extends Phaser.Scene {
   private checkGameOver(): void {
     if (this.gameOver) return;
     if (!this.worldReady) return;
-    // Don't check game over immediately after multiplayer init
-    if (this.isMultiplayer && !this.isHost && this.simulation.tickCount < 10) return;
+    // Client never triggers game over — host manages this
+    if (this.isMultiplayer && !this.isHost) return;
     const settlers = this.simulation.entityManager.getByType('settler') as Settler[];
     const alive = settlers.filter(s => s.isAlive);
 
