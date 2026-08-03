@@ -2,6 +2,10 @@ import { WebSocketServer } from 'ws';
 import http from 'http';
 import fs from 'fs';
 import path from 'path';
+import { fileURLToPath } from 'url';
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
 
 const PORT = 3001;
 const COLORS = ['#58a6ff', '#44ff44', '#ff4444', '#ffaa00'];
@@ -12,7 +16,7 @@ const START_Y = [1, 1, 8, 8];
 const server = http.createServer((req, res) => {
   let file = req.url === '/' ? '/test-mp.html' : req.url;
   file = file.split('?')[0];
-  const filePath = path.join(import.meta.dirname, file);
+  const filePath = path.join(__dirname, file);
   const ext = path.extname(filePath);
   const mime = { '.html': 'text/html', '.js': 'application/javascript', '.css': 'text/css' }[ext] || 'text/plain';
 
