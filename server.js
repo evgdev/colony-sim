@@ -30,9 +30,9 @@ const server = http.createServer((req, res) => {
         console.log(`[Server] Received init via API. Seed: ${lastInitMsg.seed}, Entities: ${(lastInitMsg.entities || []).length}`);
         res.writeHead(200, { 'Content-Type': 'application/json' });
         res.end(JSON.stringify({ ok: true }));
-        // Also send to all connected clients
+        // Also send to all connected clients (not host)
         for (const p of players.values()) {
-          if (!p.isHost) {
+          if (p.id !== hostPlayerId) {
             sendTo(p.ws, {
               ...lastInitMsg,
               playerId: p.id,
@@ -90,6 +90,7 @@ let hostWs = null; // reference to host's WebSocket
 let gameSeed = null;
 let gameState = null; // latest state_sync from host
 let lastInitMsg = null; // store init for late joiners
+let hostPlayerId = null; // track the real host by ID
 
 const CHAT_COOLDOWN_MS = 500;
 const CHAT_MAX_LEN = 200;
@@ -208,14 +209,14 @@ wss.on('connection', (ws) => {
     // ── request_state ──
     if (msg.type === 'request_state') {
       console.log(`[Server] Player ${id} requested state. lastInitMsg: ${lastInitMsg ? 'exists' : 'null'}`);
-      if (lastInitMsg && !player.isHost) {
+      if (lastInitMsg) {
         sendTo(ws, {
           ...lastInitMsg,
           playerId: id,
           playerName: player.name,
           playerColor: player.color,
         });
-        console.log(`[Server] Sent init to player ${id} on request`);
+        console.log(`[Server] Sent init to player ${id}`);
       }
       return;
     }
