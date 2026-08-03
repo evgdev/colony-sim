@@ -53,11 +53,8 @@ export class NetworkManager {
       this.ws.close();
     }
 
-    // Build WebSocket URL: http://host:port → ws://host:port/ws
+    // Build WebSocket URL: http://host:port → ws://host:port
     let wsUrl = this.url.replace(/^http/, 'ws');
-    if (!wsUrl.endsWith('/ws')) {
-      wsUrl = wsUrl.replace(/\/$/, '') + '/ws';
-    }
     this.ws = new WebSocket(wsUrl);
 
     this.ws.onopen = () => {

@@ -181,7 +181,7 @@ export class StartMenu {
     }).setOrigin(0.5);
     this.container.add(title);
 
-    const defaultUrl = `http://${window.location.hostname || '192.168.43.1'}:3000`;
+    const defaultUrl = `http://${window.location.hostname || '192.168.43.1'}:3001`;
 
     const addrLabel = this.scene.add.text(cx, cy - 10, 'Сервер:', {
       fontSize: isMobile ? '12px' : '14px', color: '#8b949e', fontFamily: 'monospace',
