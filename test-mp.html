@@ -1,0 +1,296 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Multiplayer Test</title>
+<style>
+* { margin: 0; padding: 0; box-sizing: border-box; }
+body { background: #1a1a2e; color: #c9d1d9; font: 14px monospace; display: flex; flex-direction: column; align-items: center; padding: 20px; }
+h1 { color: #58a6ff; margin-bottom: 10px; }
+#info { color: #8b949e; margin-bottom: 15px; }
+#status { padding: 8px 16px; border-radius: 6px; margin-bottom: 15px; }
+.status-disconnected { background: #3a1a1a; color: #ff4444; }
+.status-connected { background: #1a3a1a; color: #44ff44; }
+.status-host { background: #1a1a3a; color: #4488ff; }
+#controls { display: flex; gap: 10px; margin-bottom: 15px; }
+#controls button { font: bold 14px monospace; padding: 10px 20px; border: 2px solid #58a6ff; border-radius: 6px; background: #0d1117; color: #58a6ff; cursor: pointer; }
+#controls button:hover { background: #16213e; }
+#controls button.active { background: #58a6ff; color: #0d1117; }
+canvas { border: 2px solid #30363d; border-radius: 4px; cursor: pointer; }
+#log { margin-top: 15px; max-width: 500px; width: 100%; max-height: 200px; overflow-y: auto; background: #0d1117; border: 1px solid #30363d; border-radius: 6px; padding: 10px; }
+#log div { margin: 2px 0; }
+.log-info { color: #58a6ff; }
+.log-action { color: #44ff44; }
+.log-error { color: #ff4444; }
+</style>
+</head>
+<body>
+
+<h1>Multiplayer Test</h1>
+<div id="info">10x10 grid, 2 players, click to move</div>
+<div id="status" class="status-disconnected">Отключено</div>
+
+<div id="controls">
+  <button id="btnHost">Создать (Хост)</button>
+  <button id="btnJoin">Присоединиться</button>
+</div>
+
+<canvas id="game" width="500" height="500"></canvas>
+
+<div id="log"></div>
+
+<script>
+const canvas = document.getElementById('game');
+const ctx = canvas.getContext('2d');
+const statusEl = document.getElementById('status');
+const logEl = document.getElementById('log');
+const btnHost = document.getElementById('btnHost');
+const btnJoin = document.getElementById('btnJoin');
+
+const TILE = 50;
+const GRID = 10;
+
+// ── Game State ──
+const state = {
+  grid: [], // 10x10: 0=grass, 1=stone, 2=tree
+  players: {}, // id -> { x, y, color, name }
+  myId: null,
+  isHost: false,
+};
+
+// Generate grid
+function generateGrid() {
+  state.grid = [];
+  for (let y = 0; y < GRID; y++) {
+    state.grid[y] = [];
+    for (let x = 0; x < GRID; x++) {
+      state.grid[y][x] = 0; // grass
+    }
+  }
+  // Add stone and tree
+  state.grid[3][5] = 1; // stone
+  state.grid[7][2] = 2; // tree
+}
+
+// ── Drawing ──
+function draw() {
+  ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+  // Draw grid
+  for (let y = 0; y < GRID; y++) {
+    for (let x = 0; x < GRID; x++) {
+      const px = x * TILE;
+      const py = y * TILE;
+
+      // Grass
+      const shade = ((x + y) % 2 === 0) ? '#3a5a2a' : '#346024';
+      ctx.fillStyle = shade;
+      ctx.fillRect(px, py, TILE, TILE);
+
+      // Stone
+      if (state.grid[y][x] === 1) {
+        ctx.fillStyle = '#808080';
+        ctx.fillRect(px + 8, py + 8, TILE - 16, TILE - 16);
+        ctx.fillStyle = '#666666';
+        ctx.fillRect(px + 12, py + 12, TILE - 24, TILE - 24);
+      }
+
+      // Tree
+      if (state.grid[y][x] === 2) {
+        ctx.fillStyle = '#5a3a1a';
+        ctx.fillRect(px + 20, py + 25, 10, 20); // trunk
+        ctx.fillStyle = '#2a7a2a';
+        ctx.beginPath();
+        ctx.arc(px + 25, py + 20, 15, 0, Math.PI * 2);
+        ctx.fill();
+      }
+
+      // Grid lines
+      ctx.strokeStyle = '#2a4a1a';
+      ctx.lineWidth = 1;
+      ctx.strokeRect(px, py, TILE, TILE);
+    }
+  }
+
+  // Draw players
+  for (const [id, p] of Object.entries(state.players)) {
+    const px = p.x * TILE + TILE / 2;
+    const py = p.y * TILE + TILE / 2;
+
+    // Shadow
+    ctx.fillStyle = 'rgba(0,0,0,0.3)';
+    ctx.beginPath();
+    ctx.ellipse(px, py + 18, 14, 6, 0, 0, Math.PI * 2);
+    ctx.fill();
+
+    // Body
+    ctx.fillStyle = p.color;
+    ctx.beginPath();
+    ctx.roundRect(px - 10, py - 8, 20, 24, 4);
+    ctx.fill();
+
+    // Head
+    ctx.fillStyle = '#f0d0b0';
+    ctx.beginPath();
+    ctx.arc(px, py - 14, 8, 0, Math.PI * 2);
+    ctx.fill();
+
+    // Name
+    ctx.fillStyle = '#fff';
+    ctx.font = 'bold 11px monospace';
+    ctx.textAlign = 'center';
+    ctx.fillText(p.name, px, py - 28);
+
+    // Highlight if my player
+    if (id === state.myId) {
+      ctx.strokeStyle = '#fff';
+      ctx.lineWidth = 2;
+      ctx.beginPath();
+      ctx.ellipse(px, py + 18, 16, 8, 0, 0, Math.PI * 2);
+      ctx.stroke();
+    }
+  }
+
+  // Show coordinates on hover
+  if (hoverTile) {
+    ctx.strokeStyle = 'rgba(255,255,255,0.5)';
+    ctx.lineWidth = 2;
+    ctx.strokeRect(hoverTile.x * TILE, hoverTile.y * TILE, TILE, TILE);
+  }
+}
+
+let hoverTile = null;
+
+canvas.addEventListener('mousemove', (e) => {
+  const rect = canvas.getBoundingClientRect();
+  const x = Math.floor((e.clientX - rect.left) / TILE);
+  const y = Math.floor((e.clientY - rect.top) / TILE);
+  if (x >= 0 && x < GRID && y >= 0 && y < GRID) {
+    hoverTile = { x, y };
+  } else {
+    hoverTile = null;
+  }
+  draw();
+});
+
+canvas.addEventListener('mouseleave', () => {
+  hoverTile = null;
+  draw();
+});
+
+// ── Click to move ──
+canvas.addEventListener('click', (e) => {
+  if (!state.myId || !ws || ws.readyState !== 1) return;
+  const rect = canvas.getBoundingClientRect();
+  const x = Math.floor((e.clientX - rect.left) / TILE);
+  const y = Math.floor((e.clientY - rect.top) / TILE);
+  if (x < 0 || x >= GRID || y < 0 || y >= GRID) return;
+  if (state.grid[y][x] !== 0) return; // can't walk on stone/tree
+
+  // Send move action
+  ws.send(JSON.stringify({ type: 'move', x, y }));
+});
+
+// ── Logging ──
+function log(msg, cls = 'log-info') {
+  const div = document.createElement('div');
+  div.className = cls;
+  div.textContent = `[${new Date().toLocaleTimeString()}] ${msg}`;
+  logEl.appendChild(div);
+  logEl.scrollTop = logEl.scrollHeight;
+}
+
+// ── WebSocket ──
+let ws = null;
+
+function connect(url) {
+  if (ws) { ws.close(); ws = null; }
+
+  ws = new WebSocket(url);
+
+  ws.onopen = () => {
+    statusEl.textContent = 'Подключено';
+    statusEl.className = 'status-connected';
+    log('Подключено к серверу', 'log-action');
+  };
+
+  ws.onmessage = (e) => {
+    const msg = JSON.parse(e.data);
+    handleMessage(msg);
+  };
+
+  ws.onclose = () => {
+    statusEl.textContent = 'Отключено';
+    statusEl.className = 'status-disconnected';
+    log('Отключено', 'log-error');
+  };
+
+  ws.onerror = () => {
+    log('Ошибка подключения', 'log-error');
+  };
+}
+
+function handleMessage(msg) {
+  if (msg.type === 'init') {
+    // Received initial state
+    state.myId = msg.playerId;
+    state.isHost = msg.isHost;
+    state.grid = msg.grid;
+    state.players = {};
+    for (const p of msg.players) {
+      state.players[p.id] = { x: p.x, y: p.y, color: p.color, name: p.name };
+    }
+    statusEl.textContent = state.isHost ? 'Хост' : `Клиент (Игрок ${state.myId})`;
+    statusEl.className = 'status-host';
+    log(`Вы: ${state.players[state.myId].name}, Позиция: (${state.players[state.myId].x}, ${state.players[state.myId].y})`, 'log-action');
+    draw();
+  }
+
+  if (msg.type === 'player_joined') {
+    state.players[msg.player.id] = { x: msg.player.x, y: msg.player.y, color: msg.player.color, name: msg.player.name };
+    log(`${msg.player.name} присоединился`, 'log-action');
+    draw();
+  }
+
+  if (msg.type === 'player_left') {
+    const p = state.players[msg.playerId];
+    if (p) log(`${p.name} отключился`, 'log-error');
+    delete state.players[msg.playerId];
+    draw();
+  }
+
+  if (msg.type === 'move') {
+    const p = state.players[msg.playerId];
+    if (p) {
+      log(`${p.name} -> (${msg.x}, ${msg.y})`, 'log-action');
+      p.x = msg.x;
+      p.y = msg.y;
+      draw();
+    }
+  }
+}
+
+// ── Buttons ──
+const SERVER_IP = window.location.hostname || '192.168.0.4';
+const WS_URL = `ws://${SERVER_IP}:3001`;
+
+btnHost.addEventListener('click', () => {
+  generateGrid();
+  connect(WS_URL);
+  statusEl.textContent = 'Подключение...';
+  log('Подключение как хост...');
+});
+
+btnJoin.addEventListener('click', () => {
+  connect(WS_URL);
+  statusEl.textContent = 'Подключение...';
+  log('Подключение как клиент...');
+});
+
+// Initial draw
+generateGrid();
+draw();
+</script>
+</body>
+</html>
