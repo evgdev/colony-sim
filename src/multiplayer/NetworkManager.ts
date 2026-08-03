@@ -79,9 +79,7 @@ export class NetworkManager {
     this.ws.onclose = () => {
       console.log('[Net] Disconnected');
       for (const h of this.disconnectHandlers) h();
-      if (this.shouldReconnect) {
-        this.reconnectTimer = setTimeout(() => this.doConnect(), 2000);
-      }
+      // No auto-reconnect — user must manually join again
     };
 
     this.ws.onerror = (e) => {
