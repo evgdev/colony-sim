@@ -1,0 +1,467 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+<title>Colony Sim — Multiplayer</title>
+<style>
+* { margin: 0; padding: 0; box-sizing: border-box; }
+body { background: #111; overflow: hidden; touch-action: none; }
+canvas { display: block; }
+#hud {
+  position: fixed; top: 10px; left: 10px;
+  color: #fff; font: 14px monospace;
+  background: rgba(0,0,0,0.7); padding: 8px 12px;
+  border-radius: 6px; pointer-events: none; z-index: 10;
+}
+#status {
+  position: fixed; top: 10px; right: 10px;
+  color: #888; font: 12px monospace; z-index: 10;
+}
+#controls {
+  position: fixed; bottom: 20px; left: 50%; transform: translateX(-50%);
+  display: flex; gap: 10px; z-index: 10;
+}
+#controls button {
+  font: bold 16px monospace; padding: 12px 24px;
+  border: 2px solid #58a6ff; border-radius: 8px;
+  background: rgba(13,17,23,0.9); color: #58a6ff;
+  cursor: pointer; user-select: none;
+}
+#controls button.active { background: #58a6ff; color: #0d1117; }
+#chat-box {
+  position: fixed; bottom: 80px; left: 10px;
+  width: 320px; z-index: 20;
+}
+#chat-messages {
+  max-height: 180px; overflow-y: auto;
+  background: rgba(0,0,0,0.6); border-radius: 6px;
+  padding: 6px 8px; margin-bottom: 6px;
+  font: 12px monospace; color: #ccc;
+  pointer-events: auto;
+}
+#chat-messages div { margin-bottom: 2px; word-break: break-word; }
+#chat-messages .chat-name { font-weight: bold; }
+#chat-messages .chat-sys { color: #fa0; font-style: italic; }
+#chat-input-wrap {
+  display: flex; gap: 4px;
+}
+#chat-input {
+  flex: 1; font: 13px monospace; padding: 6px 8px;
+  border: 1px solid #58a6ff; border-radius: 6px;
+  background: rgba(13,17,23,0.9); color: #fff;
+  outline: none;
+}
+#chat-input:focus { border-color: #7cc4ff; }
+#chat-send {
+  font: bold 13px monospace; padding: 6px 12px;
+  border: 1px solid #58a6ff; border-radius: 6px;
+  background: rgba(13,17,23,0.9); color: #58a6ff;
+  cursor: pointer;
+}
+#toast {
+  position: fixed; top: 50px; left: 50%; transform: translateX(-50%);
+  font: bold 14px monospace; padding: 8px 16px;
+  background: rgba(200,50,50,0.85); color: #fff;
+  border-radius: 6px; opacity: 0; transition: opacity 0.3s;
+  pointer-events: none; z-index: 30;
+}
+</style>
+</head>
+<body>
+<div id="hud"></div>
+<div id="status">connecting...</div>
+<div id="controls">
+  <button id="btnMove" class="active">MOVE</button>
+  <button id="btnBuild">BUILD</button>
+  <button id="btnDemolish">DEMOLISH</button>
+</div>
+<div id="chat-box">
+  <div id="chat-messages"></div>
+  <div id="chat-input-wrap">
+    <input id="chat-input" placeholder="Type message..." maxlength="200" autocomplete="off" />
+    <button id="chat-send">Send</button>
+  </div>
+</div>
+<div id="toast"></div>
+<canvas id="c"></canvas>
+<script>
+const canvas = document.getElementById('c');
+const ctx = canvas.getContext('2d');
+const hud = document.getElementById('hud');
+const status = document.getElementById('status');
+const btnMove = document.getElementById('btnMove');
+const btnBuild = document.getElementById('btnBuild');
+const btnDemolish = document.getElementById('btnDemolish');
+const chatMessages = document.getElementById('chat-messages');
+const chatInput = document.getElementById('chat-input');
+const chatSend = document.getElementById('chat-send');
+const toastEl = document.getElementById('toast');
+
+const GRID = 40;
+const R = 14;
+
+let W, H;
+function resize() { W = canvas.width = innerWidth; H = canvas.height = innerHeight; }
+resize();
+addEventListener('resize', resize);
+
+// --- Tools ---
+let tool = 'move'; // 'move' | 'build' | 'demolish'
+function setTool(t) {
+  tool = t;
+  btnMove.className = t === 'move' ? 'active' : '';
+  btnBuild.className = t === 'build' ? 'active' : '';
+  btnDemolish.className = t === 'demolish' ? 'active' : '';
+}
+btnMove.onclick = () => setTool('move');
+btnBuild.onclick = () => setTool('build');
+btnDemolish.onclick = () => setTool('demolish');
+
+// --- Chat ---
+const CHAT_MAX = 50;
+const chatHistory = [];
+
+function escHtml(s) { return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
+
+function addChat(name, color, text) {
+  chatHistory.push({ name, color, text });
+  if (chatHistory.length > CHAT_MAX) chatHistory.shift();
+  const div = document.createElement('div');
+  div.innerHTML = `<span class="chat-name" style="color:${escHtml(color)}">${escHtml(name)}:</span> ${escHtml(text)}`;
+  chatMessages.appendChild(div);
+  chatMessages.scrollTop = chatMessages.scrollHeight;
+}
+
+function addSystemChat(text) {
+  const div = document.createElement('div');
+  div.className = 'chat-sys';
+  div.textContent = text;
+  chatMessages.appendChild(div);
+  chatMessages.scrollTop = chatMessages.scrollHeight;
+}
+
+function sendChat() {
+  const text = chatInput.value.trim();
+  if (!text || !ws || ws.readyState !== 1) return;
+  ws.send(JSON.stringify({ type: 'chat', text }));
+  chatInput.value = '';
+}
+
+chatSend.addEventListener('click', sendChat);
+chatInput.addEventListener('keydown', (e) => {
+  e.stopPropagation();
+  if (e.key === 'Enter') sendChat();
+  if (e.key === 'Escape') { chatInput.blur(); }
+});
+// Prevent game input while typing
+chatInput.addEventListener('focus', () => { chatFocused = true; });
+chatInput.addEventListener('blur', () => { chatFocused = false; });
+let chatFocused = false;
+
+// --- Toast ---
+let toastTimer = 0;
+function showToast(msg) {
+  toastEl.textContent = msg;
+  toastEl.style.opacity = '1';
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => { toastEl.style.opacity = '0'; }, 2500);
+}
+
+// --- State ---
+let myId = null;
+let myColor = '#fff';
+let myName = '';
+const remotePlayers = {};
+const walls = {}; // "x,y" -> { x, y, ownerId }
+
+// --- WebSocket ---
+const wsProtocol = location.protocol === 'https:' ? 'wss:' : 'ws:';
+let ws = null;
+let reconnectTimer = 0;
+
+function connect() {
+  // Prevent duplicate connections
+  if (ws && (ws.readyState === 0 || ws.readyState === 1)) return;
+
+  clearTimeout(reconnectTimer);
+  ws = new WebSocket(`${wsProtocol}//${location.host}`);
+
+  ws.onopen = () => {
+    status.textContent = 'connected';
+    status.style.color = '#4f4';
+  };
+
+  ws.onclose = () => {
+    status.textContent = 'reconnecting...';
+    status.style.color = '#fa0';
+    ws = null;
+    reconnectTimer = setTimeout(connect, 2000);
+  };
+
+  ws.onmessage = (e) => {
+    const msg = JSON.parse(e.data);
+
+    if (msg.type === 'init') {
+      myId = msg.id;
+      myColor = msg.color;
+      myName = msg.name;
+      for (const k of Object.keys(remotePlayers)) delete remotePlayers[k];
+      for (const k of Object.keys(walls)) delete walls[k];
+      myX = msg.players.find(p => p.id === myId)?.x ?? W / 2;
+      myY = msg.players.find(p => p.id === myId)?.y ?? H / 2;
+      for (const p of msg.players) {
+        if (p.id !== myId) remotePlayers[p.id] = { x: p.x, y: p.y, color: p.color, name: p.name };
+      }
+      for (const w of msg.walls) walls[`${w.x},${w.y}`] = w;
+      addSystemChat('Connected to server');
+    }
+
+    if (msg.type === 'join') {
+      remotePlayers[msg.player.id] = { x: msg.player.x, y: msg.player.y, color: msg.player.color, name: msg.player.name };
+      addSystemChat(`${msg.player.name} joined`);
+    }
+
+    if (msg.type === 'move') {
+      if (msg.id !== myId && remotePlayers[msg.id]) {
+        remotePlayers[msg.id].x = msg.x;
+        remotePlayers[msg.id].y = msg.y;
+      }
+    }
+
+    if (msg.type === 'wall_built') {
+      walls[`${msg.wall.x},${msg.wall.y}`] = msg.wall;
+    }
+
+    if (msg.type === 'wall_removed') {
+      delete walls[`${msg.x},${msg.y}`];
+    }
+
+    if (msg.type === 'leave') {
+      const p = remotePlayers[msg.id];
+      if (p) addSystemChat(`${p.name} left`);
+      delete remotePlayers[msg.id];
+    }
+
+    if (msg.type === 'chat') {
+      addChat(msg.name, msg.color, msg.text);
+    }
+
+    if (msg.type === 'error') {
+      showToast(msg.msg);
+    }
+  };
+}
+
+connect();
+
+// Reconnect when returning to tab
+document.addEventListener('visibilitychange', () => {
+  if (document.visibilityState === 'visible') connect();
+});
+
+// --- My position ---
+let myX = W / 2, myY = H / 2;
+let targetX = myX, targetY = myY;
+let mouseDown = false;
+let moving = false;
+
+// --- Input: Mouse ---
+canvas.addEventListener('mousedown', (e) => {
+  if (chatFocused) return;
+  if (e.button === 0) { // left click
+    mouseDown = true;
+    if (tool === 'move') {
+      targetX = e.clientX; targetY = e.clientY;
+      moving = true;
+    } else if (tool === 'build' && ws && ws.readyState === 1) {
+      ws.send(JSON.stringify({ type: 'build_wall', x: e.clientX, y: e.clientY }));
+    } else if (tool === 'demolish' && ws && ws.readyState === 1) {
+      ws.send(JSON.stringify({ type: 'demolish_wall', x: e.clientX, y: e.clientY }));
+    }
+  }
+});
+canvas.addEventListener('mousemove', (e) => {
+  if (mouseDown && tool === 'move') { targetX = e.clientX; targetY = e.clientY; }
+});
+canvas.addEventListener('mouseup', () => { mouseDown = false; });
+
+// Right-click = build wall at cursor
+canvas.addEventListener('contextmenu', (e) => {
+  if (chatFocused) return;
+  e.preventDefault();
+  if (ws && ws.readyState === 1) {
+    ws.send(JSON.stringify({ type: 'build_wall', x: e.clientX, y: e.clientY }));
+  }
+});
+
+// --- Input: Touch ---
+canvas.addEventListener('touchstart', (e) => {
+  if (chatFocused) return;
+  e.preventDefault();
+  const t = e.touches[0];
+  if (tool === 'move') {
+    targetX = t.clientX; targetY = t.clientY;
+    moving = true;
+  } else if (tool === 'build' && ws && ws.readyState === 1) {
+    ws.send(JSON.stringify({ type: 'build_wall', x: t.clientX, y: t.clientY }));
+  } else if (tool === 'demolish' && ws && ws.readyState === 1) {
+    ws.send(JSON.stringify({ type: 'demolish_wall', x: t.clientX, y: t.clientY }));
+  }
+}, { passive: false });
+
+canvas.addEventListener('touchmove', (e) => {
+  e.preventDefault();
+  if (tool === 'move') {
+    const t = e.touches[0];
+    targetX = t.clientX; targetY = t.clientY;
+  }
+}, { passive: false });
+
+// --- Network send (throttled) ---
+let lastSend = 0;
+function sendPosition() {
+  const now = performance.now();
+  if (now - lastSend < 16) return;
+  lastSend = now;
+  if (ws && ws.readyState === 1) {
+    ws.send(JSON.stringify({ type: 'move', x: myX, y: myY }));
+  }
+}
+
+const lerp = (a, b, t) => a + (b - a) * t;
+
+// --- Draw ---
+function snap(v) { return Math.round(v / GRID) * GRID; }
+
+function drawGrid() {
+  ctx.strokeStyle = '#1e2a1e';
+  ctx.lineWidth = 1;
+  for (let x = 0; x < W; x += GRID) {
+    ctx.beginPath(); ctx.moveTo(x, 0); ctx.lineTo(x, H); ctx.stroke();
+  }
+  for (let y = 0; y < H; y += GRID) {
+    ctx.beginPath(); ctx.moveTo(0, y); ctx.lineTo(W, y); ctx.stroke();
+  }
+}
+
+function drawWalls() {
+  for (const key of Object.keys(walls)) {
+    const w = walls[key];
+    // Wall block
+    ctx.fillStyle = '#8b6914';
+    ctx.fillRect(w.x - GRID/2 + 1, w.y - GRID/2 + 1, GRID - 2, GRID - 2);
+    // Brick pattern
+    ctx.strokeStyle = '#6b4f10';
+    ctx.lineWidth = 1;
+    ctx.strokeRect(w.x - GRID/2 + 1, w.y - GRID/2 + 1, GRID - 2, GRID - 2);
+    ctx.beginPath();
+    ctx.moveTo(w.x - GRID/2 + 1, w.y);
+    ctx.lineTo(w.x + GRID/2 - 1, w.y);
+    ctx.moveTo(w.x, w.y - GRID/2 + 1);
+    ctx.lineTo(w.x, w.y);
+    ctx.stroke();
+  }
+}
+
+function drawColonist(x, y, color, name, isMe) {
+  const bodyH = 18;
+  const headR = 7;
+  const bodyY = y + 4;
+
+  // Shadow
+  ctx.fillStyle = 'rgba(0,0,0,0.3)';
+  ctx.beginPath();
+  ctx.ellipse(x, bodyY + bodyH/2 + 2, 10, 4, 0, 0, Math.PI * 2);
+  ctx.fill();
+
+  // Body
+  ctx.fillStyle = color;
+  ctx.beginPath();
+  ctx.roundRect(x - 8, bodyY - bodyH/2, 16, bodyH, 4);
+  ctx.fill();
+
+  // Head
+  ctx.fillStyle = '#f0d0b0';
+  ctx.beginPath();
+  ctx.arc(x, bodyY - bodyH/2 - headR + 2, headR, 0, Math.PI * 2);
+  ctx.fill();
+
+  // Selection ring
+  if (isMe) {
+    ctx.strokeStyle = '#fff';
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    ctx.ellipse(x, bodyY + bodyH/2 + 2, 12, 5, 0, 0, Math.PI * 2);
+    ctx.stroke();
+  }
+
+  // Name
+  ctx.fillStyle = '#fff';
+  ctx.font = 'bold 11px monospace';
+  ctx.textAlign = 'center';
+  ctx.fillText(name, x, y - R - 14);
+}
+
+function drawTargetMarker() {
+  if (!moving) return;
+  ctx.strokeStyle = myColor;
+  ctx.lineWidth = 2;
+  ctx.globalAlpha = 0.7;
+  const s = 6;
+  // Diamond shape
+  ctx.beginPath();
+  ctx.moveTo(targetX, targetY - s);
+  ctx.lineTo(targetX + s, targetY);
+  ctx.lineTo(targetX, targetY + s);
+  ctx.lineTo(targetX - s, targetY);
+  ctx.closePath();
+  ctx.stroke();
+  ctx.globalAlpha = 1;
+}
+
+function frame() {
+  ctx.fillStyle = '#1a2a1a';
+  ctx.fillRect(0, 0, W, H);
+
+  drawGrid();
+  drawWalls();
+
+  // Move
+  if (moving) {
+    const speed = 0.15;
+    myX = lerp(myX, targetX, speed);
+    myY = lerp(myY, targetY, speed);
+    sendPosition();
+    if (Math.abs(myX - targetX) < 1 && Math.abs(myY - targetY) < 1) {
+      myX = targetX;
+      myY = targetY;
+      moving = false;
+    }
+  }
+
+  drawTargetMarker();
+
+  // Remote colonists
+  for (const [id, p] of Object.entries(remotePlayers)) {
+    drawColonist(p.x, p.y, p.color, p.name, false);
+  }
+
+  // Me
+  if (myId) {
+    drawColonist(myX, myY, myColor, myName, true);
+  }
+
+  // HUD
+  const count = Object.keys(remotePlayers).length;
+  const wallCount = Object.keys(walls).length;
+  hud.innerHTML = `<span style="color:${myColor}">${myName}</span> &mdash; online: ${count + 1} &mdash; walls: ${wallCount}`;
+  hud.style.borderColor = myColor;
+
+  requestAnimationFrame(frame);
+}
+
+frame();
+</script>
+</body>
+</html>

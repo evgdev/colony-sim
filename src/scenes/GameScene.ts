@@ -51,6 +51,8 @@ import { gameConfig } from '../gameConfig';
 import { createInitialWorld } from '../game/GameSetup';
 import { StartMenu, GameMode } from '../game/StartMenu';
 import { GameOverScreen } from '../game/GameOverScreen';
+import { NetworkManager, networkManager } from '../multiplayer/NetworkManager';
+import { HostMessage } from '../multiplayer/Protocol';
 
 export class GameScene extends Phaser.Scene {
   simulation!: Simulation;
@@ -87,6 +89,8 @@ export class GameScene extends Phaser.Scene {
 
   private gameOver: boolean = false;
   private worldReady: boolean = false;
+  private needsInitialScroll: boolean = false;
+  private scrollLockFrames: number = 0;
   private gameMode: GameMode = 'story';
   private dialoguePaused: boolean = false;
 
@@ -94,6 +98,13 @@ export class GameScene extends Phaser.Scene {
   private gameOverScreen!: GameOverScreen;
   private wallOverlay!: Phaser.GameObjects.Graphics;
   private exploreOverlay!: Phaser.GameObjects.Graphics;
+
+  // Multiplayer state
+  isMultiplayer: boolean = false;
+  isHost: boolean = false;
+  private stateSyncTimer: number = 0;
+  private stateSyncInterval: number = 10; // ticks between state syncs
+  remotePlayers: Map<number, { id: number; name: string; color: string; assignedSettlers: number[] }> = new Map();
 
   private scrollX: number = 0;
   private scrollY: number = 0;
@@ -274,9 +285,16 @@ export class GameScene extends Phaser.Scene {
     this.uiManager.setArtifactSystem(this.artifactSystem);
     this.replayRecorder = new ReplayRecorder(this.simulation);
     this.uiManager.replayRecorder = this.replayRecorder;
-    this.uiManager.createEventArea();
-    this.uiManager.createLeftPanel();
-    this.uiManager.createActionLog();
+
+    const L = getLayout();
+    const isMobile = L.mode === 'mobile';
+
+    if (!isMobile) {
+      this.uiManager.createEventArea();
+      this.uiManager.createLeftPanel();
+      this.uiManager.createActionLog();
+      this.uiManager.createSettlerIcons((index) => this.selectSettlerByIndex(index));
+    }
     this.uiManager.createInfoPanel();
     this.uiManager.onCollectCallback = (entity, queue) => this.handleCollect(entity, queue);
     this.uiManager.onDemolishCallback = (entity) => this.handleDemolish(entity);
@@ -285,7 +303,6 @@ export class GameScene extends Phaser.Scene {
     this.uiManager.onJournalCallback = (building) => this.showLabJournal(building);
     this.uiManager.onCraftCallback = (recipeId, workshop) => this.handleCraft(recipeId, workshop);
     this.uiManager.onUseCraftedCallback = (recipeId, workshop) => this.handleUseCrafted(recipeId, workshop);
-    this.uiManager.createSettlerIcons((index) => this.selectSettlerByIndex(index));
     this.uiManager.updateScroll(this.scrollX, this.scrollY);
 
     this.entityRenderer = new EntityRenderer(this, this.simulation);
@@ -308,6 +325,7 @@ export class GameScene extends Phaser.Scene {
 
     this.debugPanel = new DebugPanel(this);
     this.toastManager = new ToastManager(this);
+    this.uiManager.mobileLogCallback = (msg) => this.toastManager.show(msg);
     this.dialogueBox = new DialogueBox(this);
     this.encyclopedia = new Encyclopedia();
     this.encyclopediaModal = new EncyclopediaModal(this, this.encyclopedia);
@@ -321,17 +339,22 @@ export class GameScene extends Phaser.Scene {
     this.startMenu = new StartMenu(this);
     this.gameOverScreen = new GameOverScreen(this);
 
-    this.uiManager.createBottomHUD(
-      () => this.onSave(),
-      () => this.onLoad(),
-      () => this.onClearSave(),
-      () => createBuildingIcons(this),
-      this.debugPanel,
-      () => {
-        this.replayRecorder.stop();
-        this.scene.start('BootScene');
-      }
-    );
+    const hudSave = () => this.onSave();
+    const hudLoad = () => this.onLoad();
+    const hudClear = () => this.onClearSave();
+    const hudBuild = () => createBuildingIcons(this);
+    const hudExit = () => {
+      this.replayRecorder.stop();
+      this.scene.start('BootScene');
+    };
+
+    if (isMobile) {
+      this.uiManager.createMobileUI(hudSave, hudLoad, hudClear, hudBuild, this.debugPanel, hudExit,
+        (index) => this.selectSettlerByIndex(index)
+      );
+    } else {
+      this.uiManager.createBottomHUD(hudSave, hudLoad, hudClear, hudBuild, this.debugPanel, hudExit);
+    }
 
     // Start background music (disabled)
     // if (this.cache.audio.exists('music_level1')) {
@@ -410,49 +433,51 @@ export class GameScene extends Phaser.Scene {
       }
     };
 
-    // QuestManager — full quest tree
-    this.questManager = new QuestManager(this.storyBranchManager);
-    this.questManager.onEvent((event) => {
-      // Always log messages
-      if (event.message && event.type !== 'dialogue') {
-        this.uiManager?.addLog(event.message);
-      }
-      // Always show toast for quest start/complete
-      if (event.type === 'quest_started' || event.type === 'quest_completed') {
-        this.toastManager?.show(event.message);
-      }
-      // Show dialogue if present
-      if (event.type === 'dialogue' && event.dialogue) {
-        this.dialoguePaused = true;
-        this.inputHandler?.hideHover();
-        this.dialogueBox?.show(event.dialogue, () => {
-          this.dialoguePaused = false;
-          this.questManager?.onDialogueComplete();
-        });
-      }
-      // Spawn dinos if requested by quest
-      if (event.type === 'spawn_dinos' && event.spawnData) {
-        this.spawnQuestDinosNow(event.spawnData.species, event.spawnData.count);
-      }
-    });
-    // Emit act1 intro dialogue now that callback is registered
-    if (this.gameMode === 'story') {
-      this.questManager!.flushPendingIntro();
-    }
-    // Start the first quest after short delay — decorations already generated
-    const SKIP_TO_QUEST = gameConfig.skipToQuest;
-    this.time.delayedCall(2000, () => {
-      if (this.gameMode === 'story') {
-        if (SKIP_TO_QUEST) {
-          this.skipToQuest(SKIP_TO_QUEST);
-        } else if (this.dialogueBox?.isVisible) {
-          // Act intro dialogue still showing — start first quest after it finishes
-          this.questManager!.requestAutoStart();
-        } else {
-          this.questManager!.autoStartNextQuest();
+    // QuestManager — full quest tree (skip in free play mode)
+    if (gameConfig.questsEnabled) {
+      this.questManager = new QuestManager(this.storyBranchManager);
+      this.questManager.onEvent((event) => {
+        // Always log messages
+        if (event.message && event.type !== 'dialogue') {
+          this.uiManager?.addLog(event.message);
         }
+        // Always show toast for quest start/complete
+        if (event.type === 'quest_started' || event.type === 'quest_completed') {
+          this.toastManager?.show(event.message);
+        }
+        // Show dialogue if present
+        if (event.type === 'dialogue' && event.dialogue) {
+          this.dialoguePaused = true;
+          this.inputHandler?.hideHover();
+          this.dialogueBox?.show(event.dialogue, () => {
+            this.dialoguePaused = false;
+            this.questManager?.onDialogueComplete();
+          });
+        }
+        // Spawn dinos if requested by quest
+        if (event.type === 'spawn_dinos' && event.spawnData) {
+          this.spawnQuestDinosNow(event.spawnData.species, event.spawnData.count);
+        }
+      });
+      // Emit act1 intro dialogue now that callback is registered
+      if (this.gameMode === 'story') {
+        this.questManager!.flushPendingIntro();
       }
-    });
+      // Start the first quest after short delay — decorations already generated
+      const SKIP_TO_QUEST = gameConfig.skipToQuest;
+      this.time.delayedCall(2000, () => {
+        if (this.gameMode === 'story') {
+          if (SKIP_TO_QUEST) {
+            this.skipToQuest(SKIP_TO_QUEST);
+          } else if (this.dialogueBox?.isVisible) {
+            // Act intro dialogue still showing — start first quest after it finishes
+            this.questManager!.requestAutoStart();
+          } else {
+            this.questManager!.autoStartNextQuest();
+          }
+        }
+      });
+    }
     this.buildingSystem = new BuildingSystem(
       this.simulation.entityManager,
       this.simulation.tileGrid
@@ -493,6 +518,8 @@ export class GameScene extends Phaser.Scene {
     this.startMenu.show({
       onStart: (mode, difficulty) => this.startGame(mode, difficulty),
       onLoadReplay: () => this.loadReplay(),
+      onHostGame: () => this.startHostGame(),
+      onJoinGame: (serverUrl) => this.startJoinGame(serverUrl),
     });
     this.uiManager.setBuildButtonsEnabled(false);
     this.uiManager.setDayNightDimmed(true);
@@ -520,9 +547,8 @@ export class GameScene extends Phaser.Scene {
       this.selectedSettler = world.settlers[0];
       this.replayRecorder.start();
 
-      this.scrollX = Math.max(0, world.centerX - Math.floor(getLayout().viewportTiles / 2));
-      this.scrollY = Math.max(0, world.centerY - Math.floor(getLayout().viewportTiles / 2));
-      this.clampScroll();
+      // Scroll to the first settler's actual position (not world center, in case settlers shifted)
+      this.scrollTo(this.selectedSettler.x, this.selectedSettler.y);
 
       if (mode === 'defense' && gameConfig.dinosaursEnabled) {
         // Defense mode: spawn initial dinosaurs immediately
@@ -546,10 +572,381 @@ export class GameScene extends Phaser.Scene {
       this.uiManager.updateScroll(this.scrollX, this.scrollY);
       this.inputHandler.updateScroll(this.scrollX, this.scrollY);
       this.uiManager.updateBuildButtonStates();
+      this.needsInitialScroll = true;
+      this.scrollLockFrames = 10;
     } catch (err) {
       console.error('startGame error:', err);
       this.uiManager?.addLog('START ERR: ' + (err as Error).message);
     }
+  }
+
+  // ── Multiplayer: Host Game ──
+  private startHostGame(): void {
+    this.isMultiplayer = true;
+    this.isHost = true;
+    this.startMenu.destroy();
+    this.gameMode = 'story';
+    this.worldReady = true;
+    this.questArtifactSpawned = false;
+    this.uiManager.setBuildButtonsEnabled(true);
+    this.uiManager.setDayNightDimmed(false);
+    this.uiManager.setHudButtonsEnabled(true);
+    this.uiManager.setScrollButtonsEnabled(true);
+    this.uiManager.startMenuOpen = false;
+    this.debugPanel.setEnabled(true);
+
+    try {
+      const world = createInitialWorld(this.simulation);
+      this.selectedSettler = world.settlers[0];
+      this.replayRecorder.start();
+      this.scrollTo(this.selectedSettler.x, this.selectedSettler.y);
+
+      this.mapRenderer.drawMap();
+      this.mapRenderer.updateScroll(this.scrollX, this.scrollY);
+      this.decorationGenerator.generateDecorations(this.simulation.tileGrid, this.simulation.entityManager);
+      this.decorationGenerator.updateScroll(this.scrollX, this.scrollY);
+      this.entityRenderer.updateScroll(this.scrollX, this.scrollY);
+      this.entityRenderer.drawEntities();
+      this.uiManager.updateScroll(this.scrollX, this.scrollY);
+      this.inputHandler.updateScroll(this.scrollX, this.scrollY);
+      this.uiManager.updateBuildButtonStates();
+      this.needsInitialScroll = true;
+      this.scrollLockFrames = 10;
+
+      // Setup network handlers
+      this.setupNetworkHandlers();
+
+      // Create chat UI
+      this.uiManager.createChatUI();
+
+      // Send init state to clients
+      this.broadcastInit();
+      this.uiManager.addLog('Сервер запущен. Ожидание игроков...');
+    } catch (err) {
+      console.error('startHostGame error:', err);
+      this.uiManager?.addLog('START ERR: ' + (err as Error).message);
+    }
+  }
+
+  // ── Multiplayer: Join Game ──
+  private startJoinGame(serverUrl: string): void {
+    this.isMultiplayer = true;
+    this.isHost = false;
+    this.startMenu.destroy();
+    this.gameMode = 'story';
+    this.worldReady = false; // wait for init from host
+    this.questArtifactSpawned = false;
+    this.uiManager.setBuildButtonsEnabled(false);
+    this.uiManager.setDayNightDimmed(true);
+    this.uiManager.setHudButtonsEnabled(true);
+    this.uiManager.setScrollButtonsEnabled(true);
+    this.uiManager.startMenuOpen = false;
+    this.debugPanel.setEnabled(false);
+
+    // Setup network handlers first
+    this.setupNetworkHandlers();
+
+    // Connect to server
+    networkManager.connect(serverUrl, 'Player');
+    this.uiManager.addLog('Подключение к серверу...');
+  }
+
+  // ── Network handlers ──
+  private setupNetworkHandlers(): void {
+    networkManager.onMessage((msg) => this.handleNetworkMessage(msg));
+    networkManager.onConnect(() => {
+      this.uiManager?.addLog('Подключено к серверу');
+    });
+    networkManager.onDisconnect(() => {
+      this.uiManager?.addLog('Отключено от сервера');
+    });
+  }
+
+  private handleNetworkMessage(msg: HostMessage): void {
+    switch (msg.type) {
+      case 'init':
+        this.handleMultiplayerInit(msg);
+        break;
+      case 'state_sync':
+        this.handleStateSync(msg);
+        break;
+      case 'entity_update':
+        this.handleEntityUpdate(msg);
+        break;
+      case 'entity_add':
+        this.handleEntityAdd(msg);
+        break;
+      case 'entity_remove':
+        this.handleEntityRemove(msg);
+        break;
+      case 'player_join':
+        this.uiManager?.addChatMessage('Система', '#fa0', `${msg.player.name} присоединился`);
+        break;
+      case 'player_leave':
+        this.uiManager?.addChatMessage('Система', '#fa0', `Игрок отключился`);
+        break;
+      case 'chat':
+        this.uiManager?.addChatMessage(msg.playerName, msg.playerColor, msg.text);
+        break;
+      case 'error':
+        this.uiManager?.addLog(`Ошибка: ${msg.msg}`);
+        break;
+      // Client actions (received by host)
+      case 'move_settler':
+        this.handleRemoteMoveSettler(msg);
+        break;
+      case 'build':
+        this.handleRemoteBuild(msg);
+        break;
+      case 'collect':
+        this.handleRemoteCollect(msg);
+        break;
+    }
+  }
+
+  // ── Host: handle client actions ──
+  private handleRemoteMoveSettler(msg: any): void {
+    if (!this.isHost) return;
+    const settler = this.simulation.entityManager.get(msg.settlerId) as Settler | undefined;
+    if (!settler || !settler.isAlive) return;
+    this.workSystem.createMoveTask(msg.x, msg.y, undefined, settler, false);
+    this.broadcastEntityUpdate(settler);
+  }
+
+  private handleRemoteBuild(msg: any): void {
+    if (!this.isHost) return;
+    const def = (buildingsData as any)[msg.buildingType];
+    if (!def) return;
+
+    // Check resources
+    if (!this.simulation.hasResource('wood', def.cost?.wood ?? 0)) return;
+    if (!this.simulation.hasResource('stone', def.cost?.stone ?? 0)) return;
+
+    // Check if tile is buildable
+    const tile = this.simulation.tileGrid.get(msg.x, msg.y);
+    if (!tile || !tile.walkable || tile.occupied) return;
+
+    // Deduct resources
+    this.simulation.removeFromInventory('wood', def.cost?.wood ?? 0);
+    this.simulation.removeFromInventory('stone', def.cost?.stone ?? 0);
+
+    // Create building
+    const building = new Building(msg.x, msg.y, msg.buildingType);
+    this.simulation.entityManager.add(building);
+    this.simulation.tileGrid.setOccupied(msg.x, msg.y, true);
+    this.simulation.tileGrid.setBuilding(msg.x, msg.y, true);
+
+    // Find a settler to build
+    const settlers = this.simulation.entityManager.getByType('settler') as Settler[];
+    const freeSettler = settlers.find(s => s.isAlive && !s.currentTaskId);
+    if (freeSettler) {
+      this.workSystem.createBuildTask(building, TaskPriority.High, freeSettler);
+    }
+
+    this.broadcastEntityUpdate(building);
+    this.uiManager?.addLog(`Построено: ${def.name}`);
+  }
+
+  private handleRemoteCollect(msg: any): void {
+    if (!this.isHost) return;
+    const entity = this.simulation.entityManager.get(msg.entityId);
+    const settler = this.simulation.entityManager.get(msg.settlerId) as Settler | undefined;
+    if (!entity || !settler || !settler.isAlive) return;
+
+    this.uiManager.onCollectCallback?.(entity, false);
+    this.broadcastEntityUpdate(settler);
+  }
+
+  private handleMultiplayerInit(msg: any): void {
+    // Client receives initial game state from host
+    this.simulation = new Simulation(msg.mapWidth, msg.mapHeight, msg.seed);
+    this.simulation.tickCount = msg.tickCount || 0;
+
+    // Restore entities
+    if (msg.entities) {
+      for (const d of msg.entities) {
+        let entity: any;
+        switch (d.entityType) {
+          case 'settler': entity = Settler.deserialize(d); break;
+          case 'resource': entity = Resource.deserialize(d); break;
+          case 'building': entity = Building.deserialize(d); break;
+          case 'dinosaur': entity = Dinosaur.deserialize(d); break;
+          case 'artifact': entity = Artifact.deserialize(d); break;
+          default: continue;
+        }
+        this.simulation.entityManager.add(entity);
+      }
+    }
+
+    // Restore inventory
+    if (msg.inventory) {
+      this.simulation.inventory = msg.inventory;
+    }
+
+    // Store remote players
+    if (msg.players) {
+      for (const p of msg.players) {
+        if (p.id !== msg.playerId) {
+          this.remotePlayers.set(p.id, p);
+        }
+      }
+    }
+
+    // Rebind systems
+    this.rebindSystems();
+
+    // Find assigned settlers
+    const settlers = this.simulation.entityManager.getByType('settler') as Settler[];
+    if (settlers.length > 0) {
+      this.selectedSettler = settlers[0];
+    }
+
+    // Render
+    this.mapRenderer = new AnimatedMapRenderer(this, this.simulation);
+    this.mapRenderer.drawMap();
+    this.decorationGenerator = new DecorationGenerator(this);
+    this.decorationGenerator.generateDecorations(this.simulation.tileGrid, this.simulation.entityManager);
+    this.entityRenderer = new EntityRenderer(this, this.simulation);
+    this.entityRenderer.drawEntities();
+
+    this.worldReady = true;
+    this.debugPanel.setEnabled(true);
+    this.uiManager.setBuildButtonsEnabled(true);
+    this.uiManager.setDayNightDimmed(false);
+    this.needsInitialScroll = true;
+    this.scrollLockFrames = 10;
+
+    // Create chat UI
+    this.uiManager.createChatUI();
+
+    this.uiManager.addLog('Игра загружена от хоста');
+  }
+
+  private handleStateSync(msg: any): void {
+    if (this.isHost) return; // host doesn't need to sync
+
+    // Update entities from host state
+    if (msg.entities) {
+      // Simple approach: rebuild entities from sync
+      // In production, use delta sync for performance
+      const currentEntities = this.simulation.entityManager.getAll();
+      const syncIds = new Set(msg.entities.map((e: any) => e.id));
+
+      // Remove entities not in sync
+      for (const e of currentEntities) {
+        if (!syncIds.has(e.id)) {
+          this.simulation.entityManager.remove(e.id);
+        }
+      }
+
+      // Add/update entities from sync
+      for (const d of msg.entities) {
+        const existing = this.simulation.entityManager.get(d.id);
+        if (existing) {
+          // Update position
+          existing.x = d.x;
+          existing.y = d.y;
+          if ('hp' in existing && d.hp !== undefined) (existing as any).hp = d.hp;
+          if ('state' in existing && d.state !== undefined) (existing as any).state = d.state;
+        } else {
+          // Add new entity
+          let entity: any;
+          switch (d.entityType) {
+            case 'settler': entity = Settler.deserialize(d); break;
+            case 'resource': entity = Resource.deserialize(d); break;
+            case 'building': entity = Building.deserialize(d); break;
+            case 'dinosaur': entity = Dinosaur.deserialize(d); break;
+            case 'artifact': entity = Artifact.deserialize(d); break;
+            default: continue;
+          }
+          this.simulation.entityManager.add(entity);
+        }
+      }
+    }
+
+    if (msg.inventory) {
+      this.simulation.inventory = msg.inventory;
+    }
+
+    this.simulation.tickCount = msg.tick || this.simulation.tickCount;
+  }
+
+  private handleEntityUpdate(msg: any): void {
+    const entity = this.simulation.entityManager.get(msg.id);
+    if (entity) {
+      entity.x = msg.x;
+      entity.y = msg.y;
+      if ('hp' in entity && msg.hp !== undefined) (entity as any).hp = msg.hp;
+      if ('state' in entity && msg.state !== undefined) (entity as any).state = msg.state;
+    }
+  }
+
+  private handleEntityAdd(msg: any): void {
+    if (!msg.entity) return;
+    const d = msg.entity;
+    let entity: any;
+    switch (d.entityType) {
+      case 'settler': entity = Settler.deserialize(d); break;
+      case 'resource': entity = Resource.deserialize(d); break;
+      case 'building': entity = Building.deserialize(d); break;
+      case 'dinosaur': entity = Dinosaur.deserialize(d); break;
+      case 'artifact': entity = Artifact.deserialize(d); break;
+      default: return;
+    }
+    this.simulation.entityManager.add(entity);
+  }
+
+  private handleEntityRemove(msg: any): void {
+    if (msg.id !== undefined) {
+      this.simulation.entityManager.remove(msg.id);
+    }
+  }
+
+  // ── Host: broadcast state ──
+  private broadcastInit(): void {
+    if (!this.isHost || !networkManager.isConnected) return;
+
+    const settlers = this.simulation.entityManager.getByType('settler') as Settler[];
+    networkManager.send({
+      type: 'init' as any,
+      seed: this.simulation.seed,
+      mapWidth: this.simulation.tileGrid.width,
+      mapHeight: this.simulation.tileGrid.height,
+      tickCount: this.simulation.tickCount,
+      settlerIds: settlers.map(s => s.id),
+      entities: this.simulation.entityManager.serialize(),
+      inventory: this.simulation.inventory,
+    } as any);
+  }
+
+  private broadcastStateSync(): void {
+    if (!this.isHost || !networkManager.isConnected) return;
+
+    networkManager.send({
+      type: 'state_sync',
+      tick: this.simulation.tickCount,
+      entities: this.simulation.entityManager.serialize(),
+      inventory: this.simulation.inventory,
+    } as any);
+  }
+
+  private broadcastEntityUpdate(entity: any): void {
+    if (!this.isHost || !networkManager.isConnected) return;
+
+    networkManager.send({
+      type: 'entity_update',
+      id: entity.id,
+      x: entity.x,
+      y: entity.y,
+      hp: 'hp' in entity ? (entity as any).hp : undefined,
+      state: 'state' in entity ? (entity as any).state : undefined,
+    } as any);
+  }
+
+  // ── Chat ──
+  sendChatMessage(text: string): void {
+    if (!this.isMultiplayer) return;
+    networkManager.send({ type: 'chat', text });
   }
 
   private skipToQuest(targetQuestId: string): void {
@@ -695,15 +1092,27 @@ export class GameScene extends Phaser.Scene {
     if (this.gameOver) return;
     if (!this.worldReady) return;
 
+    // Force scroll to settler on the first frame after game start
+    if (this.needsInitialScroll) {
+      this.needsInitialScroll = false;
+      this.scrollTo(this.selectedSettler.x, this.selectedSettler.y);
+    }
+
     try {
       this.dialogueBox?.update(delta);
       const encycOpen = this.encyclopediaModal?.isVisible() ?? false;
-      if (!encycOpen) {
+      if (!encycOpen && this.scrollLockFrames <= 0) {
         this.handleScrollInput();
-
-        if (Phaser.Input.Keyboard.JustDown(this.keys.TAB)) {
-          this.cycleSettler();
+      }
+      if (this.scrollLockFrames > 0) {
+        this.scrollLockFrames--;
+        if (this.selectedSettler) {
+          this.scrollTo(this.selectedSettler.x, this.selectedSettler.y);
         }
+      }
+
+      if (Phaser.Input.Keyboard.JustDown(this.keys.TAB)) {
+        this.cycleSettler();
       }
 
       if (!this.debugPanel.paused) {
@@ -769,6 +1178,15 @@ export class GameScene extends Phaser.Scene {
     this.checkGameOver();
     this.uiManager.updateBuildButtonStates();
     this.replayRecorder.onTick(this.simulation.tickCount);
+
+    // Multiplayer: broadcast state periodically
+    if (this.isMultiplayer && this.isHost && ticked) {
+      this.stateSyncTimer++;
+      if (this.stateSyncTimer >= this.stateSyncInterval) {
+        this.stateSyncTimer = 0;
+        this.broadcastStateSync();
+      }
+    }
   }
 
   private spawnResources(): void {
@@ -782,7 +1200,20 @@ export class GameScene extends Phaser.Scene {
 
   private spawnQuestDinos(): void {
     const qm = this.questManager;
-    if (!qm) return;
+
+    // Free play mode (no quest manager): allow spawning after initial delay
+    if (!qm) {
+      this.dinoSpawnTimer++;
+      if (this.dinoSpawnTimer < 50) return;
+      this.dinoSpawnTimer = 0;
+      const dinoCount = this.simulation.entityManager.getByType('dinosaur').length;
+      if (dinoCount >= gameConfig.maxDinosaurs) return;
+      if (Math.random() < 0.3) {
+        const species = Math.random() < 0.6 ? 'brontosaur' : 'raptor';
+        this.spawnDinoAtEdge(species, ['east', 'west', 'north', 'south'][Math.floor(Math.random() * 4)] as any);
+      }
+      return;
+    }
 
     // Don't spawn dinos if q2_1 is still active (exploration quest)
     if (qm.isQuestActive('q2_1')) return;
@@ -1028,6 +1459,20 @@ export class GameScene extends Phaser.Scene {
     this.uiManager.updateSelection();
     this.uiManager.updateInfoPanel();
     this.uiManager.updateMinimap();
+
+    // Mobile UI updates
+    const L = getLayout();
+    if (L.mode === 'mobile') {
+      this.uiManager.updateMobileResources();
+      this.uiManager.updateMobileDay(this.simulation.tickCount);
+      this.uiManager.updateMobileSettlerStatus(this.selectedSettler);
+      this.uiManager.updateMobileQuests();
+      this.uiManager.updateMobileWorkModeButtons(this.selectedSettler);
+      const allSettlers = this.simulation.entityManager.getByType('settler') as Settler[];
+      const selIdx = this.selectedSettler ? allSettlers.indexOf(this.selectedSettler) : -1;
+      this.uiManager.updateMobileSettlerIcons(selIdx);
+    }
+
     this.debugPanel.update(this.simulation);
     this.debugPanel.projectileCount = this.projectiles.length;
   }
@@ -1057,8 +1502,8 @@ export class GameScene extends Phaser.Scene {
     const tileSize = L.tileSize;
     const fieldX = L.fieldX;
     const fieldY = L.fieldY;
-    const fieldMaxX = fieldX + L.viewportTiles * tileSize;
-    const fieldMaxY = fieldY + L.viewportTiles * tileSize;
+    const fieldMaxX = fieldX + L.viewportTilesX * tileSize;
+    const fieldMaxY = fieldY + L.viewportTilesY * tileSize;
     const sx = this.scrollX;
     const sy = this.scrollY;
     const g = this.wallOverlay;
@@ -1134,8 +1579,8 @@ export class GameScene extends Phaser.Scene {
     const tileSize = L.tileSize;
     const fieldX = L.fieldX;
     const fieldY = L.fieldY;
-    const fieldMaxX = fieldX + L.viewportTiles * tileSize;
-    const fieldMaxY = fieldY + L.viewportTiles * tileSize;
+    const fieldMaxX = fieldX + L.viewportTilesX * tileSize;
+    const fieldMaxY = fieldY + L.viewportTilesY * tileSize;
     const sx = this.scrollX;
     const sy = this.scrollY;
     const centerX = Math.floor(this.simulation.tileGrid.width / 2);
@@ -1237,10 +1682,10 @@ export class GameScene extends Phaser.Scene {
       const L = getLayout();
       const newScrollX = this.scrollX + dx;
       const newScrollY = this.scrollY + dy;
-      if (newScrollX >= 0 && newScrollX <= MAP_WIDTH - L.viewportTiles) {
+      if (newScrollX >= 0 && newScrollX <= MAP_WIDTH - L.viewportTilesX) {
         this.scrollX = newScrollX;
       }
-      if (newScrollY >= 0 && newScrollY <= MAP_HEIGHT - L.viewportTiles) {
+      if (newScrollY >= 0 && newScrollY <= MAP_HEIGHT - L.viewportTilesY) {
         this.scrollY = newScrollY;
       }
       this.updateScrollPosition();
@@ -1308,9 +1753,10 @@ export class GameScene extends Phaser.Scene {
 
   private autoScrollToSettler(settler: Settler): void {
     const L = getLayout();
-    const halfView = Math.floor(L.viewportTiles / 2);
-    const centerX = this.scrollX + halfView;
-    const centerY = this.scrollY + halfView;
+    const halfViewX = Math.floor(L.viewportTilesX / 2);
+    const halfViewY = Math.floor(L.viewportTilesY / 2);
+    const centerX = this.scrollX + halfViewX;
+    const centerY = this.scrollY + halfViewY;
 
     // Scroll when settler is within 3 tiles of screen edge
     const edgeMargin = 3;
@@ -1318,21 +1764,21 @@ export class GameScene extends Phaser.Scene {
     let newScrollY = this.scrollY;
 
     if (settler.x < centerX - edgeMargin) {
-      newScrollX = settler.x - halfView + edgeMargin;
+      newScrollX = settler.x - halfViewX + edgeMargin;
     } else if (settler.x > centerX + edgeMargin) {
-      newScrollX = settler.x - halfView - edgeMargin;
+      newScrollX = settler.x - halfViewX - edgeMargin;
     }
 
     if (settler.y < centerY - edgeMargin) {
-      newScrollY = settler.y - halfView + edgeMargin;
+      newScrollY = settler.y - halfViewY + edgeMargin;
     } else if (settler.y > centerY + edgeMargin) {
-      newScrollY = settler.y - halfView - edgeMargin;
+      newScrollY = settler.y - halfViewY - edgeMargin;
     }
 
     // Clamp
     const L2 = getLayout();
-    newScrollX = Math.max(0, Math.min(newScrollX, MAP_WIDTH - L2.viewportTiles));
-    newScrollY = Math.max(0, Math.min(newScrollY, MAP_HEIGHT - L2.viewportTiles));
+    newScrollX = Math.max(0, Math.min(newScrollX, MAP_WIDTH - L2.viewportTilesX));
+    newScrollY = Math.max(0, Math.min(newScrollY, MAP_HEIGHT - L2.viewportTilesY));
 
     if (newScrollX !== this.scrollX || newScrollY !== this.scrollY) {
       this.scrollX = newScrollX;
@@ -1363,10 +1809,10 @@ export class GameScene extends Phaser.Scene {
     const L = getLayout();
     const newScrollX = this.scrollX + dx;
     const newScrollY = this.scrollY + dy;
-    if (newScrollX >= 0 && newScrollX <= MAP_WIDTH - L.viewportTiles) {
+    if (newScrollX >= 0 && newScrollX <= MAP_WIDTH - L.viewportTilesX) {
       this.scrollX = newScrollX;
     }
-    if (newScrollY >= 0 && newScrollY <= MAP_HEIGHT - L.viewportTiles) {
+    if (newScrollY >= 0 && newScrollY <= MAP_HEIGHT - L.viewportTilesY) {
       this.scrollY = newScrollY;
     }
     this.updateScrollPosition();
@@ -1374,8 +1820,8 @@ export class GameScene extends Phaser.Scene {
 
   private scrollTo(tileX: number, tileY: number): void {
     const L2 = getLayout();
-    this.scrollX = Math.max(0, Math.min(tileX - Math.floor(L2.viewportTiles / 2), MAP_WIDTH - L2.viewportTiles));
-    this.scrollY = Math.max(0, Math.min(tileY - Math.floor(L2.viewportTiles / 2), MAP_HEIGHT - L2.viewportTiles));
+    this.scrollX = Math.max(0, Math.min(tileX - Math.floor(L2.viewportTilesX / 2), MAP_WIDTH - L2.viewportTilesX));
+    this.scrollY = Math.max(0, Math.min(tileY - Math.floor(L2.viewportTilesY / 2), MAP_HEIGHT - L2.viewportTilesY));
     this.updateScrollPosition();
   }
 
@@ -1389,8 +1835,8 @@ export class GameScene extends Phaser.Scene {
 
   private clampScroll(): void {
     const L = getLayout();
-    this.scrollX = Math.max(0, Math.min(this.scrollX, MAP_WIDTH - L.viewportTiles));
-    this.scrollY = Math.max(0, Math.min(this.scrollY, MAP_HEIGHT - L.viewportTiles));
+    this.scrollX = Math.max(0, Math.min(this.scrollX, MAP_WIDTH - L.viewportTilesX));
+    this.scrollY = Math.max(0, Math.min(this.scrollY, MAP_HEIGHT - L.viewportTilesY));
   }
 
   getSelectedSettler(): Settler {
@@ -1830,8 +2276,8 @@ export class GameScene extends Phaser.Scene {
     this.scrollY = 0;
     if (settlers.length > 0) {
       const s = settlers[0];
-      this.scrollX = Math.max(0, s.x - Math.floor(getLayout().viewportTiles / 2));
-      this.scrollY = Math.max(0, s.y - Math.floor(getLayout().viewportTiles / 2));
+      this.scrollX = Math.max(0, s.x - Math.floor(getLayout().viewportTilesX / 2));
+      this.scrollY = Math.max(0, s.y - Math.floor(getLayout().viewportTilesY / 2));
       this.clampScroll();
     }
     this.uiManager.selectedBuilding = null;

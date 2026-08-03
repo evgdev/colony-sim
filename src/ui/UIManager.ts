@@ -44,7 +44,7 @@ export class UIManager {
   colonistStatusText!: Phaser.GameObjects.Text;
   colonistTaskText!: Phaser.GameObjects.Text;
   colonistInvText!: Phaser.GameObjects.Text;
-  workModeBtns: Phaser.GameObjects.Text[] = [];
+  workModeBtns: { bg: Phaser.GameObjects.Rectangle; text: Phaser.GameObjects.Text }[] = [];
   workModeLabels: string[] = ['[A]', '[G]', '[B]', '[-]'];
   workModeModes: WorkMode[] = ['auto', 'gather', 'build', 'idle'];
   workModeContainer!: Phaser.GameObjects.Container;
@@ -61,8 +61,9 @@ export class UIManager {
   private minimapTileSize: number = 7;
 
   buildMode: BuildingType | null = null;
-  buildButtons: (Phaser.GameObjects.Text | Phaser.GameObjects.Container)[] = [];
-  buildTypeMap: Map<Phaser.GameObjects.Text | Phaser.GameObjects.Container, BuildingType> = new Map();
+  buildModeJustSet: boolean = false;
+  buildButtons: (Phaser.GameObjects.Text | Phaser.GameObjects.Container | Phaser.GameObjects.Rectangle)[] = [];
+  buildTypeMap: Map<Phaser.GameObjects.Text | Phaser.GameObjects.Container | Phaser.GameObjects.Rectangle, BuildingType> = new Map();
   private bottomHudBg!: Phaser.GameObjects.Rectangle;
   private bottomHudAccent!: Phaser.GameObjects.Rectangle;
 
@@ -79,6 +80,7 @@ export class UIManager {
   private onSettlerIconClick?: (index: number) => void;
   private buildButtonsEnabled: boolean = true;
   startMenuOpen: boolean = false;
+  uiClickConsumed: boolean = false;
   private hudButtons: Phaser.GameObjects.Text[] = [];
   private scrollButtons: Phaser.GameObjects.Text[] = [];
 
@@ -112,7 +114,7 @@ export class UIManager {
 
   private artifactTooltip!: Phaser.GameObjects.Container;
   private artifactSystem: import('../systems/ArtifactSystem').ArtifactSystem | null = null;
-  private questModal!: QuestModal;
+  questModal!: QuestModal;
   private questBtn!: Phaser.GameObjects.Text;
   craftPanel!: CraftPanel;
   private craftBtn!: Phaser.GameObjects.Text;
@@ -214,22 +216,32 @@ export class UIManager {
     const modeLabels = ['Авто', 'Сбор', 'Стройка', 'Стоп'];
     const modeColors = ['#44ff44', '#ffaa00', '#4488ff', '#888888'];
     for (let i = 0; i < 4; i++) {
-      const btn = this.scene.add.text(i * 56, 0, `[${modeLabels[i]}]`, {
-        fontSize: '11px', color: modeColors[i], fontFamily: 'monospace',
-        backgroundColor: '#0d1117', padding: { x: 3, y: 2 },
-      }).setInteractive({ useHandCursor: true });
       const mode = this.workModeModes[i];
-      btn.on('pointerdown', () => {
+      const color = Phaser.Display.Color.HexStringToColor(modeColors[i]).color;
+      const bg = this.scene.add.rectangle(i * 56, 0, 50, 18, 0x0d1117, 1)
+        .setOrigin(0);
+      bg.setInteractive({ useHandCursor: true });
+      bg.on('pointerdown', () => {
         const s = (this.scene as any).getSelectedSettler() as Settler;
         if (s) {
           s.workMode = mode;
           this.updateWorkModeButtons(s);
         }
       });
-      btn.on('pointerover', () => btn.setColor('#ffffff'));
-      btn.on('pointerout', () => btn.setColor(modeColors[i]));
-      this.workModeContainer.add(btn);
-      this.workModeBtns.push(btn);
+      const txt = this.scene.add.text(i * 56 + 2, 1, `[${modeLabels[i]}]`, {
+        fontSize: '11px', color: modeColors[i], fontFamily: 'monospace',
+        padding: { x: 2, y: 2 },
+      }).setInteractive({ useHandCursor: true });
+      txt.on('pointerdown', () => {
+        const s = (this.scene as any).getSelectedSettler() as Settler;
+        if (s) {
+          s.workMode = mode;
+          this.updateWorkModeButtons(s);
+        }
+      });
+      this.workModeContainer.add(bg);
+      this.workModeContainer.add(txt);
+      this.workModeBtns.push({ bg, text: txt });
     }
 
     this.colonistInvText = this.scene.add.text(14, 380, '', {
@@ -451,6 +463,17 @@ export class UIManager {
       .setOrigin(0).setStrokeStyle(1, 0x44cc44);
     this.infoPanel.add(bg);
 
+    // Close button (X)
+    const closeBtn = this.scene.add.text(212, 4, '[X]', {
+      fontSize: '14px', color: '#ff4444', fontFamily: 'monospace',
+    }).setInteractive({ useHandCursor: true })
+      .on('pointerdown', () => {
+        this.uiClickConsumed = true;
+        this.deselectAll();
+        this.infoPanel.setVisible(false);
+      });
+    this.infoPanel.add(closeBtn);
+
     this.infoText = this.scene.add.text(10, 8, '', {
       fontSize: '14px', color: '#e0e0e0', fontFamily: 'monospace',
       wordWrap: { width: 210 },
@@ -509,6 +532,7 @@ export class UIManager {
 
   private onDemolish(): void {
     if (!this.selectedBuilding) return;
+    this.uiClickConsumed = true;
     if (this.onDemolishCallback) {
       this.onDemolishCallback(this.selectedBuilding);
     }
@@ -516,6 +540,7 @@ export class UIManager {
 
   private onContinue(): void {
     if (!this.selectedBuilding) return;
+    this.uiClickConsumed = true;
     if (this.onContinueCallback) {
       this.onContinueCallback(this.selectedBuilding);
     }
@@ -523,6 +548,7 @@ export class UIManager {
 
   private onRepair(): void {
     if (!this.selectedBuilding) return;
+    this.uiClickConsumed = true;
     if (this.onRepairCallback) {
       this.onRepairCallback(this.selectedBuilding);
     }
@@ -537,6 +563,7 @@ export class UIManager {
 
   private onCraft(): void {
     if (!this.selectedBuilding) return;
+    this.uiClickConsumed = true;
     if (this.onCraftCallback) {
       const bld = this.selectedBuilding;
       const def = (buildingsData as any)[bld.buildingType];
@@ -574,26 +601,36 @@ export class UIManager {
     onExit?: () => void
   ): void {
     const L = getLayout();
+    const isMobile = L.mode === 'mobile';
+    const btnDepth = 35;
+
     this.bottomHudBg = this.scene.add.rectangle(L.fieldX, L.bottomHudY, L.fieldW, L.bottomHudH, COLORS.uiPanel, 0.95)
       .setOrigin(0).setDepth(20);
     this.bottomHudAccent = this.scene.add.rectangle(L.fieldX, L.bottomHudY, L.fieldW, 2, COLORS.settler, 0.5)
       .setOrigin(0).setDepth(21);
 
+    // Button styles — bigger on mobile for touch targets
+    const btnFontSize = isMobile ? '16px' : '14px';
+    const btnPadX = isMobile ? 10 : 6;
+    const btnPadY = isMobile ? 6 : 3;
+    const smallBtnFontSize = isMobile ? '14px' : '13px';
+    const smallBtnPadX = isMobile ? 8 : 5;
+    const smallBtnPadY = isMobile ? 5 : 2;
+
     const btnStyle: Phaser.Types.GameObjects.Text.TextStyle = {
-      fontSize: '14px', color: '#ffd700', fontFamily: 'monospace',
-      backgroundColor: '#16213e', padding: { x: 6, y: 3 },
+      fontSize: btnFontSize, color: '#ffd700', fontFamily: 'monospace',
+      backgroundColor: '#16213e', padding: { x: btnPadX, y: btnPadY },
     };
 
     const topBtnStyle: Phaser.Types.GameObjects.Text.TextStyle = {
-      fontSize: '13px', color: '#ffd700', fontFamily: 'monospace',
-      backgroundColor: '#16213e', padding: { x: 5, y: 2 },
+      fontSize: smallBtnFontSize, color: '#ffd700', fontFamily: 'monospace',
+      backgroundColor: '#16213e', padding: { x: smallBtnPadX, y: smallBtnPadY },
     };
 
-    const L2 = getLayout();
-    const logX = L2.fieldX + L2.fieldW + 10;
-    const btnsY = 730;
+    // Position buttons: on desktop in right panel, on mobile inside bottom HUD
+    const logX = isMobile ? L.fieldX + 8 : L.fieldX + L.fieldW + 10;
+    const btnsY = isMobile ? L.bottomHudY + 4 : 730;
     let btnX = logX;
-    const btnDepth = 35;
 
     const exitBtn = this.scene.add.text(btnX, btnsY, `[Exit]`, topBtnStyle)
       .setInteractive({ useHandCursor: true }).setDepth(btnDepth)
@@ -619,16 +656,20 @@ export class UIManager {
     this.hudButtons.push(clearBtn);
     btnX += clearBtn.width + 4;
 
-    const encycBtn = this.scene.add.text(L.fieldX + L.fieldW - 130, L.bottomHudY + L.bottomHudH - 28, `[Encyclopedia]`, {
-      fontSize: '13px', color: '#44ddaa', fontFamily: 'monospace',
-      backgroundColor: '#16213e', padding: { x: 5, y: 2 },
+    const encycBtn = this.scene.add.text(
+      isMobile ? L.fieldX + L.fieldW - 10 : L.fieldX + L.fieldW - 130,
+      isMobile ? btnsY : L.bottomHudY + L.bottomHudH - 28,
+      `[Encyclopedia]`, {
+      fontSize: smallBtnFontSize, color: '#44ddaa', fontFamily: 'monospace',
+      backgroundColor: '#16213e', padding: { x: smallBtnPadX, y: smallBtnPadY },
     }).setInteractive({ useHandCursor: true }).setDepth(btnDepth)
       .on('pointerdown', () => {
         (this.scene as any).encyclopediaModal?.show();
       });
+    if (!isMobile) encycBtn.setOrigin(1, 0);
     this.hudButtons.push(encycBtn);
 
-    const replayBtn = this.scene.add.text(logX, btnsY + 20, `[Replay]`, topBtnStyle)
+    const replayBtn = this.scene.add.text(logX, btnsY + (isMobile ? 30 : 20), `[Replay]`, topBtnStyle)
       .setInteractive({ useHandCursor: true }).setDepth(btnDepth)
       .on('pointerdown', () => {
         if (this.replayRecorder && this.replayRecorder.hasRecordedData()) {
@@ -642,7 +683,7 @@ export class UIManager {
 
     if (debugPanel) {
       const controlX = logX;
-      const controlY = btnsY + 42;
+      const controlY = btnsY + (isMobile ? 56 : 42);
 
       const langBtn = this.scene.add.text(controlX, controlY, `[${languageManager.lang.toUpperCase()}]`, {
         ...btnStyle,
@@ -680,9 +721,10 @@ export class UIManager {
 
   createBuildButtons(): void {
     const L = getLayout();
+    const isMobile = L.mode === 'mobile';
     const types = Object.keys(buildingsData) as BuildingType[];
-    const ICON_SIZE = L.mode === 'mobile' ? 56 : 50;
-    const ICON_GAP = 10;
+    const ICON_SIZE = isMobile ? 64 : 50;
+    const ICON_GAP = isMobile ? 12 : 10;
     const btnW = ICON_SIZE + 16 + ICON_GAP;
 
     // Calculate how many buttons fit in one row
@@ -694,9 +736,11 @@ export class UIManager {
     const rowH = ICON_SIZE + 24;
     const totalRows = Math.ceil(types.length / maxPerRow);
 
+    const cancelFontSize = isMobile ? '20px' : '16px';
+    const cancelPad = isMobile ? { x: 12, y: 10 } : { x: 8, y: 6 };
     const cancelBtn = this.scene.add.text(L.fieldX + 10, L.bottomHudY + 15, '[X]', {
-      fontSize: '16px', color: '#ff4444', fontFamily: 'monospace',
-      backgroundColor: '#16213e', padding: { x: 8, y: 6 },
+      fontSize: cancelFontSize, color: '#ff4444', fontFamily: 'monospace',
+      backgroundColor: '#16213e', padding: cancelPad,
     }).setInteractive({ useHandCursor: true }).setDepth(22)
       .on('pointerdown', () => {
         if (!this.buildButtonsEnabled) return;
@@ -750,6 +794,7 @@ export class UIManager {
               return;
             }
             this.buildMode = type;
+            this.buildModeJustSet = true;
             this.updateBuildButtonStates();
             this.addLog(`${languageManager.ui.logBuild}: ${def.name} — ${languageManager.ui.logClickTile}`);
           });
@@ -769,8 +814,9 @@ export class UIManager {
         container.add(lockText);
       }
 
+      const costFontSize = isMobile ? '12px' : '10px';
       const costText = this.scene.add.text(ICON_SIZE / 2, ICON_SIZE + 6, reqStr, {
-        fontSize: '10px', color: isUnlocked ? '#8b949e' : '#555555', fontFamily: 'monospace',
+        fontSize: costFontSize, color: isUnlocked ? '#8b949e' : '#555555', fontFamily: 'monospace',
       }).setOrigin(0.5, 0);
       container.add(costText);
 
@@ -858,14 +904,19 @@ export class UIManager {
   }
 
   setDayNightDimmed(dimmed: boolean): void {
+    if (!this.dnDim) return;
     this.dnDim.setAlpha(dimmed ? 0.8 : 0);
   }
 
   setBuildButtonsEnabled(enabled: boolean): void {
     this.buildButtonsEnabled = enabled;
+    // Only toggle interactivity for desktop Container buttons;
+    // mobile Rectangle buttons handle enabled state via buildButtonsEnabled flag in their handlers
     for (const btn of this.buildButtons) {
-      if (enabled) btn.setInteractive({ useHandCursor: true });
-      else btn.disableInteractive();
+      if (btn instanceof Phaser.GameObjects.Container) {
+        if (enabled) btn.setInteractive({ useHandCursor: true });
+        else btn.disableInteractive();
+      }
     }
     this.updateBuildButtonStates();
   }
@@ -1003,6 +1054,30 @@ export class UIManager {
         btn.setAlpha(this.buildMode === type ? 1.0 : 0.8);
       }
     }
+
+    // Mobile build buttons — update alpha based on affordability
+    const L = getLayout();
+    if (L.mode === 'mobile') {
+      for (const btn of this.mobileBuildBtns) {
+        if (!this.buildButtonsEnabled) {
+          btn.bg.setAlpha(0.3);
+          btn.icon.setAlpha(0.15);
+          continue;
+        }
+        const def = (buildingsData as any)[btn.type];
+        const affordable = this.canAfford(btn.type);
+        if (affordable) {
+          btn.icon.setAlpha(1);
+          btn.bg.setAlpha(1);
+        } else {
+          btn.icon.setAlpha(0.35);
+          btn.bg.setAlpha(1);
+        }
+      }
+    }
+
+    // Update mobile build status indicator
+    this.updateMobileBuildStatus();
   }
 
   updateInfoPanel(): void {
@@ -1122,6 +1197,8 @@ export class UIManager {
 
   updateLeftPanel(gameOver: boolean, tickCount: number): void {
     if (gameOver) return;
+    const L = getLayout();
+    if (L.mode === 'mobile') return;  // mobile uses separate UI
     this.updateDayNight(tickCount);
     const s = (this.scene as any).getSelectedSettler() as Settler;
     if (!s) return;
@@ -1234,18 +1311,22 @@ export class UIManager {
 
   private updateWorkModeButtons(s: Settler): void {
     const activeColors = ['#44ff44', '#ffaa00', '#4488ff', '#888888'];
-    const inactiveColor = '#333333';
     for (let i = 0; i < 4; i++) {
       const btn = this.workModeBtns[i];
       if (!btn) continue;
       const isActive = s.workMode === this.workModeModes[i];
-      btn.setColor(isActive ? activeColors[i] : inactiveColor);
-      btn.setBackgroundColor(isActive ? '#16213e' : '#0d1117');
+      if (isActive) {
+        const color = Phaser.Display.Color.HexStringToColor(activeColors[i]).color;
+        btn.bg.setStrokeStyle(3, color);
+      } else {
+        btn.bg.setStrokeStyle(0);
+      }
     }
   }
 
   updateThoughts(ticked: boolean): void {
     if (!ticked) return;
+    if (!this.thoughtText) return;
     this.thoughtTimer++;
     if (this.thoughtTimer >= 10) {
       this.thoughtTimer = 0;
@@ -1256,6 +1337,7 @@ export class UIManager {
   }
 
   updateMinimap(): void {
+    if (!this.minimapGraphics) return;
     this.minimapGraphics.clear();
     const grid = this.simulation.tileGrid;
     const ts = this.minimapTileSize;
@@ -1297,8 +1379,8 @@ export class UIManager {
     const vx = ox + this.scrollX * ts;
     const vy = oy + this.scrollY * ts;
     const L3 = getLayout();
-    const vw = L3.viewportTiles * ts;
-    const vh = L3.viewportTiles * ts;
+    const vw = L3.viewportTilesX * ts;
+    const vh = L3.viewportTilesY * ts;
     this.minimapGraphics.lineStyle(1, 0xffffff, 0.8);
     this.minimapGraphics.strokeRect(vx, vy, vw, vh);
   }
@@ -1313,6 +1395,7 @@ export class UIManager {
   private lastInventoryHash: string = '';
 
   updateInventoryIcons(settler: Settler): void {
+    if (!this.inventoryIconContainer) return;
     const hash = `${settler.id}|` + settler.inventory.map(i => `${i.resourceType}:${i.quantity}:${i.name}`).join(',');
     const artifactHash = Array.from(settler.collectedArtifacts.entries()).map(([n, c]) => `${n}:${c}`).join(',');
     const fullHash = hash + '|' + artifactHash;
@@ -1335,12 +1418,12 @@ export class UIManager {
     };
 
     const resourceIcons: Record<string, string> = {
-      wood: 'W',
-      stone: 'S',
-      food: 'F',
-      fiber: 'I',
-      resin: 'R',
-      herb: 'H',
+      wood: '\uD83E\uDEB5',
+      stone: '\uD83E\uDEA8',
+      food: '\uD83C\uDF56',
+      fiber: '\uD83E\uDDF5',
+      resin: '\uD83D\uDCA7',
+      herb: '\uD83C\uDF3F',
     };
 
     const startX = 14;
@@ -1415,6 +1498,7 @@ export class UIManager {
   }
 
   updateGlobalInventory(): void {
+    if (!this.globalInventoryContainer) return;
     const sim = this.simulation as any;
     if (!sim) return;
 
@@ -1439,12 +1523,12 @@ export class UIManager {
     };
 
     const resourceIcons: Record<string, string> = {
-      wood: 'W',
-      stone: 'S',
-      food: 'F',
-      fiber: 'I',
-      resin: 'R',
-      herb: 'H',
+      wood: '\uD83E\uDEB5',
+      stone: '\uD83E\uDEA8',
+      food: '\uD83C\uDF56',
+      fiber: '\uD83E\uDDF5',
+      resin: '\uD83D\uDCA7',
+      herb: '\uD83C\uDF3F',
     };
 
     const startX = 0;
@@ -1490,10 +1574,18 @@ export class UIManager {
     }
   }
 
+  mobileLogCallback: ((msg: string) => void) | null = null;
+
   addLog(msg: string): void {
     this.taskLog.push(msg);
     if (this.taskLog.length > 8) this.taskLog.shift();
-    this.taskLogText.setText(this.taskLog.join('\n'));
+    if (this.taskLogText) {
+      this.taskLogText.setText(this.taskLog.join('\n'));
+    }
+    // On mobile, route to toast
+    if (this.mobileLogCallback && getLayout().mode === 'mobile') {
+      this.mobileLogCallback(msg);
+    }
   }
 
   deselectAll(): void {
@@ -1513,5 +1605,773 @@ export class UIManager {
     this.selectedEntity = null;
     this.buildButtons = [];
     this.buildTypeMap.clear();
+  }
+
+  // ── Mobile UI ──
+
+  private mobileTopBarBg!: Phaser.GameObjects.Rectangle;
+  private mobileResourceContainer!: Phaser.GameObjects.Container;
+  private mobileDayText!: Phaser.GameObjects.Text;
+  private mobileSettlerBarBg!: Phaser.GameObjects.Rectangle;
+  private mobileSettlerText!: Phaser.GameObjects.Text;
+  private mobileHpBar!: Phaser.GameObjects.Rectangle;
+  private mobileFoodBar!: Phaser.GameObjects.Rectangle;
+  private mobileEnergyBar!: Phaser.GameObjects.Rectangle;
+  private mobileInventoryContainer!: Phaser.GameObjects.Container;
+
+  // Mobile settler selector
+  private mobileSettlerIcons: Phaser.GameObjects.Container[] = [];
+  private mobileSettlerBgs: Phaser.GameObjects.Rectangle[] = [];
+  private mobileSettlerCallback?: (index: number) => void;
+
+  // Mobile quest display
+  private mobileQuestText!: Phaser.GameObjects.Text;
+
+  // Mobile work mode buttons
+  private mobileWorkModeBtns: { bg: Phaser.GameObjects.Rectangle; text: Phaser.GameObjects.Text }[] = [];
+
+  /**
+   * Creates the full mobile UI:
+   *  - Top bar (36px): compact resource counts + day + menu button
+   *  - Settler status overlay (28px): HP/food/energy bars when settler selected
+   *  - Build strip (52px): horizontal scrollable build buttons + action buttons
+   */
+  createMobileUI(
+    onSave: () => void,
+    onLoad: () => void,
+    onClear: () => void,
+    onBuildIconCreated: () => void,
+    debugPanel?: import('./DebugPanel').DebugPanel,
+    onExit?: () => void,
+    onSelectSettler?: (index: number) => void
+  ): void {
+    const L = getLayout();
+    const btnDepth = 35;
+    this.mobileSettlerCallback = onSelectSettler;
+
+    // ── Top bar: resources + day + menu ──
+    this.mobileTopBarBg = this.scene.add.rectangle(L.fieldX, 0, L.fieldW, L.eventH, 0x0a0a2e, 0.95)
+      .setOrigin(0).setStrokeStyle(1, COLORS.panelBorder).setDepth(20);
+
+    this.mobileResourceContainer = this.scene.add.container(L.fieldX + 4, 4);
+    this.mobileResourceContainer.setDepth(21);
+    this.updateMobileResources();
+
+    // ── Settler portraits in top bar (after resources) ──
+    this.createMobileSettlerIcons();
+
+    this.mobileDayText = this.scene.add.text(L.fieldX + L.fieldW - 4, L.eventH / 2, '', {
+      fontSize: '13px', color: '#8b949e', fontFamily: 'monospace',
+    }).setOrigin(1, 0.5).setDepth(21);
+
+    this.eventText = this.scene.add.text(L.fieldX + 4, L.eventH + 2, '', {
+      fontSize: '0px', // hidden on mobile — events go via toast
+    }).setDepth(21);
+
+    // ── Settler status bar (bottom of game field, overlay) ──
+    const statusY = L.fieldY + L.fieldH - 28;
+    this.mobileSettlerBarBg = this.scene.add.rectangle(L.fieldX, statusY, L.fieldW, 28, 0x0a0a2e, 0.85)
+      .setOrigin(0).setDepth(25).setVisible(false);
+
+    this.mobileSettlerText = this.scene.add.text(L.fieldX + 4, statusY + 4, '', {
+      fontSize: '12px', color: '#c9d1d9', fontFamily: 'monospace',
+    }).setDepth(26).setVisible(false);
+
+    // HP / Food / Energy bars
+    const barY = statusY + 18;
+    const barH = 6;
+    const barW = 60;
+    this.mobileHpBar = this.scene.add.rectangle(L.fieldX + 4, barY, barW, barH, 0x44ff44, 1)
+      .setOrigin(0).setDepth(26).setVisible(false);
+    this.mobileFoodBar = this.scene.add.rectangle(L.fieldX + 70, barY, barW, barH, 0xffaa00, 1)
+      .setOrigin(0).setDepth(26).setVisible(false);
+    this.mobileEnergyBar = this.scene.add.rectangle(L.fieldX + 136, barY, barW, barH, 0x44aaff, 1)
+      .setOrigin(0).setDepth(26).setVisible(false);
+
+    // Inventory icons (to the right of bars)
+    this.mobileInventoryContainer = this.scene.add.container(L.fieldX + 204, statusY + 2);
+    this.mobileInventoryContainer.setDepth(26).setVisible(false);
+
+    // ── Bottom build strip ──
+    this.bottomHudBg = this.scene.add.rectangle(L.fieldX, L.bottomHudY, L.fieldW, L.bottomHudH, COLORS.uiPanel, 0.95)
+      .setOrigin(0).setDepth(20);
+    this.bottomHudAccent = this.scene.add.rectangle(L.fieldX, L.bottomHudY, L.fieldW, 2, COLORS.settler, 0.5)
+      .setOrigin(0).setDepth(21);
+
+    // Encyclopedia button in portrait row (right side)
+    const encycBtn = this.scene.add.text(
+      L.fieldX + L.fieldW - 8, L.eventH + L.portraitRowH / 2,
+      '[📖]', {
+      fontSize: '22px', color: '#44ddaa', fontFamily: 'monospace',
+    }).setOrigin(1, 0.5).setInteractive({ useHandCursor: true }).setDepth(22)
+      .on('pointerdown', () => {
+        (this.scene as any).encyclopediaModal?.show();
+      });
+    this.hudButtons.push(encycBtn);
+
+    // Quest text (top of bottom area)
+    const actY = L.bottomHudY + 4;
+    this.mobileQuestText = this.scene.add.text(L.fieldX + 4, actY, '', {
+      fontSize: '11px', color: '#8b949e', fontFamily: 'monospace',
+      wordWrap: { width: L.fieldW - 8 },
+    }).setDepth(btnDepth);
+
+    // ── Work mode buttons row ──
+    const wmY = L.bottomHudY + 26;
+    const modeLabels = ['Auto', 'Gather', 'Build', 'Stop'];
+    const modeColors = ['#44ff44', '#ffaa00', '#4488ff', '#888888'];
+    const modeKeys: WorkMode[] = ['auto', 'gather', 'build', 'idle'];
+    let wmX = L.fieldX + 4;
+    this.mobileWorkModeBtns = [];
+    for (let i = 0; i < 4; i++) {
+      const color = Phaser.Display.Color.HexStringToColor(modeColors[i]).color;
+      const tmpTxt = this.scene.add.text(0, 0, `[${modeLabels[i]}]`, {
+        fontSize: '14px', fontFamily: 'monospace',
+        padding: { x: 8, y: 5 },
+      });
+      const bw = tmpTxt.width + 2;
+      const bh = tmpTxt.height + 2;
+      tmpTxt.destroy();
+      const bg = this.scene.add.rectangle(wmX, wmY, bw, bh, 0x16213e, 1)
+        .setOrigin(0).setDepth(btnDepth);
+      bg.setInteractive({ useHandCursor: true });
+      bg.on('pointerdown', () => {
+        const s = (this.scene as any).getSelectedSettler() as Settler;
+        if (s && s.isAlive) {
+          s.workMode = modeKeys[i];
+          this.updateMobileWorkModeButtons(s);
+        }
+      });
+      const txt = this.scene.add.text(wmX + 1, wmY + 1, `[${modeLabels[i]}]`, {
+        fontSize: '14px', color: modeColors[i], fontFamily: 'monospace',
+        padding: { x: 8, y: 5 },
+      }).setDepth(btnDepth + 1);
+      txt.setInteractive({ useHandCursor: true });
+      txt.on('pointerdown', () => {
+        const s = (this.scene as any).getSelectedSettler() as Settler;
+        if (s && s.isAlive) {
+          s.workMode = modeKeys[i];
+          this.updateMobileWorkModeButtons(s);
+        }
+      });
+      this.mobileWorkModeBtns.push({ bg, text: txt });
+      wmX += bw + 6;
+    }
+
+    // Build strip area
+    onBuildIconCreated();
+    this.createMobileBuildStrip();
+  }
+
+  private mobileMenuVisible = false;
+  private mobileMenuContainer: Phaser.GameObjects.Container | null = null;
+
+  private toggleMobileMenu(
+    x: number, y: number,
+    onSave: () => void, onLoad: () => void, onClear: () => void,
+    onExit?: () => void, debugPanel?: import('./DebugPanel').DebugPanel
+  ): void {
+    if (this.mobileMenuContainer) {
+      this.mobileMenuContainer.destroy();
+      this.mobileMenuContainer = null;
+      this.mobileMenuVisible = false;
+      return;
+    }
+
+    const L = getLayout();
+    const style: Phaser.Types.GameObjects.Text.TextStyle = {
+      fontSize: '14px', color: '#ffd700', fontFamily: 'monospace',
+      backgroundColor: '#16213e', padding: { x: 8, y: 6 },
+    };
+
+    this.mobileMenuContainer = this.scene.add.container(x, y).setDepth(50);
+    const bg = this.scene.add.rectangle(0, 0, 180, 180, 0x16213e, 0.98)
+      .setOrigin(0).setStrokeStyle(1, COLORS.panelBorder);
+    this.mobileMenuContainer.add(bg);
+
+    const items = [
+      { label: `[${languageManager.ui.save}]`, action: onSave },
+      { label: `[${languageManager.ui.load}]`, action: onLoad },
+      { label: `[${languageManager.ui.clear}]`, action: onClear },
+      { label: '[Encyclopedia]', action: () => (this.scene as any).encyclopediaModal?.show() },
+      { label: `[Exit]`, action: () => onExit?.() },
+    ];
+
+    let iy = 6;
+    for (const item of items) {
+      const btn = this.scene.add.text(8, iy, item.label, style)
+        .setInteractive({ useHandCursor: true })
+        .on('pointerdown', () => {
+          item.action();
+          this.toggleMobileMenu(x, y, onSave, onLoad, onClear, onExit, debugPanel);
+        });
+      this.mobileMenuContainer.add(btn);
+      iy += 30;
+    }
+
+    // Speed buttons
+    if (debugPanel) {
+      const speeds = [1, 2, 4];
+      let sx = 8;
+      for (const spd of speeds) {
+        const btn = this.scene.add.text(sx, iy, `×${spd}`, {
+          ...style, color: spd === 1 ? '#58a6ff' : '#8b949e',
+        }).setInteractive({ useHandCursor: true })
+          .on('pointerdown', () => {
+            debugPanel.speed = spd;
+          });
+        this.mobileMenuContainer.add(btn);
+        sx += btn.width + 6;
+      }
+    }
+
+    this.mobileMenuVisible = true;
+  }
+
+  private mobileBuildBtns: { bg: Phaser.GameObjects.Rectangle; icon: Phaser.GameObjects.Image; cost: Phaser.GameObjects.Text; type: BuildingType }[] = [];
+
+  // Mobile build modal
+  private mobileBuildModal: Phaser.GameObjects.Container | null = null;
+  private mobileBuildStatusText: Phaser.GameObjects.Text | null = null;
+
+  private createMobileBuildStrip(): void {
+    const L = getLayout();
+    const btnY = L.bottomHudY + 62;
+    const btnX = L.fieldX + 4;
+
+    // Single "Build" button that opens the modal
+    const buildBtn = this.scene.add.text(btnX, btnY, '[🔨 Build]', {
+      fontSize: '18px', color: '#ffd700', fontFamily: 'monospace',
+      backgroundColor: '#16213e', padding: { x: 12, y: 8 },
+    }).setInteractive({ useHandCursor: true }).setDepth(22)
+      .on('pointerdown', () => {
+        if (!this.buildButtonsEnabled) return;
+        this.showMobileBuildModal();
+      });
+    this.buildButtons.push(buildBtn);
+
+    // Cancel button (next to build)
+    const cancelBtn = this.scene.add.text(btnX + buildBtn.width + 8, btnY + 2, '[X]', {
+      fontSize: '16px', color: '#ff4444', fontFamily: 'monospace',
+      backgroundColor: '#16213e', padding: { x: 6, y: 4 },
+    }).setInteractive({ useHandCursor: true }).setDepth(22)
+      .on('pointerdown', () => {
+        if (!this.buildButtonsEnabled) return;
+        this.buildMode = null;
+        this.updateBuildButtonStates();
+        this.updateMobileBuildStatus();
+      });
+    this.buildButtons.push(cancelBtn);
+
+    // Build status text (shows what's being built)
+    this.mobileBuildStatusText = this.scene.add.text(btnX + cancelBtn.width + cancelBtn.width + 24, btnY + 4, '', {
+      fontSize: '13px', color: '#ffae00', fontFamily: 'monospace',
+    }).setDepth(22);
+  }
+
+  private showMobileBuildModal(): void {
+    this.hideMobileBuildModal();
+
+    const L = getLayout();
+    const container = this.scene.add.container(0, 0).setDepth(200);
+
+    // Fullscreen backdrop
+    const backdrop = this.scene.add.rectangle(
+      L.canvasW / 2, L.canvasH / 2, L.canvasW, L.canvasH, 0x000000, 0.7
+    ).setInteractive().on('pointerdown', () => this.hideMobileBuildModal());
+    container.add(backdrop);
+
+    // Panel
+    const panelW = L.canvasW - 24;
+    const panelH = L.canvasH - 80;
+    const px = L.canvasW / 2;
+    const py = L.canvasH / 2;
+    const panel = this.scene.add.rectangle(px, py, panelW, panelH, 0x0d1117, 0.98)
+      .setOrigin(0.5).setStrokeStyle(2, COLORS.panelHeader);
+    container.add(panel);
+
+    // Title
+    const title = this.scene.add.text(px, py - panelH / 2 + 16, '── Choose Building ──', {
+      fontSize: '16px', color: '#58a6ff', fontFamily: 'monospace', fontStyle: 'bold',
+    }).setOrigin(0.5, 0);
+    container.add(title);
+
+    // Close button
+    const closeBtn = this.scene.add.text(px + panelW / 2 - 24, py - panelH / 2 + 8, '[X]', {
+      fontSize: '16px', color: '#ff4444', fontFamily: 'monospace',
+    }).setInteractive({ useHandCursor: true })
+      .on('pointerdown', () => this.hideMobileBuildModal());
+    container.add(closeBtn);
+
+    // Building grid
+    const types = Object.keys(buildingsData) as BuildingType[];
+    const ICON_SIZE = 64;
+    const GAP = 12;
+    const cols = Math.floor((panelW - 24) / (ICON_SIZE + GAP));
+    const startX = px - panelW / 2 + 16;
+    const startY = py - panelH / 2 + 48;
+
+    for (let i = 0; i < types.length; i++) {
+      const type = types[i];
+      const def = (buildingsData as any)[type];
+      const affordable = this.canAfford(type);
+
+      const col = i % cols;
+      const row = Math.floor(i / cols);
+      const x = startX + col * (ICON_SIZE + GAP);
+      const y = startY + row * (ICON_SIZE + 36);
+
+      // Check bounds
+      if (y + ICON_SIZE + 36 > py + panelH / 2 - 10) continue;
+
+      const bg = this.scene.add.rectangle(x + ICON_SIZE / 2, y + ICON_SIZE / 2, ICON_SIZE, ICON_SIZE,
+        affordable ? 0x21262d : 0x161b22, 0.9)
+        .setStrokeStyle(1, affordable ? COLORS.panelBorder : 0x333333)
+        .setInteractive({ useHandCursor: affordable });
+
+      if (affordable) {
+        bg.on('pointerdown', () => {
+          this.hideMobileBuildModal();
+          this.buildMode = type;
+          this.buildModeJustSet = true;
+          this.updateBuildButtonStates();
+          this.updateMobileBuildStatus();
+        });
+      }
+
+      const icon = this.scene.add.image(x + ICON_SIZE / 2, y + ICON_SIZE / 2, `icon_${type}`)
+        .setDisplaySize(ICON_SIZE - 12, ICON_SIZE - 12);
+      if (!affordable) icon.setAlpha(0.3);
+
+      const reqStr = Object.entries(def.requires).map(([k, v]) => `${k}:${v}`).join(' ');
+      const costText = this.scene.add.text(x + ICON_SIZE / 2, y + ICON_SIZE + 2, reqStr, {
+        fontSize: '10px', color: affordable ? '#8b949e' : '#555555', fontFamily: 'monospace',
+      }).setOrigin(0.5, 0);
+
+      const nameText = this.scene.add.text(x + ICON_SIZE / 2, y + ICON_SIZE + 14, def.name, {
+        fontSize: '11px', color: affordable ? '#c9d1d9' : '#444444', fontFamily: 'monospace',
+      }).setOrigin(0.5, 0);
+
+      container.add([bg, icon, costText, nameText]);
+    }
+
+    this.mobileBuildModal = container;
+  }
+
+  private hideMobileBuildModal(): void {
+    if (this.mobileBuildModal) {
+      this.mobileBuildModal.destroy();
+      this.mobileBuildModal = null;
+    }
+  }
+
+  private updateMobileBuildStatus(): void {
+    if (!this.mobileBuildStatusText) return;
+    if (this.buildMode) {
+      const def = (buildingsData as any)[this.buildMode];
+      this.mobileBuildStatusText.setText(`→ ${def?.name ?? this.buildMode} — tap tile`);
+      this.mobileBuildStatusText.setVisible(true);
+    } else {
+      this.mobileBuildStatusText.setVisible(false);
+    }
+  }
+
+  private mobileBuildingInfoContainer: Phaser.GameObjects.Container | null = null;
+
+  private showMobileBuildingInfo(type: string): void {
+    this.hideMobileBuildingInfo();
+
+    const L = getLayout();
+    const def = (buildingsData as any)[type];
+    if (!def) return;
+
+    const container = this.scene.add.container(0, 0).setDepth(200);
+
+    // Fullscreen backdrop
+    const backdrop = this.scene.add.rectangle(
+      L.canvasW / 2, L.canvasH / 2, L.canvasW, L.canvasH, 0x000000, 0.7
+    ).setInteractive().on('pointerdown', () => this.hideMobileBuildingInfo());
+    container.add(backdrop);
+
+    // Info panel
+    const panelW = Math.min(320, L.canvasW - 32);
+    const panelH = 300;
+    const cx = L.canvasW / 2;
+    const cy = L.canvasH / 2;
+
+    const panelBg = this.scene.add.rectangle(cx, cy, panelW, panelH, 0x0d1117, 0.98)
+      .setOrigin(0.5).setStrokeStyle(2, COLORS.panelHeader);
+    container.add(panelBg);
+
+    // Building icon (large)
+    const iconSize = 80;
+    const icon = this.scene.add.image(cx, cy - panelH / 2 + 50, `icon_${type}`)
+      .setDisplaySize(iconSize, iconSize);
+    container.add(icon);
+
+    // Name
+    const name = this.scene.add.text(cx, cy - panelH / 2 + 100, def.name, {
+      fontSize: '18px', color: '#58a6ff', fontFamily: 'monospace', fontStyle: 'bold',
+    }).setOrigin(0.5);
+    container.add(name);
+
+    // Description
+    const desc = this.scene.add.text(cx, cy - panelH / 2 + 124, def.description || '', {
+      fontSize: '12px', color: '#c9d1d9', fontFamily: 'monospace',
+      wordWrap: { width: panelW - 32 }, align: 'center',
+    }).setOrigin(0.5, 0);
+    container.add(desc);
+
+    // Cost
+    const costY = cy - panelH / 2 + 180;
+    const costTitle = this.scene.add.text(cx, costY, 'Cost:', {
+      fontSize: '13px', color: '#8b949e', fontFamily: 'monospace', fontStyle: 'bold',
+    }).setOrigin(0.5);
+    container.add(costTitle);
+
+    const costStr = Object.entries(def.requires).map(([r, q]) => `${r}: ${q}`).join('  ');
+    const costText = this.scene.add.text(cx, costY + 18, costStr, {
+      fontSize: '13px', color: '#ffd700', fontFamily: 'monospace',
+    }).setOrigin(0.5);
+    container.add(costText);
+
+    // Size
+    if (def.size && def.size > 1) {
+      const sizeText = this.scene.add.text(cx, costY + 40, `Size: ${def.size}x${def.size}`, {
+        fontSize: '12px', color: '#8b949e', fontFamily: 'monospace',
+      }).setOrigin(0.5);
+      container.add(sizeText);
+    }
+
+    // Close button
+    const closeBtn = this.scene.add.text(cx + panelW / 2 - 24, cy - panelH / 2 + 8, '[X]', {
+      fontSize: '16px', color: '#ff4444', fontFamily: 'monospace',
+    }).setInteractive({ useHandCursor: true })
+      .on('pointerdown', () => this.hideMobileBuildingInfo());
+    container.add(closeBtn);
+
+    this.mobileBuildingInfoContainer = container;
+  }
+
+  private hideMobileBuildingInfo(): void {
+    if (this.mobileBuildingInfoContainer) {
+      this.mobileBuildingInfoContainer.destroy();
+      this.mobileBuildingInfoContainer = null;
+    }
+  }
+
+  updateMobileResources(): void {
+    const L = getLayout();
+    if (L.mode !== 'mobile') return;
+
+    this.mobileResourceContainer.removeAll(true);
+
+    const sim = this.simulation as any;
+    const inventory: { resourceType: string; quantity: number }[] = sim.inventory || [];
+    const resMap = new Map(inventory.map(i => [i.resourceType, i.quantity]));
+
+    const resources = ['wood', 'stone', 'food', 'fiber', 'resin', 'herb'] as const;
+    const icons: Record<string, string> = {
+      wood: '\uD83E\uDEB5', stone: '\uD83E\uDEA8', food: '\uD83C\uDF56',
+      fiber: '\uD83E\uDDF5', resin: '\uD83D\uDCA7', herb: '\uD83C\uDF3F',
+    };
+
+    let x = 0;
+    for (const res of resources) {
+      const count = resMap.get(res) || 0;
+      const icon = this.scene.add.text(x, 1, icons[res], { fontSize: '14px' }).setOrigin(0, 0);
+      const num = this.scene.add.text(x + 16, 4, String(count), {
+        fontSize: '11px', color: '#c9d1d9', fontFamily: 'monospace',
+      });
+      this.mobileResourceContainer.add([icon, num]);
+      x += 36;
+    }
+  }
+
+  updateMobileDay(tickCount: number): void {
+    const L = getLayout();
+    if (L.mode !== 'mobile') return;
+    const day = Math.floor(tickCount / (DAY_TICKS + NIGHT_TICKS)) + 1;
+    const isNight = (tickCount % (DAY_TICKS + NIGHT_TICKS)) >= DAY_TICKS;
+    this.mobileDayText?.setText(`Day ${day} ${isNight ? '🌙' : '☀'}`);
+  }
+
+  updateMobileSettlerStatus(settler: Settler | null): void {
+    const L = getLayout();
+    if (L.mode !== 'mobile') return;
+
+    if (!settler || !settler.isAlive) {
+      this.mobileSettlerBarBg.setVisible(false);
+      this.mobileSettlerText.setVisible(false);
+      this.mobileHpBar.setVisible(false);
+      this.mobileFoodBar.setVisible(false);
+      this.mobileEnergyBar.setVisible(false);
+      this.mobileInventoryContainer.setVisible(false);
+      return;
+    }
+
+    this.mobileSettlerBarBg.setVisible(true);
+    this.mobileSettlerText.setVisible(true);
+    this.mobileHpBar.setVisible(true);
+    this.mobileFoodBar.setVisible(true);
+    this.mobileEnergyBar.setVisible(true);
+    this.mobileInventoryContainer.setVisible(true);
+
+    const taskStr = settler.currentTaskId ? 'working' : 'idle';
+    this.mobileSettlerText.setText(`${settler.name} [${settler.settlerClass}] ${taskStr}`);
+
+    const hpPct = Math.max(0, Math.min(1, settler.hp / settler.maxHp));
+    const foodPct = Math.max(0, Math.min(1, settler.hunger / 100));
+    const energyPct = Math.max(0, Math.min(1, settler.energy / 100));
+
+    this.mobileHpBar.setScale(hpPct, 1);
+    this.mobileFoodBar.setScale(foodPct, 1);
+    this.mobileEnergyBar.setScale(energyPct, 1);
+
+    this.updateMobileInventory(settler);
+  }
+
+  private lastMobileInvHash = '';
+
+  private updateMobileInventory(settler: Settler): void {
+    const hash = settler.inventory.map(i => `${i.resourceType}:${i.quantity}`).join(',');
+    if (hash === this.lastMobileInvHash) return;
+    this.lastMobileInvHash = hash;
+
+    this.mobileInventoryContainer.removeAll(true);
+
+    const resColors: Record<string, number> = {
+      wood: 0x8B6914, stone: 0x888888, food: 0xcc6644,
+      fiber: 0x88aa44, resin: 0xcc8844, herb: 0x44cc88,
+      artifact: 0xaa44ff,
+    };
+
+    let x = 0;
+    for (const item of settler.inventory) {
+      if (item.quantity <= 0) continue;
+      const color = resColors[item.resourceType] ?? 0x888888;
+      const bg = this.scene.add.rectangle(x, 0, 16, 16, color, 0.8).setOrigin(0);
+      const num = this.scene.add.text(x + 8, 8, String(item.quantity), {
+        fontSize: '9px', color: '#fff', fontFamily: 'monospace',
+      }).setOrigin(0.5);
+      this.mobileInventoryContainer.add([bg, num]);
+      x += 20;
+    }
+  }
+
+  updateMobileQuests(): void {
+    const L = getLayout();
+    if (L.mode !== 'mobile') return;
+    if (!this.mobileQuestText) return;
+
+    const questManager = (this.scene as any).questManager;
+    if (!questManager) {
+      this.mobileQuestText.setText('');
+      return;
+    }
+
+    const activeQuests = questManager.getActiveQuests();
+    if (activeQuests.length > 0) {
+      const { quest, state } = activeQuests[0];
+      const progress = questManager.getProgressText(quest.id);
+      this.mobileQuestText.setText(`${quest.title}${progress ? ' · ' + progress : ''}`);
+      this.mobileQuestText.setColor('#58a6ff');
+    } else {
+      const available = questManager.getAvailableQuests();
+      if (available.length > 0) {
+        this.mobileQuestText.setText(`${available[0].quest.title} (available)`);
+        this.mobileQuestText.setColor('#8b949e');
+      } else {
+        this.mobileQuestText.setText('');
+      }
+    }
+  }
+
+  updateMobileWorkModeButtons(settler: Settler | null): void {
+    const L = getLayout();
+    if (L.mode !== 'mobile') return;
+    if (!this.mobileWorkModeBtns || this.mobileWorkModeBtns.length === 0) return;
+
+    const activeColors = ['#44ff44', '#ffaa00', '#4488ff', '#888888'];
+    const modes: WorkMode[] = ['auto', 'gather', 'build', 'idle'];
+
+    for (let i = 0; i < 4; i++) {
+      const btn = this.mobileWorkModeBtns[i];
+      if (!btn) continue;
+      const isActive = settler?.workMode === modes[i];
+      if (isActive) {
+        const color = Phaser.Display.Color.HexStringToColor(activeColors[i]).color;
+        btn.bg.setStrokeStyle(3, color);
+      } else {
+        btn.bg.setStrokeStyle(0);
+      }
+    }
+  }
+
+  private createMobileSettlerIcons(): void {
+    const L = getLayout();
+    const iconSize = 54;
+    const gap = 16;
+    const totalW = 3 * iconSize + 2 * gap;
+    const startX = L.fieldX + (L.fieldW - totalW) / 2;
+    const startY = L.eventH + (L.portraitRowH - iconSize - 8) / 2;
+    const heroKeys = ['hero_engineer', 'hero_biologist', 'hero_pilot'];
+
+    // Background for portrait row
+    const rowBg = this.scene.add.rectangle(L.fieldX, L.eventH, L.fieldW, L.portraitRowH, 0x0a0a2e, 0.9)
+      .setOrigin(0).setDepth(20).setStrokeStyle(1, COLORS.panelBorder);
+
+    for (let i = 0; i < 3; i++) {
+      const container = this.scene.add.container(startX + i * (iconSize + gap), startY).setDepth(22);
+
+      const bg = this.scene.add.rectangle(0, 0, iconSize, iconSize, 0x21262d, 0.9)
+        .setOrigin(0).setStrokeStyle(2, COLORS.panelBorder)
+        .setInteractive({ useHandCursor: true })
+        .on('pointerdown', () => {
+          this.mobileSettlerCallback?.(i);
+        });
+      container.add(bg);
+
+      const avatar = this.scene.add.image(iconSize / 2, iconSize / 2, heroKeys[i] || heroKeys[0])
+        .setDisplaySize(iconSize - 8, iconSize - 8);
+      container.add(avatar);
+
+      // HP bar below portrait
+      const hpBarBg = this.scene.add.rectangle(0, iconSize + 2, iconSize, 6, 0x333333, 0.8).setOrigin(0);
+      const hpBar = this.scene.add.rectangle(0, iconSize + 2, iconSize, 6, 0x44cc44, 1).setOrigin(0);
+      container.add(hpBarBg);
+      container.add(hpBar);
+
+      this.mobileSettlerIcons.push(container);
+      this.mobileSettlerBgs.push(bg);
+    }
+  }
+
+  updateMobileSettlerIcons(selectedIndex: number): void {
+    const L = getLayout();
+    if (L.mode !== 'mobile') return;
+
+    const allSettlers = this.simulation?.entityManager?.getByType('settler') as Settler[] ?? [];
+
+    for (let i = 0; i < this.mobileSettlerIcons.length; i++) {
+      const container = this.mobileSettlerIcons[i];
+      const bg = this.mobileSettlerBgs[i];
+
+      if (i >= allSettlers.length || (allSettlers[i] && !allSettlers[i].isAlive)) {
+        container.setVisible(false);
+        continue;
+      }
+      container.setVisible(true);
+
+      const settler = allSettlers[i];
+
+      // Update avatar tint if low HP
+      const avatar = container.list[1] as Phaser.GameObjects.Image;
+      if (settler.hp < settler.maxHp * 0.5) {
+        avatar.setTint(0xff6666);
+      } else {
+        avatar.clearTint();
+      }
+
+      // Update HP bar
+      const hpPct = Math.max(0, Math.min(1, settler.hp / settler.maxHp));
+      const hpBar = container.list[3] as Phaser.GameObjects.Rectangle;
+      const hpColor = hpPct > 0.5 ? 0x44cc44 : hpPct > 0.25 ? 0xcccc44 : 0xcc4444;
+      hpBar.setFillStyle(hpColor, 1);
+      hpBar.setScale(hpPct, 1);
+
+      // Highlight selected
+      if (i === selectedIndex) {
+        bg.setStrokeStyle(2, 0xffd700);
+        bg.setFillStyle(0x3a3a4a, 0.9);
+      } else {
+        bg.setStrokeStyle(1, COLORS.panelBorder);
+        bg.setFillStyle(0x21262d, 0.9);
+      }
+    }
+  }
+
+  // ── Multiplayer Chat UI ──
+  private chatContainer: Phaser.GameObjects.Container | null = null;
+  private chatMessages: Phaser.GameObjects.Text | null = null;
+  private chatInput: HTMLInputElement | null = null;
+  private chatHistory: { name: string; color: string; text: string }[] = [];
+  private chatMaxMessages = 50;
+
+  createChatUI(): void {
+    const L = getLayout();
+    const isMobile = L.mode === 'mobile';
+
+    // Chat container (bottom-left of game field)
+    const chatX = L.fieldX + 4;
+    const chatY = L.fieldY + L.fieldH - 120;
+    const chatW = isMobile ? 200 : 280;
+    const chatH = 100;
+
+    this.chatContainer = this.scene.add.container(chatX, chatY).setDepth(30);
+
+    // Background
+    const bg = this.scene.add.rectangle(0, 0, chatW, chatH, 0x0a0a2e, 0.85)
+      .setOrigin(0)
+      .setStrokeStyle(1, COLORS.panelBorder);
+    this.chatContainer.add(bg);
+
+    // Messages display
+    this.chatMessages = this.scene.add.text(4, 4, '', {
+      fontSize: '11px', color: '#c9d1d9', fontFamily: 'monospace',
+      wordWrap: { width: chatW - 8 },
+      lineSpacing: 2,
+    }).setOrigin(0);
+    this.chatContainer.add(this.chatMessages);
+
+    // Input field (HTML element)
+    const input = this.scene.add.dom(chatX + chatW / 2, chatY + chatH + 14).createElement('input')
+      .setOrigin(0.5)
+      .node as HTMLInputElement;
+    input.placeholder = 'Чат...';
+    input.maxLength = 200;
+    input.style.cssText = `
+      width: ${chatW - 8}px; padding: 4px 6px; font: 11px monospace;
+      background: #0d1117; color: #c9d1d9; border: 1px solid #30363d;
+      border-radius: 3px; outline: none;
+    `;
+    this.chatInput = input;
+
+    // Enter key sends message
+    input.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter' && input.value.trim()) {
+        this.sendChatMessage(input.value.trim());
+        input.value = '';
+      }
+      e.stopPropagation();
+    });
+    input.addEventListener('focus', (ev) => ev.stopPropagation());
+    input.addEventListener('blur', (ev) => ev.stopPropagation());
+  }
+
+  sendChatMessage(text: string): void {
+    if (!text.trim()) return;
+    // This will be called from GameScene which has access to networkManager
+    (this.scene as any).sendChatMessage?.(text);
+  }
+
+  addChatMessage(name: string, color: string, text: string): void {
+    this.chatHistory.push({ name, color, text });
+    if (this.chatHistory.length > this.chatMaxMessages) {
+      this.chatHistory.shift();
+    }
+    this.updateChatDisplay();
+  }
+
+  private updateChatDisplay(): void {
+    if (!this.chatMessages) return;
+    const lines = this.chatHistory.slice(-10).map(m =>
+      `<span style="color:${m.color}">${m.name}:</span> ${m.text}`
+    );
+    // Use Phaser text (no rich text), so just show name: text
+    const plainLines = this.chatHistory.slice(-10).map(m =>
+      `${m.name}: ${m.text}`
+    );
+    this.chatMessages.setText(plainLines.join('\n'));
   }
 }
