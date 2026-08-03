@@ -137,20 +137,20 @@ export class StartMenu {
     menu.add(mpLabel);
 
     const mpBtnY = mpStartY + 40;
-    const mpBtnW = isMobile ? 130 : 180;
-    const mpBtnH = isMobile ? 44 : 56;
+    const mpBtnW = isMobile ? 180 : 180;
+    const mpBtnH = isMobile ? 40 : 56;
 
     // Host button
-    const hostBtn = this.scene.add.container(isMobile ? cx : cx - 100, mpBtnY);
+    const hostBtn = this.scene.add.container(cx, mpBtnY);
     const hostBg = this.scene.add.rectangle(0, 0, mpBtnW, mpBtnH, 0x1a3a1a, 0.95)
       .setOrigin(0.5)
       .setStrokeStyle(2, 0x44ff44)
       .setInteractive({ useHandCursor: true });
-    const hostIcon = this.scene.add.text(0, isMobile ? -8 : -10, '🎮', {
+    const hostIcon = this.scene.add.text(0, isMobile ? -6 : -10, '🎮', {
       fontSize: isMobile ? '14px' : '18px',
     }).setOrigin(0.5);
     const hostTitle = this.scene.add.text(0, isMobile ? 8 : 10, 'Создать игру', {
-      fontSize: isMobile ? '11px' : '13px', color: '#44ff44', fontFamily: 'monospace', fontStyle: 'bold',
+      fontSize: isMobile ? '12px' : '13px', color: '#44ff44', fontFamily: 'monospace', fontStyle: 'bold',
     }).setOrigin(0.5);
     hostBtn.add([hostBg, hostIcon, hostTitle]);
     hostBtn.setSize(mpBtnW, mpBtnH);
@@ -161,17 +161,17 @@ export class StartMenu {
     });
     menu.add(hostBtn);
 
-    // Join button
-    const joinBtn = this.scene.add.container(isMobile ? cx : cx + 100, mpBtnY);
+    // Join button (below host)
+    const joinBtn = this.scene.add.container(cx, mpBtnY + mpBtnH + 10);
     const joinBg = this.scene.add.rectangle(0, 0, mpBtnW, mpBtnH, 0x1a1a3a, 0.95)
       .setOrigin(0.5)
       .setStrokeStyle(2, 0x4488ff)
       .setInteractive({ useHandCursor: true });
-    const joinIcon = this.scene.add.text(0, isMobile ? -8 : -10, '🔗', {
+    const joinIcon = this.scene.add.text(0, isMobile ? -6 : -10, '🔗', {
       fontSize: isMobile ? '14px' : '18px',
     }).setOrigin(0.5);
     const joinTitle = this.scene.add.text(0, isMobile ? 8 : 10, 'Присоединиться', {
-      fontSize: isMobile ? '11px' : '13px', color: '#4488ff', fontFamily: 'monospace', fontStyle: 'bold',
+      fontSize: isMobile ? '12px' : '13px', color: '#4488ff', fontFamily: 'monospace', fontStyle: 'bold',
     }).setOrigin(0.5);
     joinBtn.add([joinBg, joinIcon, joinTitle]);
     joinBtn.setSize(mpBtnW, mpBtnH);
