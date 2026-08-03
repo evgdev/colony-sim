@@ -776,16 +776,16 @@ export class GameScene extends Phaser.Scene {
 
       console.log('[MP] World created. My settler:', this.selectedSettler?.name, 'index:', mySettlerIndex);
 
-      // Create textures
+      // Create textures (skip if already exist)
       try {
-        createTileTextures(this);
-        createBuildingIcons(this);
+        if (!this.textures.exists('tile_grass')) createTileTextures(this);
+        if (!this.textures.exists('building_house')) createBuildingIcons(this);
         createDecorationTextures(this);
-        createTrexSprite(this);
-        createRaptorSprite(this);
-        createBrontosaurSprite(this);
-        createPterodactylSprite(this);
-        createSettlerSprite(this);
+        if (!this.textures.exists('trex')) createTrexSprite(this);
+        if (!this.textures.exists('raptor')) createRaptorSprite(this);
+        if (!this.textures.exists('brontosaur')) createBrontosaurSprite(this);
+        if (!this.textures.exists('pterodactyl')) createPterodactylSprite(this);
+        createSettlerSprite(this); // always recreate to ensure frames
         this.createDinosaurAnims();
         this.createSettlerAnims();
       } catch (e) {
