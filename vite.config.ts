@@ -1,5 +1,4 @@
 import { defineConfig } from 'vite';
-import { WebSocketServer } from 'ws';
 
 // ── Multiplayer WebSocket plugin ──
 function multiplayerPlugin() {
@@ -37,7 +36,14 @@ function multiplayerPlugin() {
   return {
     name: 'multiplayer-ws',
     configureServer(server: any) {
-      const wss = new WebSocketServer({ noServer: true });
+      let WSServer: any;
+      try {
+        WSServer = require('ws').WebSocketServer;
+      } catch {
+        console.warn('[WS] ws package not found, multiplayer disabled');
+        return;
+      }
+      const wss = new WSServer({ noServer: true });
 
       // Upgrade HTTP to WebSocket
       server.httpServer?.on('upgrade', (req: any, socket: any, head: any) => {
