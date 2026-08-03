@@ -5,10 +5,51 @@ import path from 'path';
 
 const PORT = process.env.PORT || 3001;
 
-// ── HTTP server (serves static files) ──
+// Allow passing port via command line
+const args = process.argv.slice(2);
+const portArg = args.find(a => a.startsWith('--port='));
+const PORT_FINAL = portArg ? parseInt(portArg.split('=')[[1]]) : PORT;
+
+// ── HTTP server (serves static files + API) ──
 const server = http.createServer((req, res) => {
+  // CORS headers
+  res.setHeader('Access-Control-Allow-Origin', '*');
+  res.setHeader('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
+  res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
+
+  if (req.method === 'OPTIONS') { res.writeHead(200); res.end(); return; }
+
+  // API: POST /api/init — host sends game state
+  if (req.method === 'POST' && req.url === '/api/init') {
+    let body = '';
+    req.on('data', chunk => { body += chunk; });
+    req.on('end', () => {
+      try {
+        lastInitMsg = JSON.parse(body);
+        lastInitMsg.type = 'init';
+        console.log(`[Server] Received init via API. Seed: ${lastInitMsg.seed}, Entities: ${(lastInitMsg.entities || []).length}`);
+        res.writeHead(200, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ ok: true }));
+        // Also send to all connected clients
+        for (const p of players.values()) {
+          if (!p.isHost) {
+            sendTo(p.ws, {
+              ...lastInitMsg,
+              playerId: p.id,
+              playerName: p.name,
+              playerColor: p.color,
+            });
+          }
+        }
+      } catch (e) {
+        res.writeHead(400); res.end('Invalid JSON');
+      }
+    });
+    return;
+  }
+
+  // Static files
   let file = req.url === '/' ? '/index.html' : req.url;
-  // Remove query string
   file = file.split('?')[0];
   const filePath = path.join(import.meta.dirname, file);
   const ext = path.extname(filePath);

@@ -616,23 +616,15 @@ export class GameScene extends Phaser.Scene {
       // Create chat UI
       this.uiManager.createChatUI();
 
+      // Setup network handlers
+      this.setupNetworkHandlers();
+
       // Connect host to WebSocket server
       const wsUrl = `ws://${window.location.hostname || 'localhost'}:3001`;
-
-      // Setup network handlers - send init on connect
-      networkManager.onConnect(() => {
-        this.uiManager?.addLog('Подключено к серверу');
-        // Send init state after connection is established
-        this.time.delayedCall(100, () => {
-          this.broadcastInit();
-        });
-      });
-      networkManager.onMessage((msg) => this.handleNetworkMessage(msg));
-      networkManager.onDisconnect(() => {
-        this.uiManager?.addLog('Отключено от сервера');
-      });
-
       networkManager.connect(wsUrl, 'Host');
+
+      // Send init via HTTP (not WebSocket)
+      this.broadcastInit();
       this.uiManager.addLog('Сервер запущен. Ожидание игроков...');
     } catch (err) {
       console.error('startHostGame error:', err);
@@ -952,15 +944,8 @@ export class GameScene extends Phaser.Scene {
 
   // ── Host: broadcast state ──
   private broadcastInit(): void {
-    console.log('[MP] broadcastInit called. isHost:', this.isHost, 'isConnected:', networkManager.isConnected);
-    if (!this.isHost || !networkManager.isConnected) {
-      console.log('[MP] broadcastInit skipped - not host or not connected');
-      return;
-    }
-
     const settlers = this.simulation.entityManager.getByType('settler') as Settler[];
-    networkManager.send({
-      type: 'init' as any,
+    const initData = {
       seed: this.simulation.seed,
       mapWidth: this.simulation.tileGrid.width,
       mapHeight: this.simulation.tileGrid.height,
@@ -968,7 +953,24 @@ export class GameScene extends Phaser.Scene {
       settlerIds: settlers.map(s => s.id),
       entities: this.simulation.entityManager.serialize(),
       inventory: this.simulation.inventory,
-    } as any);
+    };
+
+    // Send via HTTP POST to server
+    const serverUrl = `http://${window.location.hostname || 'localhost'}:3001`;
+    fetch(`${serverUrl}/api/init`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(initData),
+    })
+      .then(r => r.json())
+      .then(d => {
+        console.log('[MP] Init sent to server:', d);
+        this.uiManager?.addLog('Состояние игры отправлено на сервер');
+      })
+      .catch(err => {
+        console.error('[MP] Failed to send init:', err);
+        this.uiManager?.addLog('Ошибка отправки состояния');
+      });
   }
 
   private broadcastStateSync(): void {
