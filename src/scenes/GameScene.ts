@@ -805,6 +805,11 @@ export class GameScene extends Phaser.Scene {
       // Rebind systems
       this.rebindSystems();
 
+      // Reveal fog around settler
+      if (this.selectedSettler) {
+        this.simulation.tileGrid.reveal(this.selectedSettler.x, this.selectedSettler.y, FOG_REVEAL_RADIUS);
+      }
+
       // Render
       this.mapRenderer = new AnimatedMapRenderer(this, this.simulation);
       this.mapRenderer.drawMap();
