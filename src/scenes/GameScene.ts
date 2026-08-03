@@ -618,7 +618,12 @@ export class GameScene extends Phaser.Scene {
       // Create chat UI
       this.uiManager.createChatUI();
 
-      // Send init via HTTP to server (no WebSocket needed for host)
+      // Connect to WebSocket (so host gets an ID and settler assignment)
+      this.setupNetworkHandlers();
+      const wsUrl = `ws://${window.location.hostname || 'localhost'}:3001`;
+      networkManager.connect(wsUrl, 'Host');
+
+      // Send init via HTTP to server
       this.broadcastInit();
       this.uiManager.addLog('Сервер запущен. Ожидание игроков...');
     } catch (err) {

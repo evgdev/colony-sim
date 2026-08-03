@@ -210,10 +210,8 @@ wss.on('connection', (ws) => {
     if (msg.type === 'request_state') {
       console.log(`[Server] Player ${id} requested state. lastInitMsg: ${lastInitMsg ? 'exists' : 'null'}`);
       if (lastInitMsg) {
-        // Assign settler index: first client gets 1, second gets 2, host gets 0
-        const nonHostPlayers = [...players.values()].filter(p => !p.isHost);
-        const playerIndex = nonHostPlayers.indexOf(player);
-        const mySettlerIndex = player.isHost ? 0 : (playerIndex + 1);
+        // Assign settler index based on player ID: 0, 1, 2
+        const mySettlerIndex = (id - 1) % 3;
 
         sendTo(ws, {
           ...lastInitMsg,
