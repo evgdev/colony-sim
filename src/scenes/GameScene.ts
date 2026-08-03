@@ -618,13 +618,23 @@ export class GameScene extends Phaser.Scene {
       // Create chat UI
       this.uiManager.createChatUI();
 
-      // Connect to WebSocket (so host gets an ID and settler assignment)
-      this.setupNetworkHandlers();
-      const wsUrl = `ws://${window.location.hostname || 'localhost'}:3001`;
-      networkManager.connect(wsUrl, 'Host');
+      // Send init via HTTP to server (host doesn't need WebSocket)
+      const serverUrl = `http://${window.location.hostname || 'localhost'}:3001`;
+      const initData = {
+        seed: this.simulation.seed,
+        mapWidth: this.simulation.tileGrid.width,
+        mapHeight: this.simulation.tileGrid.height,
+        tickCount: 0,
+        settlerIds: this.simulation.entityManager.getByType('settler').map((s: any) => s.id),
+        entities: [],
+        inventory: [],
+      };
+      fetch(`${serverUrl}/api/init`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(initData),
+      }).then(() => console.log('[MP] Init sent')).catch(e => console.warn('[MP] Init send failed:', e));
 
-      // Send init via HTTP to server
-      this.broadcastInit();
       this.uiManager.addLog('Сервер запущен. Ожидание игроков...');
     } catch (err) {
       console.error('startHostGame error:', err);
