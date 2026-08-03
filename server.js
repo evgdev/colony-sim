@@ -48,6 +48,7 @@ let nextId = 1;
 let hostWs = null; // reference to host's WebSocket
 let gameSeed = null;
 let gameState = null; // latest state_sync from host
+let lastInitMsg = null; // store init for late joiners
 
 const CHAT_COOLDOWN_MS = 500;
 const CHAT_MAX_LEN = 200;
@@ -117,6 +118,17 @@ wss.on('connection', (ws) => {
     players: getPlayerList(),
     isHost,
   });
+
+  // If game already started, send init to new client
+  if (!isHost && lastInitMsg) {
+    sendTo(ws, {
+      ...lastInitMsg,
+      playerId: id,
+      playerName: player.name,
+      playerColor: player.color,
+    });
+    console.log(`[Server] Sent init to late joiner ${id}`);
+  }
 
   // Notify others
   broadcast({
@@ -188,6 +200,7 @@ wss.on('connection', (ws) => {
       // ── init (host sends initial game state) ──
       if (msg.type === 'init') {
         gameSeed = msg.seed;
+        lastInitMsg = { ...msg, type: 'init' };
         // Assign settlers to clients
         const allSettlers = msg.settlerIds || [];
         const hostSettlers = allSettlers.slice(0, Math.ceil(allSettlers.length / 2));
