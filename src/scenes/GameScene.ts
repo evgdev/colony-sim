@@ -677,8 +677,10 @@ export class GameScene extends Phaser.Scene {
     networkManager.onMessage((msg) => this.handleNetworkMessage(msg));
     networkManager.onConnect(() => {
       this.uiManager?.addLog('Подключено к серверу');
-      // Request game state from server
-      networkManager.send({ type: 'request_state' } as any);
+      // Only clients request state, not host
+      if (!this.isHost) {
+        networkManager.send({ type: 'request_state' } as any);
+      }
     });
     networkManager.onDisconnect(() => {
       this.uiManager?.addLog('Отключено от сервера');

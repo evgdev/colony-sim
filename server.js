@@ -91,6 +91,7 @@ let gameSeed = null;
 let gameState = null; // latest state_sync from host
 let lastInitMsg = null; // store init for late joiners
 let hostPlayerId = null; // track the real host by ID
+let nextClientSettler = 1; // clients get settler 1, 2 (host is 0)
 
 const CHAT_COOLDOWN_MS = 500;
 const CHAT_MAX_LEN = 200;
@@ -162,17 +163,6 @@ wss.on('connection', (ws) => {
     isHost,
   });
 
-  // If game already started, send init to new client
-  if (!isHost && lastInitMsg) {
-    sendTo(ws, {
-      ...lastInitMsg,
-      playerId: id,
-      playerName: player.name,
-      playerColor: player.color,
-    });
-    console.log(`[Server] Sent init to late joiner ${id}`);
-  }
-
   // Notify others
   broadcast({
     type: 'player_join',
@@ -211,8 +201,8 @@ wss.on('connection', (ws) => {
     if (msg.type === 'request_state') {
       console.log(`[Server] Player ${id} requested state. lastInitMsg: ${lastInitMsg ? 'exists' : 'null'}`);
       if (lastInitMsg) {
-        // Assign settler index based on player ID: 0, 1, 2
-        const mySettlerIndex = (id - 1) % 3;
+        const mySettlerIndex = nextClientSettler;
+        nextClientSettler = nextClientSettler >= 2 ? 1 : nextClientSettler + 1; // cycle 1, 2
 
         sendTo(ws, {
           ...lastInitMsg,
