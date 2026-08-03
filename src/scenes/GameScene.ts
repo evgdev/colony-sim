@@ -7,6 +7,7 @@ import {
 } from '../config';
 import { getLayout } from '../ui/LayoutConfig';
 import { Simulation } from '../core/Simulation';
+import { Entity } from '../core/Entity';
 import { Settler } from '../entities/Settler';
 import { Resource } from '../entities/Resource';
 import { Building } from '../entities/Building';
