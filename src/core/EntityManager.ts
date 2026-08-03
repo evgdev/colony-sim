@@ -50,7 +50,8 @@ export class EntityManager {
     const manager = new EntityManager();
     for (const d of data) {
       let entity: Entity;
-      switch (d.entityType) {
+      const type = d.entityType || d.t;
+      switch (type) {
         case 'settler':
           entity = Settler.deserialize(d);
           break;

@@ -102,6 +102,7 @@ export class GameScene extends Phaser.Scene {
   // Multiplayer state
   isMultiplayer: boolean = false;
   isHost: boolean = false;
+  private initReceived: boolean = false;
   private stateSyncTimer: number = 0;
   private stateSyncInterval: number = 10; // ticks between state syncs
   remotePlayers: Map<number, { id: number; name: string; color: string; assignedSettlers: number[] }> = new Map();
@@ -765,6 +766,8 @@ export class GameScene extends Phaser.Scene {
   }
 
   private handleMultiplayerInit(msg: any): void {
+    if (this.initReceived) { console.log('[MP] Init already received, skipping'); return; }
+    this.initReceived = true;
     try {
       console.log('[MP] Received init:', msg);
       // Validate dimensions to prevent crash
