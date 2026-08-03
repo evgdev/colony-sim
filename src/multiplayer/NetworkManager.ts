@@ -40,6 +40,13 @@ export class NetworkManager {
     this.errorHandlers.push(handler);
   }
 
+  clearHandlers(): void {
+    this.messageHandlers = [];
+    this.connectHandlers = [];
+    this.disconnectHandlers = [];
+    this.errorHandlers = [];
+  }
+
   connect(url: string, name: string): void {
     this.url = url;
     this.playerName = name;

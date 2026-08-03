@@ -674,6 +674,7 @@ export class GameScene extends Phaser.Scene {
 
   // ── Network handlers ──
   private setupNetworkHandlers(): void {
+    networkManager.clearHandlers(); // prevent duplicate handlers
     networkManager.onMessage((msg) => this.handleNetworkMessage(msg));
     networkManager.onConnect(() => {
       this.uiManager?.addLog('Подключено к серверу');
@@ -2248,6 +2249,9 @@ export class GameScene extends Phaser.Scene {
 
   private checkGameOver(): void {
     if (this.gameOver) return;
+    if (!this.worldReady) return;
+    // Don't check game over immediately after multiplayer init
+    if (this.isMultiplayer && !this.isHost && this.simulation.tickCount < 10) return;
     const settlers = this.simulation.entityManager.getByType('settler') as Settler[];
     const alive = settlers.filter(s => s.isAlive);
 
