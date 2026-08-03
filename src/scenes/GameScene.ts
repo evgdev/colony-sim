@@ -952,7 +952,11 @@ export class GameScene extends Phaser.Scene {
 
   // ── Host: broadcast state ──
   private broadcastInit(): void {
-    if (!this.isHost || !networkManager.isConnected) return;
+    console.log('[MP] broadcastInit called. isHost:', this.isHost, 'isConnected:', networkManager.isConnected);
+    if (!this.isHost || !networkManager.isConnected) {
+      console.log('[MP] broadcastInit skipped - not host or not connected');
+      return;
+    }
 
     const settlers = this.simulation.entityManager.getByType('settler') as Settler[];
     networkManager.send({
