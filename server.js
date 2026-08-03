@@ -245,14 +245,13 @@ wss.on('connection', (ws) => {
       return;
     }
 
-    // ── Host-only messages ──
-    if (!player.isHost) {
-      // Client actions → relay to host
-      if (['move_settler', 'build', 'collect', 'attack', 'work_mode', 'request_state'].includes(msg.type)) {
-        msg.playerId = id;
-        sendTo(hostWs, msg);
-        return;
-      }
+    // ── Actions: broadcast to ALL clients ──
+    const ACTION_TYPES = ['move_settler', 'build', 'collect', 'attack', 'work_mode'];
+    if (ACTION_TYPES.includes(msg.type)) {
+      msg.playerId = id;
+      msg.playerName = player.name;
+      broadcast(msg); // send to ALL, including sender
+      console.log(`[Server] Action ${msg.type} from player ${id}`);
       return;
     }
 

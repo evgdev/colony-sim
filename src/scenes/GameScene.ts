@@ -711,57 +711,47 @@ export class GameScene extends Phaser.Scene {
     }
   }
 
-  // ── Host: handle client actions ──
+  // ── Handle remote actions (from other players) ──
   private handleRemoteMoveSettler(msg: any): void {
-    if (!this.isHost) return;
-    const settler = this.simulation.entityManager.get(msg.settlerId) as Settler | undefined;
+    // Find settler by index in the world
+    const settlers = this.simulation.entityManager.getByType('settler') as Settler[];
+    const settlerIndex = msg.settlerIndex ?? 0;
+    const settler = settlers[settlerIndex];
     if (!settler || !settler.isAlive) return;
+    // Don't apply our own actions (we already did them locally)
+    if (msg.playerId === networkManager.playerId) return;
     this.workSystem.createMoveTask(msg.x, msg.y, undefined, settler, false);
-    this.broadcastEntityUpdate(settler);
   }
 
   private handleRemoteBuild(msg: any): void {
-    if (!this.isHost) return;
     const def = (buildingsData as any)[msg.buildingType];
     if (!def) return;
-
-    // Check resources
-    if (!this.simulation.hasResource('wood', def.cost?.wood ?? 0)) return;
-    if (!this.simulation.hasResource('stone', def.cost?.stone ?? 0)) return;
-
-    // Check if tile is buildable
-    const tile = this.simulation.tileGrid.get(msg.x, msg.y);
-    if (!tile || !tile.walkable || tile.occupied) return;
-
-    // Deduct resources
-    this.simulation.removeFromInventory('wood', def.cost?.wood ?? 0);
-    this.simulation.removeFromInventory('stone', def.cost?.stone ?? 0);
-
+    // Don't apply our own actions
+    if (msg.playerId === networkManager.playerId) return;
+    // Find a settler to build
+    const settlers = this.simulation.entityManager.getByType('settler') as Settler[];
+    const freeSettler = settlers.find(s => s.isAlive && !s.currentTaskId);
+    if (!freeSettler) return;
     // Create building
     const building = new Building(msg.x, msg.y, msg.buildingType);
     this.simulation.entityManager.add(building);
     this.simulation.tileGrid.setOccupied(msg.x, msg.y, true);
     this.simulation.tileGrid.setBuilding(msg.x, msg.y, true);
-
-    // Find a settler to build
-    const settlers = this.simulation.entityManager.getByType('settler') as Settler[];
-    const freeSettler = settlers.find(s => s.isAlive && !s.currentTaskId);
-    if (freeSettler) {
-      this.workSystem.createBuildTask(building, TaskPriority.High, freeSettler);
-    }
-
-    this.broadcastEntityUpdate(building);
-    this.uiManager?.addLog(`Построено: ${def.name}`);
+    this.workSystem.createBuildTask(building, TaskPriority.High, freeSettler);
   }
 
   private handleRemoteCollect(msg: any): void {
-    if (!this.isHost) return;
+    if (msg.playerId === networkManager.playerId) return;
     const entity = this.simulation.entityManager.get(msg.entityId);
-    const settler = this.simulation.entityManager.get(msg.settlerId) as Settler | undefined;
+    const settlers = this.simulation.entityManager.getByType('settler') as Settler[];
+    const settlerIndex = msg.settlerIndex ?? 0;
+    const settler = settlers[settlerIndex];
     if (!entity || !settler || !settler.isAlive) return;
-
-    this.uiManager.onCollectCallback?.(entity, false);
-    this.broadcastEntityUpdate(settler);
+    if (entity.entityType === 'resource') {
+      this.workSystem.createPickUpTask(entity as Resource, TaskPriority.High, settler);
+    } else if (entity.entityType === 'artifact') {
+      this.workSystem.createPickUpArtifactTask(entity as Artifact, TaskPriority.High, settler);
+    }
   }
 
   private handleMultiplayerInit(msg: any): void {
@@ -980,6 +970,14 @@ export class GameScene extends Phaser.Scene {
   sendChatMessage(text: string): void {
     if (!this.isMultiplayer) return;
     networkManager.send({ type: 'chat', text });
+  }
+
+  // ── Send action to server (broadcast to all players) ──
+  sendAction(type: string, data: any): void {
+    if (!this.isMultiplayer || !networkManager.isConnected) return;
+    const settlers = this.simulation.entityManager.getByType('settler') as Settler[];
+    const mySettlerIndex = settlers.indexOf(this.selectedSettler);
+    networkManager.send({ type, settlerIndex: mySettlerIndex, ...data } as any);
   }
 
   private skipToQuest(targetQuestId: string): void {
@@ -1950,6 +1948,8 @@ export class GameScene extends Phaser.Scene {
       this.uiManager.addLog(`Picking up ${artifact.name}...`);
     }
     this.uiManager.deselectAll();
+    // Broadcast to other players
+    this.sendAction('collect', { entityId: entity.id });
   }
 
   private handleDemolish(entity: import('../core/Entity').Entity): void {
@@ -2017,6 +2017,8 @@ export class GameScene extends Phaser.Scene {
     if (!settler || !settler.isAlive) return;
     this.workSystem.createMoveTask(x, y, undefined, settler, queue);
     this.uiManager.addLog(`${languageManager.ui.menuMoveHere} (${x},${y})`);
+    // Broadcast to other players
+    this.sendAction('move_settler', { x, y });
   }
 
   private handleAttackEntity(entity: import('../core/Entity').Entity, queue: boolean): void {
